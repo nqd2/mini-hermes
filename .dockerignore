@@ -1,0 +1,11 @@
+.git
+.venv
+.data
+references
+docs
+packages/outline-backend
+**/node_modules
+**/.venv
+**/__pycache__
+**/build
+**/.svelte-kit

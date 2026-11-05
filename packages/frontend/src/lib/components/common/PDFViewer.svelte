@@ -14,6 +14,8 @@
 	export let url: string | null = null;
 	export let data: ArrayBuffer | Uint8Array | null = null;
 	export let className = 'w-full h-[70vh]';
+	export let hideControls = false;
+	export let viewerZoom: number | 'fit' = 'fit';
 	export let targetPage: number | null = null;
 	export let singlePage = false;
 	export let itemLabel = 'Page';
@@ -225,6 +227,7 @@
 	let pdfDoc: PdfDocument | null = null;
 	let pzInstance: PanZoom | null = null;
 	let zoomLevel = 1;
+	let lastViewerZoom: number | 'fit' = 'fit';
 	let rerenderTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastRenderedZoom = 1;
 	let pageCount = 0;
@@ -298,8 +301,19 @@
 					}
 				}, 300);
 			});
+			applyViewerZoom();
 		}
 	};
+	const applyViewerZoom = () => {
+		if (!pzInstance) return;
+		const target = viewerZoom === 'fit' ? 1 : viewerZoom / 100;
+		pzInstance.zoomAbs(0, 0, target);
+		zoomLevel = target;
+	};
+	$: if (viewerZoom !== lastViewerZoom) {
+		lastViewerZoom = viewerZoom;
+		applyViewerZoom();
+	}
 
 	const zoomIn = () => {
 		if (!pzInstance || !outerContainer) return;
@@ -730,7 +744,7 @@
 		<div bind:this={sceneElement} class={singlePage ? '' : 'w-full'}></div>
 	</div>
 
-	{#if !error && pdfDoc}
+	{#if !hideControls && !error && pdfDoc}
 		<div
 			class="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 rounded-lg bg-white/90 dark:bg-gray-850/90 backdrop-blur-sm shadow-lg border border-gray-200/60 dark:border-gray-700/60 px-1 py-0.5"
 		>

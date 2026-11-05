@@ -899,14 +899,10 @@ async def get_builtin_tools(
     if is_builtin_tool_enabled('tasks') and is_saved_chat_id(metadata.get('chat_id')):
         builtin_functions.extend([create_tasks, update_task])
 
-    if is_builtin_tool_enabled('mini_hermes_documents'):
-        from open_webui.mini_hermes.tools import (
-            list_editable_documents,
-            read_editable_document,
-            propose_document_edit,
-        )
+    if is_builtin_tool_enabled('mini_hermes_documents') and extra_params.get('__metadata__', {}).get('mh_agent_enabled'):
+        from open_webui.mini_hermes.agent_tools import get_agent_tools
 
-        builtin_functions.extend([list_editable_documents, read_editable_document, propose_document_edit])
+        builtin_functions.extend(get_agent_tools())
 
     # Automation tools - create and manage scheduled automations from chat
     if (

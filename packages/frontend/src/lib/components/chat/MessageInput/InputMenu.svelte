@@ -23,6 +23,7 @@
 	import PageEdit from '$lib/components/icons/PageEdit.svelte';
 	import Chats from './InputMenu/Chats.svelte';
 	import Files from './InputMenu/Files.svelte';
+	import PersonalFiles from './InputMenu/PersonalFiles.svelte';
 	import Notes from './InputMenu/Notes.svelte';
 	import Knowledge from './InputMenu/Knowledge.svelte';
 	import AttachWebpageModal from './AttachWebpageModal.svelte';
@@ -31,6 +32,7 @@
 	const i18n: any = getContext('i18n');
 
 	export let files = [];
+	export let chatId = '';
 
 	export let selectedModels: string[] = [];
 	export let fileUploadCapableModels: string[] = [];
@@ -53,6 +55,10 @@
 	let tab = '';
 
 	let showAttachWebpageModal = false;
+	export function openPersonalFiles() {
+		tab = 'personal_files';
+		show = true;
+	}
 	$: toolApprovalModes = [
 		{
 			value: 'full',
@@ -139,7 +145,7 @@
 	</Tooltip>
 
 	<div slot="content">
-		<DropdownMenu className="w-70 max-h-72 overflow-hidden transition">
+		<DropdownMenu className="{tab === 'personal_files' ? 'w-[min(24rem,calc(100vw-2rem))] max-h-80' : 'w-70 max-h-72'} overflow-hidden transition">
 			{#if tab === ''}
 				<div
 					class="max-h-72 overflow-y-auto overflow-x-hidden scrollbar-thin"
@@ -186,6 +192,16 @@
 
 						<div class="h-px mx-1 my-1 bg-gray-100 dark:bg-gray-800"></div>
 					{/if}
+
+					<button
+						role="menuitem"
+						class="flex gap-2 w-full items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40 rounded-xl text-left"
+						type="button"
+						on:click={() => { tab = 'personal_files'; }}
+					>
+						<DocumentArrowUp />
+						<span class="line-clamp-1">Personal Files (/files)</span>
+					</button>
 
 					<Tooltip
 						content={fileUploadCapableModels.length !== selectedModels.length
@@ -709,6 +725,18 @@
 					</button>
 
 					<Files {onSelect} />
+				</div>
+			{:else if tab === 'personal_files'}
+				<div class="flex h-80 w-full min-w-0 flex-col overflow-hidden" in:fly={{ x: 20, duration: 150 }}>
+					<button
+						role="menuitem"
+						class="flex w-full shrink-0 justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal select-none cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
+						on:click={() => { tab = ''; }}
+					>
+						<ChevronLeft />
+						<span>Personal Files</span>
+					</button>
+					<PersonalFiles {chatId} {files} />
 				</div>
 			{:else if tab === 'chats'}
 				<div class="flex max-h-72 flex-col overflow-hidden" in:fly={{ x: 20, duration: 150 }}>

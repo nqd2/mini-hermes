@@ -64,6 +64,7 @@ from open_webui.events import EVENTS, publish_event
 from open_webui.internal.db import get_async_db, get_async_session
 from open_webui.models.files import FileModel, Files, FileUpdateForm
 from open_webui.models.knowledge import Knowledges
+from open_webui.mini_hermes.retrieval import should_bypass_vector_indexing
 
 # Document loaders
 from open_webui.retrieval.loaders.youtube import YoutubeLoader, YoutubeTranscriptError
@@ -1801,7 +1802,12 @@ async def index_file(
             )
             hash = calculate_sha256_string(text_content)
 
-            if config['rag.bypass_embedding_and_retrieval']:
+            bypass_vector_indexing = config['rag.bypass_embedding_and_retrieval'] or should_bypass_vector_indexing(
+                USE_SLIM,
+                config.get('rag.embedding_engine'),
+                form_data.collection_name,
+            )
+            if bypass_vector_indexing:
                 await Files.update_file_hash_by_id(file.id, hash, db=db)
                 await publish_event(
                     request,

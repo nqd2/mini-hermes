@@ -451,6 +451,19 @@ async def upload_file_handler(
             db=db,
         )
 
+        # Office files explicitly uploaded from chat are copied to the user's
+        # immutable Mini-Hermes library. Keep the regular Open WebUI upload
+        # successful if the optional library copy is temporarily unavailable;
+        # the agent tool can adopt the attachment lazily on its first call.
+        if file_item and file_metadata.get('mini_hermes_chat_upload'):
+            try:
+                from open_webui.mini_hermes.library import register_chat_upload
+                from open_webui.mini_hermes.storage import ObjectStore
+
+                await register_chat_upload(db, user.id, file_item.id, ObjectStore())
+            except Exception:
+                log.exception('Could not copy chat attachment %s into Mini-Hermes Personal Folder', file_item.id)
+
         if 'channel_id' in file_metadata:
             channel = await Channels.get_channel_by_id_and_user_id(file_metadata['channel_id'], user.id, db=db)
             if channel:

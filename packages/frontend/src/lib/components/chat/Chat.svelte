@@ -57,6 +57,7 @@
 		desktopEvent
 	} from '$lib/stores';
 	import { refreshChatList, refreshFolderChatLists } from '$lib/stores/chatList';
+	import { documentViewerOpen } from '$lib/stores/documentViewerDock';
 
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
@@ -133,6 +134,7 @@
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
 	import Messages from '$lib/components/chat/Messages.svelte';
+	import DocumentChangeReview from '$lib/components/chat/DocumentChangeReview.svelte';
 	import Navbar from '$lib/components/chat/Navbar.svelte';
 	import ChatTabs from './ChatTabs.svelte';
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
@@ -5283,7 +5285,7 @@
 		: 'h-screen max-h-[100dvh]'} transition-width duration-200 ease-in-out {$showSidebar &&
 	!embedded
 		? '  md:max-w-[calc(100%-var(--sidebar-width))]'
-		: ' '} w-full max-w-full min-w-0 flex flex-col"
+		: ' '} {$documentViewerOpen && !embedded ? 'md:pr-[min(50vw,58rem)]' : ''} w-full max-w-full min-w-0 flex flex-col"
 	id={chatContainerId}
 >
 	<div in:fade={{ duration: 50 }} class="w-full h-full flex flex-col">
@@ -5715,6 +5717,10 @@
 					</div>
 				{/if}
 			</div>
+
+			{#if !isShared}
+				<DocumentChangeReview chatId={$chatId} />
+			{/if}
 
 			{#if !embedded}
 				<ChatTabs

@@ -12,6 +12,7 @@
 	export let className = 'bg-white dark:bg-gray-900 rounded-4xl';
 	export let onRequestClose: (() => void) | null = null;
 	export let ariaLabel: string | undefined = undefined;
+	export let sidePanel = false;
 	const requestClose = () => (onRequestClose ? onRequestClose() : (show = false));
 
 	let modalElement: HTMLDivElement | null = null;
@@ -171,15 +172,15 @@
 		aria-label={ariaLabel}
 		role="dialog"
 		tabindex="-1"
-		class="modal fixed top-0 right-0 left-0 bottom-0 bg-black/45 dark:bg-black/60 w-full h-screen max-h-[100dvh] {containerClassName}  flex justify-center z-9999 overflow-y-auto overscroll-contain"
+		class="modal fixed top-0 right-0 left-0 bottom-0 bg-black/45 dark:bg-black/60 w-full h-screen max-h-[100dvh] {containerClassName} flex {sidePanel ? 'justify-end p-0' : 'justify-center'} z-9999 overflow-y-auto overscroll-contain"
 		style="scrollbar-gutter: stable;"
 		in:fade={{ duration: 10 }}
 		on:mousedown={requestClose}
 	>
 		<div
-			class="m-auto max-w-full {sizeToWidth(size)} {size !== 'full'
-				? 'mx-2'
-				: ''} shadow-3xl min-h-fit scrollbar-hidden {className} border border-white dark:border-gray-850"
+			class="{sidePanel
+				? 'ml-auto h-full max-h-[100dvh] w-full md:w-[min(56rem,88vw)] max-w-full overflow-y-auto'
+				: `m-auto max-w-full ${sizeToWidth(size)} ${size !== 'full' ? 'mx-2' : ''} min-h-fit`} shadow-3xl scrollbar-hidden {className} {sidePanel ? '!rounded-none md:!rounded-l-2xl' : ''} border border-white dark:border-gray-850"
 			in:flyAndScale
 			on:mousedown={(e) => {
 				e.stopPropagation();

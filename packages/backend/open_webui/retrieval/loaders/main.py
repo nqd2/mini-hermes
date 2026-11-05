@@ -203,6 +203,32 @@ class PptxLoader:
         ]
 
 
+class MiniHermesOfficeLoader:
+    """Read Office and PDF formats with the lightweight parsers bundled by Mini-Hermes."""
+
+    def __init__(self, file_path: str, filename: str):
+        self.file_path = file_path
+        self.filename = filename
+
+    def load(self) -> list[Document]:
+        from open_webui.mini_hermes.edits import extract_text
+
+        try:
+            with open(self.file_path, 'rb') as source:
+                content = source.read()
+            text = extract_text(content, self.filename)
+        except Exception as exc:
+            log.exception('Failed to parse uploaded %s document', self.filename.rsplit('.', 1)[-1].upper())
+            reason = str(exc).replace(self.file_path, '<uploaded-file>')[:240]
+            detail = f'Unable to read {self.filename.rsplit(".", 1)[-1].upper()} document ({type(exc).__name__})'
+            if reason:
+                detail += f': {reason}'
+            raise HTTPException(400, detail) from exc
+        if not text.strip():
+            raise HTTPException(400, 'Document contains no extractable text')
+        return [Document(page_content=text, metadata={'source': self.file_path})]
+
+
 class TikaLoader:
     def __init__(self, url, file_path, mime_type=None, extract_images=None, server_version='3'):
         self.url = url
@@ -719,6 +745,8 @@ class Loader:
                     file_ext, file_content_type
                 ):
                     return TextLoader(file_path, encoding=self._detect_text_encoding(file_path))
+                if file_ext in {'docx', 'xlsx', 'pptx', 'pdf'}:
+                    return MiniHermesOfficeLoader(file_path, filename)
                 raise HTTPException(
                     503,
                     'This file type requires an external document extractor in slim. Configure one that supports it.',

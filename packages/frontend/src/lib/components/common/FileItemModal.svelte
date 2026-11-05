@@ -2,13 +2,15 @@
 	import type { WorkBook } from 'xlsx';
 	import DOMPurify from 'dompurify';
 
-	import { getContext, onMount, tick } from 'svelte';
+	import { getContext, onDestroy, tick } from 'svelte';
 
 	import { formatFileSize, getLineCount, safeLinkUrl } from '$lib/utils';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { settings } from '$lib/stores';
 	import { getKnowledgeById } from '$lib/apis/knowledge';
 	import { getFileById, getFileContentById } from '$lib/apis/files';
+	import DocumentViewerShell from './DocumentViewerShell.svelte';
+	import OfficeDocumentPreview from './OfficeDocumentPreview.svelte';
 
 	import CodeBlock from '$lib/components/chat/Messages/CodeBlock.svelte';
 	import MarkdownDocument from '$lib/components/chat/FileNav/MarkdownDocument.svelte';
@@ -18,7 +20,6 @@
 	const CONTENT_PREVIEW_LIMIT = 10000;
 	let expandedContent = false;
 
-	import Modal from './Modal.svelte';
 	import XMark from '../icons/XMark.svelte';
 	import Switch from './Switch.svelte';
 	import Tooltip from './Tooltip.svelte';
@@ -33,6 +34,14 @@
 	export let item;
 	export let show = false;
 	export let edit = false;
+	let resolvedDocumentId: string | null = null;
+	let selectedRevision: number | null = null;
+	let revisionData: ArrayBuffer | null = null;
+	let viewerError = '';
+	let revisionPageCount = 0;
+	let revisionCurrentPage = 1;
+	let revisionTargetPage = 1;
+	let viewerZoom: number | 'fit' = 'fit';
 
 	let enableFullContent = false;
 	let loading = false;
@@ -137,13 +146,16 @@
 		item?.meta?.content_type ===
 			'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
 		(item?.name && item.name.toLowerCase().endsWith('.pptx'));
+	$: fileContentUrl = item?.url?.startsWith('http')
+		? item.url
+		: `${WEBUI_API_BASE_URL}/files/${item?.id ?? item?.tempId}/content`;
 
 	const loadExcelContent = async () => {
 		try {
 			excelError = false;
 			const [arrayBuffer, { read }] = await Promise.all([
 				getFileContentById(item.id),
-				import('xlsx')
+				import('xlsx'),
 			]);
 			excelWorkbook = read(arrayBuffer, { type: 'array' });
 			excelSheetNames = excelWorkbook.SheetNames;
@@ -186,8 +198,9 @@
 			pptxError = false;
 			const [arrayBuffer, { pptxToImages }] = await Promise.all([
 				getFileContentById(item.id),
-				import('$lib/utils/pptxToHtml')
+				import('$lib/utils/pptxToHtml'),
 			]);
+			if (!arrayBuffer) throw new Error('No PPTX content available');
 			const result = await pptxToImages(arrayBuffer);
 			pptxSlides = result.images;
 			pptxCurrentSlide = 0;
@@ -198,13 +211,22 @@
 	};
 
 	const loadContent = async () => {
-		selectedTab = '';
+		resolvedDocumentId = null;
+		selectedRevision = null;
+		revisionData = null;
+		revisionPageCount = 0;
+		revisionTargetPage = 1;
+		selectedTab =
+			isPDF || isAudio || isExcel || isDocx || isPptx ? 'preview' : '';
 		expandedContent = false;
 		docxData = null;
 		if (item?.type === 'collection') {
 			loading = true;
 
-			const knowledge = await getKnowledgeById(localStorage.token, item.id).catch((e) => {
+			const knowledge = await getKnowledgeById(
+				localStorage.token,
+				item.id,
+			).catch((e) => {
 				console.error('Error fetching knowledge base:', e);
 				return null;
 			});
@@ -215,6 +237,23 @@
 			loading = false;
 		} else if (item?.type === 'file') {
 			loading = true;
+			for (const path of [`/source-files/${encodeURIComponent(item.id)}/document`, `/documents/${encodeURIComponent(item.id)}`]) {
+				const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes${path}`, {
+					headers: { Authorization: `Bearer ${localStorage.token}` }
+				}).catch(() => null);
+				if (response?.ok) {
+					const document = await response.json();
+					resolvedDocumentId = document.id;
+					selectedRevision = document.revision;
+					break;
+				}
+			}
+			if (resolvedDocumentId && selectedRevision && (isPDF || isExcel || isDocx || isPptx)) {
+				const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${selectedRevision}`, {
+					headers: { Authorization: `Bearer ${localStorage.token}` }
+				}).catch(() => null);
+				if (response?.ok) revisionData = await response.arrayBuffer();
+		}
 
 			const file = await getFileById(localStorage.token, item.id).catch((e) => {
 				console.error('Error fetching file:', e);
@@ -226,13 +265,13 @@
 			}
 
 			// Load Excel content if it's an Excel file
-			if (isExcel) {
+			if (isExcel && !revisionData) {
 				await loadExcelContent();
 			}
-			if (isDocx) {
+			if (isDocx && !revisionData) {
 				await loadDocxContent();
 			}
-			if (isPptx) {
+			if (isPptx && !revisionData) {
 				await loadPptxContent();
 			}
 
@@ -242,356 +281,450 @@
 		await tick();
 	};
 
+	const chooseRevision = async (number: number) => {
+		if (!resolvedDocumentId) return;
+		selectedRevision = number;
+		revisionData = null;
+		viewerError = '';
+		try {
+			const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${number}`, {
+				headers: { Authorization: `Bearer ${localStorage.token}` }
+			});
+			if (!response.ok) throw new Error('Could not load this revision');
+			revisionData = await response.arrayBuffer();
+			selectedTab = 'preview';
+		} catch (cause) {
+			viewerError = cause instanceof Error ? cause.message : String(cause);
+		}
+	};
+	const downloadVisibleFile = async () => {
+		if (!selectedRevision || !revisionData) {
+			const link = document.createElement('a');
+			link.href = fileContentUrl;
+			link.download = item?.name || 'document';
+			link.click();
+			return;
+		}
+		const url = URL.createObjectURL(new Blob([revisionData]));
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = item?.name || 'document';
+		link.click();
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
+	};
+
 	$: if (show) {
 		loadContent();
 	}
 
 	$: enableFullContent = item?.context === 'full';
 
-	onMount(() => {
-		console.log(item);
-	});
 </script>
 
-<Modal ariaLabel={item?.name ?? $i18n.t('File')} bind:show size="lg">
-	<div class=" px-4.5 py-3.5 w-full flex flex-col justify-center dark:text-gray-400">
-		<div class=" pb-2">
-			<div class="flex items-start justify-between">
-				<div>
-					<div class=" font-normal text-lg dark:text-gray-100">
-						<a
-							href={item?.type === 'file'
-								? item?.url?.startsWith('http')
-									? item.url
-									: `${WEBUI_API_BASE_URL}/files/${item?.id ?? item?.tempId}/content`
-								: item?.type === 'collection' && item?.id
-									? `/workspace/knowledge/${item.id}`
-									: safeLinkUrl(item?.url)}
-							target="_blank"
-							rel="noreferrer"
-							class="hover:underline line-clamp-1"
+{#if show}
+	<DocumentViewerShell
+		bind:zoom={viewerZoom}
+		filename={item?.name ?? 'File'}
+		documentId={resolvedDocumentId}
+		revision={selectedRevision}
+		size={revisionData?.byteLength ?? item?.size ?? null}
+		location={resolvedDocumentId ? 'Personal Folder' : 'Chat file'}
+		onClose={() => (show = false)}
+		onDownload={downloadVisibleFile}
+		onRevisionSelect={chooseRevision}
+		onShowText={() => (selectedTab = selectedTab === 'preview' ? '' : 'preview')}
+		textMode={selectedTab !== 'preview'}
+		pageCountOverride={revisionData ? revisionPageCount : isPptx ? pptxSlides.length : isExcel ? excelSheetNames.length : 0}
+		currentPageOverride={revisionData ? revisionCurrentPage : isPptx ? pptxCurrentSlide + 1 : isExcel ? Math.max(1, excelSheetNames.indexOf(selectedSheet) + 1) : 0}
+		onPageSelect={(page) => {
+			if (revisionData) revisionTargetPage = page;
+			else if (isPptx) pptxCurrentSlide = page - 1;
+			else if (isExcel) selectedSheet = excelSheetNames[page - 1];
+		}}
+	>
+		<div class="w-full h-full min-h-0 flex flex-col text-gray-200">
+			<div class="hidden">
+				<div class="flex items-start justify-between">
+					<div>
+						<div class=" font-normal text-lg dark:text-gray-100">
+							<a
+								href={item?.type === 'file'
+									? item?.url?.startsWith('http')
+										? item.url
+										: `${WEBUI_API_BASE_URL}/files/${item?.id ?? item?.tempId}/content`
+									: item?.type === 'collection' && item?.id
+										? `/workspace/knowledge/${item.id}`
+										: safeLinkUrl(item?.url)}
+								target="_blank"
+								rel="noreferrer"
+								class="hover:underline line-clamp-1"
+							>
+								{item?.name ?? 'File'}
+							</a>
+						</div>
+					</div>
+
+					<div class="flex items-center gap-3">
+						{#if item?.type === 'file'}
+							<a href={fileContentUrl} download={item?.name} class="text-xs hover:underline">{$i18n.t('Download')}</a>
+						{/if}
+						<button
+							aria-label={$i18n.t('Back to chat')}
+							on:click={() => {
+								show = false;
+							}}
 						>
-							{item?.name ?? 'File'}
-						</a>
+							<span class="md:hidden">←</span><span class="hidden md:block"><XMark /></span>
+						</button>
 					</div>
 				</div>
 
 				<div>
-					<button
-						aria-label={$i18n.t('Close')}
-						on:click={() => {
-							show = false;
-						}}
+					<div
+						class="flex flex-col items-center md:flex-row gap-1 justify-between w-full"
 					>
-						<XMark />
-					</button>
+						<div class=" flex flex-wrap text-xs gap-1 text-gray-500">
+							{#if item?.type === 'collection'}
+								{#if item?.type}
+									<div class="capitalize shrink-0">{item.type}</div>
+									•
+								{/if}
+
+								{#if item?.description}
+									<div class="line-clamp-1">{item.description}</div>
+									•
+								{/if}
+
+								{#if item?.created_at}
+									<div class="capitalize shrink-0">
+										{dayjs(item.created_at * 1000)
+											.locale($i18n.language)
+											.format('LL')}
+									</div>
+								{/if}
+							{/if}
+
+							{#if item.size}
+								<div class="capitalize shrink-0">
+									{formatFileSize(item.size)}
+								</div>
+								•
+							{/if}
+
+							{#if item?.file?.data?.content}
+								<div class="capitalize shrink-0">
+									{#if isExcel && rowCount > 0 && selectedTab === 'preview'}
+										{$i18n.t('{{COUNT}} Rows', {
+											COUNT: rowCount,
+										})}
+									{:else}
+										{$i18n.t('{{COUNT}} extracted lines', {
+											COUNT: getLineCount(item?.file?.data?.content ?? ''),
+										})}
+									{/if}
+								</div>
+
+								<div class="flex items-center gap-1 shrink-0">
+									• {$i18n.t('Formatting may be inconsistent from source.')}
+								</div>
+							{/if}
+
+							{#if item?.knowledge}
+								<div class="capitalize shrink-0">
+									{$i18n.t('Knowledge Base')}
+								</div>
+							{/if}
+						</div>
+
+						{#if edit}
+							<div class=" self-end">
+								<Tooltip
+									content={enableFullContent
+										? $i18n.t(
+												'Inject the entire content as context for comprehensive processing, this is recommended for complex queries.',
+											)
+										: $i18n.t(
+												'Default to segmented retrieval for focused and relevant content extraction, this is recommended for most cases.',
+											)}
+								>
+									<div class="flex items-center gap-1.5 text-xs">
+										{#if enableFullContent}
+											{$i18n.t('Using Entire Document')}
+										{:else}
+											{$i18n.t('Using Focused Retrieval')}
+										{/if}
+										<Switch
+											bind:state={enableFullContent}
+											on:change={(e) => {
+												item.context = e.detail ? 'full' : undefined;
+											}}
+										/>
+									</div>
+								</Tooltip>
+							</div>
+						{/if}
+					</div>
 				</div>
 			</div>
 
-			<div>
-				<div class="flex flex-col items-center md:flex-row gap-1 justify-between w-full">
-					<div class=" flex flex-wrap text-xs gap-1 text-gray-500">
-						{#if item?.type === 'collection'}
-							{#if item?.type}
-								<div class="capitalize shrink-0">{item.type}</div>
-								•
-							{/if}
-
-							{#if item?.description}
-								<div class="line-clamp-1">{item.description}</div>
-								•
-							{/if}
-
-							{#if item?.created_at}
-								<div class="capitalize shrink-0">
-									{dayjs(item.created_at * 1000)
-										.locale($i18n.language)
-										.format('LL')}
+			<div class="min-h-0 flex-1">
+				{#if !loading}
+					{#if item?.type === 'collection'}
+						<div>
+							{#each item?.files as file}
+								<div class="flex items-center gap-2 mb-2">
+									<div class="flex-shrink-0 text-xs">
+										{file?.meta?.name}
+									</div>
 								</div>
-							{/if}
-						{/if}
+							{/each}
+						</div>
+					{/if}
 
-						{#if item.size}
-							<div class="capitalize shrink-0">{formatFileSize(item.size)}</div>
-							•
-						{/if}
-
-						{#if item?.file?.data?.content}
-							<div class="capitalize shrink-0">
-								{#if isExcel && rowCount > 0 && selectedTab === 'preview'}
-									{$i18n.t('{{COUNT}} Rows', {
-										COUNT: rowCount
-									})}
-								{:else}
-									{$i18n.t('{{COUNT}} extracted lines', {
-										COUNT: getLineCount(item?.file?.data?.content ?? '')
-									})}
-								{/if}
-							</div>
-
-							<div class="flex items-center gap-1 shrink-0">
-								• {$i18n.t('Formatting may be inconsistent from source.')}
-							</div>
-						{/if}
-
-						{#if item?.knowledge}
-							<div class="capitalize shrink-0">
-								{$i18n.t('Knowledge Base')}
-							</div>
-						{/if}
-					</div>
-
-					{#if edit}
-						<div class=" self-end">
-							<Tooltip
-								content={enableFullContent
-									? $i18n.t(
-											'Inject the entire content as context for comprehensive processing, this is recommended for complex queries.'
-										)
-									: $i18n.t(
-											'Default to segmented retrieval for focused and relevant content extraction, this is recommended for most cases.'
-										)}
+					{#if isAudio || isPDF || isExcel || isCode || isMarkdown || isDocx || isPptx}
+						<div
+						class="hidden"
+						>
+							<button
+								class="min-w-fit py-1.5 px-4 border-b {selectedTab === ''
+									? ' '
+									: ' border-transparent text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+								type="button"
+								on:click={() => {
+									selectedTab = '';
+								}}>{$i18n.t('Content')}</button
 							>
-								<div class="flex items-center gap-1.5 text-xs">
-									{#if enableFullContent}
-										{$i18n.t('Using Entire Document')}
-									{:else}
-										{$i18n.t('Using Focused Retrieval')}
-									{/if}
-									<Switch
-										bind:state={enableFullContent}
-										on:change={(e) => {
-											item.context = e.detail ? 'full' : undefined;
-										}}
+
+							<button
+								class="min-w-fit py-1.5 px-4 border-b {selectedTab === 'preview'
+									? ' '
+									: ' border-transparent text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+								type="button"
+								on:click={() => {
+									selectedTab = 'preview';
+								}}>{$i18n.t('Preview')}</button
+							>
+						</div>
+					{/if}
+
+					{#if isImage}
+						<div class="relative w-full max-h-[70vh] overflow-hidden">
+							<div class="absolute top-2 right-2 z-10">
+								<Tooltip content={$i18n.t('Reset view')}>
+									<button
+										aria-label={$i18n.t('Reset view')}
+										class="p-1.5 rounded-lg bg-white/80 dark:bg-gray-850/80 backdrop-blur-sm shadow-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-500 dark:text-gray-400"
+										on:click={resetImageView}
+									>
+										<Reset className="size-4" />
+									</button>
+								</Tooltip>
+							</div>
+							<PanzoomContainer bind:this={panzoomRef}>
+								<img
+									src={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
+									alt={item?.name ?? 'Image'}
+									class="w-full object-contain rounded-lg"
+									loading="lazy"
+									draggable="false"
+								/>
+							</PanzoomContainer>
+						</div>
+					{:else if selectedTab === ''}
+						{#if item?.file?.data}
+							{@const rawContent =
+								(item?.file?.data?.content ?? '').trim() || 'No content'}
+							{@const isTruncated =
+								($settings?.renderMarkdownInPreviews ?? true) &&
+								rawContent.length > CONTENT_PREVIEW_LIMIT &&
+								!expandedContent}
+							{#if $settings?.renderMarkdownInPreviews ?? true}
+								<div>
+									<MarkdownDocument
+										content={isTruncated
+											? rawContent.slice(0, CONTENT_PREVIEW_LIMIT)
+											: rawContent}
+										id="file-preview"
 									/>
 								</div>
-							</Tooltip>
-						</div>
-					{/if}
-				</div>
-			</div>
-		</div>
-
-		<div class="max-h-[75vh] overflow-auto">
-			{#if !loading}
-				{#if item?.type === 'collection'}
-					<div>
-						{#each item?.files as file}
-							<div class="flex items-center gap-2 mb-2">
-								<div class="flex-shrink-0 text-xs">
-									{file?.meta?.name}
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-
-				{#if isAudio || isPDF || isExcel || isCode || isMarkdown || isDocx || isPptx}
-					<div
-						class="flex mb-2.5 scrollbar-none overflow-x-auto w-full border-b border-gray-50 dark:border-gray-850/30 text-center text-sm font-normal bg-transparent dark:text-gray-200"
-					>
-						<button
-							class="min-w-fit py-1.5 px-4 border-b {selectedTab === ''
-								? ' '
-								: ' border-transparent text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-							type="button"
-							on:click={() => {
-								selectedTab = '';
-							}}>{$i18n.t('Content')}</button
-						>
-
-						<button
-							class="min-w-fit py-1.5 px-4 border-b {selectedTab === 'preview'
-								? ' '
-								: ' border-transparent text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-							type="button"
-							on:click={() => {
-								selectedTab = 'preview';
-							}}>{$i18n.t('Preview')}</button
-						>
-					</div>
-				{/if}
-
-				{#if isImage}
-					<div class="relative w-full max-h-[70vh] overflow-hidden">
-						<div class="absolute top-2 right-2 z-10">
-							<Tooltip content={$i18n.t('Reset view')}>
-								<button
-									aria-label={$i18n.t('Reset view')}
-									class="p-1.5 rounded-lg bg-white/80 dark:bg-gray-850/80 backdrop-blur-sm shadow-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-500 dark:text-gray-400"
-									on:click={resetImageView}
-								>
-									<Reset className="size-4" />
-								</button>
-							</Tooltip>
-						</div>
-						<PanzoomContainer bind:this={panzoomRef}>
-							<img
-								src={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
-								alt={item?.name ?? 'Image'}
-								class="w-full object-contain rounded-lg"
-								loading="lazy"
-								draggable="false"
-							/>
-						</PanzoomContainer>
-					</div>
-				{:else if selectedTab === ''}
-					{#if item?.file?.data}
-						{@const rawContent = (item?.file?.data?.content ?? '').trim() || 'No content'}
-						{@const isTruncated =
-							($settings?.renderMarkdownInPreviews ?? true) &&
-							rawContent.length > CONTENT_PREVIEW_LIMIT &&
-							!expandedContent}
-						{#if $settings?.renderMarkdownInPreviews ?? true}
-							<div class="max-h-96 overflow-scroll scrollbar-hidden">
-								<MarkdownDocument
-									content={isTruncated ? rawContent.slice(0, CONTENT_PREVIEW_LIMIT) : rawContent}
-									id="file-preview"
-								/>
-							</div>
-							{#if isTruncated}
-								<button
-									class="mt-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
-									on:click={() => {
-										expandedContent = true;
-									}}
-								>
-									{$i18n.t('Show all ({{COUNT}} characters)', {
-										COUNT: rawContent.length.toLocaleString()
-									})}
-								</button>
-							{/if}
-						{:else}
-							<div class="max-h-96 overflow-scroll scrollbar-hidden text-xs whitespace-pre-wrap">
-								{rawContent}
-							</div>
-						{/if}
-					{:else if item?.content}
-						{@const rawContent = (item?.content ?? '').trim() || 'No content'}
-						{@const isTruncated =
-							($settings?.renderMarkdownInPreviews ?? true) &&
-							rawContent.length > CONTENT_PREVIEW_LIMIT &&
-							!expandedContent}
-						{#if $settings?.renderMarkdownInPreviews ?? true}
-							<div class="max-h-96 overflow-scroll scrollbar-hidden">
-								<MarkdownDocument
-									content={isTruncated ? rawContent.slice(0, CONTENT_PREVIEW_LIMIT) : rawContent}
-									id="file-preview-content"
-								/>
-							</div>
-							{#if isTruncated}
-								<button
-									class="mt-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
-									on:click={() => {
-										expandedContent = true;
-									}}
-								>
-									{$i18n.t('Show all ({{COUNT}} characters)', {
-										COUNT: rawContent.length.toLocaleString()
-									})}
-								</button>
-							{/if}
-						{:else}
-							<div class="max-h-96 overflow-scroll scrollbar-hidden text-xs whitespace-pre-wrap">
-								{rawContent}
-							</div>
-						{/if}
-					{/if}
-				{:else if selectedTab === 'preview'}
-					{#if isAudio}
-						<audio
-							src={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
-							class="w-full border-0 rounded-lg mb-2"
-							controls
-							playsinline
-						/>
-					{:else if isPDF}
-						<PDFViewer
-							url={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
-							className="w-full h-[70vh] border-0 rounded-lg"
-						/>
-					{:else if isExcel}
-						{#if excelError}
-							<div class="text-red-500 text-sm p-4">
-								{$i18n.t('Failed to load Excel/CSV file. Please try downloading it instead.')}
-							</div>
-						{:else}
-							{#if excelSheetNames.length > 1}
+								{#if isTruncated}
+									<button
+										class="mt-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
+										on:click={() => {
+											expandedContent = true;
+										}}
+									>
+										{$i18n.t('Show all ({{COUNT}} characters)', {
+											COUNT: rawContent.length.toLocaleString(),
+										})}
+									</button>
+								{/if}
+							{:else}
 								<div
-									class="flex mb-2.5 scrollbar-none overflow-x-auto w-full border-b border-gray-50 dark:border-gray-850/30 text-center text-sm font-normal bg-transparent dark:text-gray-200"
+									class="text-xs whitespace-pre-wrap"
 								>
-									{#each excelSheetNames as sheetName}
-										<button
-											class="min-w-fit py-1.5 px-4 border-b {selectedSheet === sheetName
-												? ' '
-												: ' border-transparent text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-											type="button"
-											on:click={() => {
-												selectedSheet = sheetName;
-											}}>{sheetName}</button
-										>
-									{/each}
+									{rawContent}
 								</div>
 							{/if}
-
-							{#if excelHtml}
-								<div class="office-preview overflow-auto max-h-[60vh]">
-									{@html excelHtml}
+						{:else if item?.content}
+							{@const rawContent = (item?.content ?? '').trim() || 'No content'}
+							{@const isTruncated =
+								($settings?.renderMarkdownInPreviews ?? true) &&
+								rawContent.length > CONTENT_PREVIEW_LIMIT &&
+								!expandedContent}
+							{#if $settings?.renderMarkdownInPreviews ?? true}
+								<div>
+									<MarkdownDocument
+										content={isTruncated
+											? rawContent.slice(0, CONTENT_PREVIEW_LIMIT)
+											: rawContent}
+										id="file-preview-content"
+									/>
+								</div>
+								{#if isTruncated}
+									<button
+										class="mt-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
+										on:click={() => {
+											expandedContent = true;
+										}}
+									>
+										{$i18n.t('Show all ({{COUNT}} characters)', {
+											COUNT: rawContent.length.toLocaleString(),
+										})}
+									</button>
+								{/if}
+							{:else}
+								<div
+									class="text-xs whitespace-pre-wrap"
+								>
+									{rawContent}
+								</div>
+							{/if}
+						{/if}
+					{:else if selectedTab === 'preview'}
+						{#if isAudio}
+							<audio
+								src={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
+								class="w-full border-0 rounded-lg mb-2"
+								controls
+								playsinline
+							></audio>
+						{:else if revisionData && selectedRevision}
+							<OfficeDocumentPreview filename={item?.name ?? ''} data={revisionData} bind:pageCount={revisionPageCount} bind:currentPage={revisionCurrentPage} targetPage={revisionTargetPage} zoom={viewerZoom} />
+						{:else if isPDF}
+							<PDFViewer
+								url={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
+								hideControls
+								viewerZoom={viewerZoom}
+								className="w-full h-full min-h-[40rem] border-0"
+							/>
+						{:else if isExcel}
+							{#if excelError}
+								<div class="text-red-500 text-sm p-4">
+									{$i18n.t(
+										'Failed to load Excel/CSV file. Please try downloading it instead.',
+									)}
 								</div>
 							{:else}
-								<div class="text-gray-500 text-sm p-4">{$i18n.t('No content available')}</div>
+								{#if excelSheetNames.length > 1}
+									<div
+										class="flex mb-2.5 scrollbar-none overflow-x-auto w-full border-b border-gray-50 dark:border-gray-850/30 text-center text-sm font-normal bg-transparent dark:text-gray-200"
+									>
+										{#each excelSheetNames as sheetName}
+											<button
+												class="min-w-fit py-1.5 px-4 border-b {selectedSheet ===
+												sheetName
+													? ' '
+													: ' border-transparent text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+												type="button"
+												on:click={() => {
+													selectedSheet = sheetName;
+												}}>{sheetName}</button
+											>
+										{/each}
+									</div>
+								{/if}
+
+								{#if excelHtml}
+									<div class="office-preview overflow-auto min-h-[40rem]" style:zoom={viewerZoom === 'fit' ? 1 : viewerZoom / 100}>
+										{@html excelHtml}
+									</div>
+								{:else}
+									<div class="text-gray-500 text-sm p-4">
+										{$i18n.t('No content available')}
+									</div>
+								{/if}
 							{/if}
-						{/if}
-					{:else if isCode}
-						<div class="max-h-[60vh] overflow-scroll scrollbar-hidden text-sm relative">
-							<CodeBlock
-								code={item.file.data.content}
-								lang={item.name.split('.').pop()}
-								token={null}
-								edit={false}
-								run={false}
-								save={false}
-							/>
-						</div>
-					{:else if isMarkdown}
-						<div class="max-h-[60vh] overflow-scroll scrollbar-hidden">
-							<MarkdownDocument content={item.file.data.content} id="markdown-viewer" />
-						</div>
-					{:else if isDocx}
-						{#if docxError}
-							<div class="text-red-500 text-sm p-4">
-								{$i18n.t('Failed to load DOCX file. Please try downloading it instead.')}
+						{:else if isCode}
+							<div
+								class="text-sm relative"
+							>
+								<CodeBlock
+									code={item.file.data.content}
+									lang={item.name.split('.').pop()}
+									token={null}
+									edit={false}
+									run={false}
+									save={false}
+								/>
 							</div>
-						{:else if docxData}
-							<DocxPreview data={docxData} className="h-[60vh]" />
-						{:else}
-							<div class="text-gray-500 text-sm p-4">{$i18n.t('No content available')}</div>
-						{/if}
-					{:else if isPptx}
-						{#if pptxError}
-							<div class="text-red-500 text-sm p-4">
-								{$i18n.t('Failed to load PPTX file. Please try downloading it instead.')}
+						{:else if isMarkdown}
+							<div>
+								<MarkdownDocument
+									content={item.file.data.content}
+									id="markdown-viewer"
+								/>
 							</div>
-						{:else if pptxSlides.length > 0}
-							<PptxPreview
-								slides={pptxSlides}
-								bind:currentSlide={pptxCurrentSlide}
-								className="h-[60vh]"
-							/>
+						{:else if isDocx}
+							{#if docxError}
+								<div class="text-red-500 text-sm p-4">
+									{$i18n.t(
+										'Failed to load DOCX file. Please try downloading it instead.',
+									)}
+								</div>
+							{:else if docxData}
+								<DocxPreview data={docxData} hideControls viewerZoom={viewerZoom} className="h-full min-h-[40rem]" />
+							{:else}
+								<div class="text-gray-500 text-sm p-4">
+									{$i18n.t('No content available')}
+								</div>
+							{/if}
+						{:else if isPptx}
+							{#if pptxError}
+								<div class="text-red-500 text-sm p-4">
+									{$i18n.t(
+										'Failed to load PPTX file. Please try downloading it instead.',
+									)}
+								</div>
+							{:else if pptxSlides.length > 0}
+								<PptxPreview
+									slides={pptxSlides}
+									bind:currentSlide={pptxCurrentSlide}
+									hideControls
+									hideThumbnailRail
+									viewerZoom={viewerZoom}
+									className="h-full min-h-[40rem]"
+								/>
+							{:else}
+								<div class="text-gray-500 text-sm p-4">
+									{$i18n.t('No content available')}
+								</div>
+							{/if}
 						{:else}
-							<div class="text-gray-500 text-sm p-4">{$i18n.t('No content available')}</div>
+							<div
+								class="text-xs whitespace-pre-wrap"
+							>
+								{(item?.file?.data?.content ?? '').trim() || 'No content'}
+							</div>
 						{/if}
-					{:else}
-						<div class="max-h-96 overflow-scroll scrollbar-hidden text-xs whitespace-pre-wrap">
-							{(item?.file?.data?.content ?? '').trim() || 'No content'}
-						</div>
 					{/if}
+				{:else}
+					<div class="flex items-center justify-center py-6">
+						<Spinner className="size-5" />
+					</div>
 				{/if}
-			{:else}
-				<div class="flex items-center justify-center py-6">
-					<Spinner className="size-5" />
-				</div>
-			{/if}
+			</div>
+			{#if viewerError}<p role="alert" class="p-3 text-sm text-red-400">{viewerError}</p>{/if}
 		</div>
-	</div>
-</Modal>
+	</DocumentViewerShell>
+{/if}

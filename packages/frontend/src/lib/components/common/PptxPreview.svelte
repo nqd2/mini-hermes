@@ -10,6 +10,9 @@
 	export let slides: string[] = [];
 	export let currentSlide = 0;
 	export let className = '';
+	export let hideControls = false;
+	export let hideThumbnailRail = false;
+	export let viewerZoom: number | 'fit' = 'fit';
 	export let targetPage: number | null = null;
 	export let itemLabel = 'Slide';
 	export let listLabel = 'Slides';
@@ -33,6 +36,7 @@
 	let naturalHeight = 720;
 	let fitScale = 1;
 	let zoomLevel = 1;
+	let lastViewerZoom: number | 'fit' = 'fit';
 	let resizeObserver: ResizeObserver | null = null;
 	let pzInstance: PanZoom | null = null;
 	let mounted = false;
@@ -61,7 +65,7 @@
 	};
 
 	const updateLayout = () => {
-		hideThumbs = (rootEl?.clientWidth ?? window.innerWidth) < 720;
+		hideThumbs = hideThumbnailRail || (rootEl?.clientWidth ?? window.innerWidth) < 720;
 		void tick().then(() => {
 			updateFitScale();
 			scrollSelectedThumbnailIntoView();
@@ -104,7 +108,18 @@
 		pzInstance.on('pan', () => {
 			zoomLevel = pzInstance?.getTransform()?.scale ?? 1;
 		});
+		applyViewerZoom();
 	};
+	const applyViewerZoom = () => {
+		if (!pzInstance) return;
+		const target = viewerZoom === 'fit' ? 1 : viewerZoom / 100;
+		pzInstance.zoomAbs(0, 0, target);
+		zoomLevel = target;
+	};
+	$: if (viewerZoom !== lastViewerZoom) {
+		lastViewerZoom = viewerZoom;
+		applyViewerZoom();
+	}
 
 	const selectSlide = (index: number) => {
 		const nextSlide = Math.min(Math.max(0, index), Math.max(0, slides.length - 1));
@@ -155,8 +170,8 @@
 
 	export const resetView = () => {
 		pzInstance?.moveTo(0, 0);
-		pzInstance?.zoomAbs(0, 0, 1);
-		zoomLevel = 1;
+		pzInstance?.zoomAbs(0, 0, viewerZoom === 'fit' ? 1 : viewerZoom / 100);
+		zoomLevel = viewerZoom === 'fit' ? 1 : viewerZoom / 100;
 		updateFitScale();
 	};
 
@@ -336,7 +351,7 @@
 		{/if}
 	</section>
 
-	{#if slides.length > 0}
+	{#if !hideControls && slides.length > 0}
 		<div
 			class="absolute bottom-3 {hideThumbs
 				? 'left-1/2'

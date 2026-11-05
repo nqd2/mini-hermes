@@ -24,6 +24,7 @@ from open_webui.env import (
     ENABLE_ADMIN_CHAT_ACCESS,
     ENABLE_DB_MIGRATIONS,
     ENV,
+    FRONTEND_DIR,
     FRONTEND_BUILD_DIR,
     OFFLINE_MODE,
     OPEN_WEBUI_DIR,
@@ -94,6 +95,8 @@ async def import_legacy_config_json():
 
 STATIC_DIR = Path(os.getenv('STATIC_DIR', OPEN_WEBUI_DIR / 'static')).resolve()
 STATIC_SOURCE_DIR = FRONTEND_BUILD_DIR / 'static'
+if not STATIC_SOURCE_DIR.is_dir():
+    STATIC_SOURCE_DIR = FRONTEND_DIR / 'static'
 if not STATIC_SOURCE_DIR.is_dir():
     STATIC_SOURCE_DIR = BASE_DIR / 'static' / 'static'
 if not STATIC_SOURCE_DIR.is_dir():
@@ -486,6 +489,7 @@ VECTOR_DB = os.getenv('VECTOR_DB', 'pgvector' if USE_SLIM else 'chroma')
 CHROMA_DATA_PATH = f'{DATA_DIR}/vector_db'
 
 if VECTOR_DB == 'chroma' and not USE_SLIM:
+    # pyrefly: ignore[missing-import]
     import chromadb
 
     CHROMA_TENANT = os.getenv('CHROMA_TENANT', chromadb.DEFAULT_TENANT)

@@ -31,6 +31,7 @@
 
 	export let query = '';
 	export let onSelect = (e) => {};
+	export let onFiles: () => void = () => {};
 	export let canCompact = false;
 	export let canCompare = false;
 	export let compactDisabled = false;
@@ -61,6 +62,9 @@
 	$: commandItems = [
 		...(canSide && ['side', 'btw'].some((name) => name.startsWith(query.toLowerCase()))
 			? [{ type: 'command', data: { id: 'side' } }]
+			: []),
+		...('files'.startsWith(query.toLowerCase())
+			? [{ type: 'command', data: { id: 'files' } }]
 			: []),
 		...(canTemporary && 'temporary'.startsWith(query.toLowerCase())
 			? [{ type: 'command', data: { id: 'temporary' } }]
@@ -491,6 +495,20 @@
 					</span>
 				</button>
 			</Tooltip>
+		{:else if item.data.id === 'files'}
+			<button
+				type="button"
+				aria-label={$i18n.t('Choose files for this chat')}
+				class="slash-command-row flex items-center gap-2 w-full h-6 px-2 rounded-xl text-[0.8125rem] text-left transition-colors duration-75 hover:bg-gray-50/40 dark:hover:bg-gray-800/40 {commandIdx === selectedIdx ? 'app-interactive-active selected-command-option-button' : ''}"
+				on:mousedown={(e) => e.preventDefault()}
+				on:click={() => onSelect(item)}
+				on:mouseenter={() => (selectedIdx = commandIdx)}
+				data-selected={commandIdx === selectedIdx}
+			>
+				<span class="app-icon-muted flex w-4 shrink-0 items-center justify-center"><Plus className="size-3.5" /></span>
+				<span class="min-w-0 flex-1 truncate">{$i18n.t('Personal Files')}</span>
+				<span class="app-muted text-[0.625rem]">/files</span>
+			</button>
 		{:else if item.data.id === 'settings'}
 			<Tooltip content={$i18n.t('Open settings.')} placement="top">
 				<button

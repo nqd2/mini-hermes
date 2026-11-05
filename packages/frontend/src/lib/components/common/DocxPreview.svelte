@@ -17,6 +17,8 @@
 
 	export let data: ArrayBuffer | null = null;
 	export let className = '';
+	export let hideControls = false;
+	export let viewerZoom: number | 'fit' = 'fit';
 	export let targetPage: number | null = null;
 	export let reviewComments: FileComment[] | null = null;
 	export let selectedComment: FileComment | null = null;
@@ -92,11 +94,16 @@
 	let mounted = false;
 	let fitScale = 1;
 	let zoomLevel = 1;
+	let lastViewerZoom: number | 'fit' = 'fit';
 	let resizeObserver: ResizeObserver | null = null;
 
 	const SAFE_LINK_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:'];
 
 	$: docxScale = Math.max(0.25, fitScale * zoomLevel);
+	$: if (viewerZoom !== lastViewerZoom) {
+		lastViewerZoom = viewerZoom;
+		zoomLevel = viewerZoom === 'fit' ? 1 : viewerZoom / 100;
+	}
 
 	const clearPreview = () => {
 		if (containerEl) containerEl.innerHTML = '';
@@ -151,7 +158,7 @@
 	};
 
 	export const resetView = () => {
-		zoomLevel = 1;
+		zoomLevel = viewerZoom === 'fit' ? 1 : viewerZoom / 100;
 		updateFitScale();
 	};
 
@@ -187,7 +194,7 @@
 		renderedData = arrayBuffer;
 		const currentRender = ++renderId;
 		clearPreview();
-		zoomLevel = 1;
+		zoomLevel = viewerZoom === 'fit' ? 1 : viewerZoom / 100;
 
 		if (!arrayBuffer || !containerEl || !styleEl) return;
 
@@ -315,7 +322,7 @@
 		</div>
 	{/if}
 
-	{#if !loading && !error && data && !fallbackHtml}
+	{#if !hideControls && !loading && !error && data && !fallbackHtml}
 		<div
 			class="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 rounded-lg bg-white/90 dark:bg-gray-850/90 backdrop-blur-sm shadow-lg border border-gray-200/60 dark:border-gray-700/60 px-1 py-0.5"
 		>

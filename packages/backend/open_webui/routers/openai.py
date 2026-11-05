@@ -148,6 +148,34 @@ def openai_reasoning_model_handler(payload):
     return payload
 
 
+def apply_1min_tool_constraints(payload: dict, base_url: str) -> dict:
+    """Apply 1min's Chat Completions requirements for function tools."""
+    parsed = urlparse(base_url)
+    if parsed.hostname != 'api.1min.ai' or parsed.path.rstrip('/') != '/openai/v1':
+        return payload
+
+    model = str(payload.get('model', '')).lower()
+    tools = payload.get('tools') or []
+    if model.startswith('gpt-') and isinstance(tools, list) and any(
+        isinstance(tool, dict)
+        and isinstance(tool.get('function'), dict)
+        and tool['function'].get('strict') is True
+        for tool in tools
+    ):
+        payload['parallel_tool_calls'] = False
+
+    messages = payload.get('messages') or []
+    has_tool_history = any(
+        isinstance(message, dict) and (message.get('role') == 'tool' or message.get('tool_calls'))
+        for message in messages
+    )
+    if (model.startswith('gpt-5.6') or model in {'gpt-6-sol', 'gpt-6-luna'}) and (
+        tools or has_tool_history
+    ):
+        payload['reasoning_effort'] = 'none'
+    return payload
+
+
 # API routes
 
 router = APIRouter()
@@ -1506,6 +1534,8 @@ async def generate_chat_completion(
     headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
 
     is_responses = api_config.get('api_type') == 'responses'
+    if not is_responses:
+        payload = apply_1min_tool_constraints(payload, url)
 
     # Explicit continuation keeps llama.cpp from echoing the prefill in streamed replies.
     if (

@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from typing import Optional
 
@@ -234,7 +235,16 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
         )
 
-    task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
+    configured_small_model = os.getenv('MH_SMALL_TASK_MODEL', 'gpt-4.1-mini').strip()
+    if configured_small_model:
+        if configured_small_model not in models:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f'MH_SMALL_TASK_MODEL {configured_small_model!r} is not available in the configured model connections',
+            )
+        task_model_id, task_model_params = configured_small_model, {}
+    else:
+        task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
 
     log.debug('generating chat title using model %s for user %s ', task_model_id, user.email)
 

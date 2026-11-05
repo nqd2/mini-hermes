@@ -185,6 +185,7 @@
 	export let onParamChange: (key: string, value: unknown) => void = () => {};
 
 	let selectedModelIds = [];
+	let inputMenuComponent;
 	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
 	$: hasChatVariables = selectedModelIds.some(
 		(modelId) =>
@@ -1164,6 +1165,9 @@
 						language: $settings?.audio?.stt?.language
 					};
 				}
+				if (/\.(docx|xlsx|pptx|pdf)$/i.test(file.name)) {
+					metadata = { ...(metadata ?? {}), mini_hermes_chat_upload: true };
+				}
 
 				// During the file upload, file content is automatically extracted.
 				const uploadedFile = await uploadFile(localStorage.token, file, metadata, process);
@@ -1611,6 +1615,7 @@
 							'model',
 							'compare',
 							'settings',
+							'files',
 							'temporary',
 							'skills:create'
 						].includes(props?.id)
@@ -1659,6 +1664,7 @@
 					onFork: forkHandler,
 					onModel: () => modelSelector?.open(),
 					onCompare: openComparison,
+					onFiles: () => inputMenuComponent?.openPersonalFiles(),
 					onSettings: () => showSettings.set(true),
 					onTemporary: temporaryHandler,
 					onCreateSkill: createSkillHandler,
@@ -2468,7 +2474,9 @@
 							<div class=" flex justify-between mt-0.5 mb-2 mx-0.5 max-w-full" dir="ltr">
 								<div class="ml-1 self-end flex items-center">
 									<InputMenu
+						bind:this={inputMenuComponent}
 										onCompare={openComparison}
+						{chatId}
 										bind:files
 										selectedModels={selectedModelIds}
 										fileUploadCapableModels={getFilesystemUploadTerminal(

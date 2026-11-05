@@ -1390,6 +1390,10 @@ async def get_sources_from_items(
     log.debug('items: %s %s %s %s %s', items, queries, embedding_function, reranking_function, full_context)
 
     bypass_embedding_and_retrieval = await Config.get('rag.bypass_embedding_and_retrieval')
+    if USE_SLIM and not await Config.get('rag.embedding_engine'):
+        # Chat attachments use the extracted text already stored with the file.
+        # Do not initialize pgvector when this slim deployment has no embedding provider.
+        bypass_embedding_and_retrieval = True
     extracted_collections = []
     query_results = []
     folder_items = set()

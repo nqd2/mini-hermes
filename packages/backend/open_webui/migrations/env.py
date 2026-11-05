@@ -59,6 +59,7 @@ def _get_engine_connectable():
             raw_db_path = raw_db_path[1:]
 
         def _sqlite_cipher_creator():
+            # pyrefly: ignore[missing-import]
             import sqlcipher3
 
             cipher_conn = sqlcipher3.connect(raw_db_path, check_same_thread=False)

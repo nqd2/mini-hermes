@@ -78,3 +78,17 @@ def test_extract_text_includes_docx_tables_and_zero_cells():
     source = BytesIO()
     workbook.save(source)
     assert 'Sheet!A1: 0' in extract_text(source.getvalue(), 'data.xlsx')
+
+
+def test_extract_text_handles_sparse_rows_in_read_only_xlsx():
+    workbook = Workbook()
+    workbook.active.title = 'Schedule'
+    workbook.active['C2'] = 'Internship'
+    workbook.active['E2'] = 0
+    source = BytesIO()
+    workbook.save(source)
+
+    text = extract_text(source.getvalue(), 'schedule.xlsx')
+
+    assert 'Internship' in text
+    assert '\t0' in text

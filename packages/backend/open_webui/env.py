@@ -34,9 +34,9 @@ BASE_DIR = BACKEND_DIR.parent.parent
 FRONTEND_DIR = BACKEND_DIR.parent / 'frontend'
 
 try:
-    from dotenv import find_dotenv, load_dotenv
+    from dotenv import load_dotenv
 
-    load_dotenv(find_dotenv(str(BASE_DIR / '.env')))
+    load_dotenv(BACKEND_DIR / '.env')
 except ImportError:
     print('dotenv not installed, skipping...')
 

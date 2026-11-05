@@ -6,6 +6,72 @@ from io import BytesIO
 from pathlib import Path
 
 
+_OPERATION_ALIASES = {
+    'replace': 'replace_text',
+    'replace_all': 'replace_text',
+    'find_replace': 'replace_text',
+    'search_replace': 'replace_text',
+    'text_replace': 'replace_text',
+    'replace_text_in_document': 'replace_text',
+    'append_text': 'append_paragraph',
+    'set_cell_value': 'set_cell',
+    'update_cell': 'set_cell',
+}
+_SUPPORTED_OPERATIONS = {
+    'replace_text', 'append_paragraph', 'set_paragraph_style', 'set_table_cell',
+    'set_cell', 'add_sheet', 'remove_sheet', 'append_row', 'set_shape_text',
+    'set_shape_fill', 'add_slide',
+}
+
+
+def normalize_operations(operations: list[dict]) -> list[dict]:
+    """Normalize common LLM operation aliases into the editor's canonical schema."""
+    if not isinstance(operations, list):
+        raise ValueError('operations must be a list')
+    normalized = []
+    for item in operations:
+        if not isinstance(item, dict):
+            raise ValueError('Each document operation must be an object')
+        op = dict(item)
+        nested = op.get('operation')
+        if isinstance(nested, dict):
+            op = {**nested, **{key: value for key, value in op.items() if key != 'operation'}}
+
+        raw_kind = op.get('op') or op.get('action') or op.get('operation') or op.get('type')
+        if not raw_kind:
+            raw_kind = next((key for key in _SUPPORTED_OPERATIONS if key in op), None)
+            if raw_kind:
+                payload = op.get(raw_kind)
+                if isinstance(payload, dict):
+                    op = {**payload, **{key: value for key, value in op.items() if key != raw_kind}}
+
+        if not isinstance(raw_kind, str) or not raw_kind.strip():
+            raise ValueError('Each document operation must include an op/action/type name')
+        kind = raw_kind.strip().lower().replace('-', '_').replace(' ', '_')
+        kind = _OPERATION_ALIASES.get(kind, kind)
+
+        if kind == 'replace_text':
+            find = next((op[key] for key in ('find', 'find_text', 'search', 'old_text', 'old') if key in op), None)
+            replacement = next((op[key] for key in ('replace', 'replacement', 'replace_with', 'new_text', 'new', 'value', 'content') if key in op), None)
+            if not isinstance(find, str) or not isinstance(replacement, str):
+                raise ValueError('replace_text requires string fields "find" and "replace"')
+            op.update({'find': find, 'replace': replacement})
+        elif kind in {'append_paragraph', 'set_table_cell', 'set_shape_text'}:
+            if 'text' not in op:
+                text = next((op[key] for key in ('content', 'value', 'new_text') if key in op), None)
+                if isinstance(text, str):
+                    op['text'] = text
+        elif kind == 'set_cell' and 'value' not in op:
+            if 'content' in op:
+                op['value'] = op['content']
+
+        op['op'] = kind
+        op.pop('action', None)
+        op.pop('type', None)
+        normalized.append(op)
+    return normalized
+
+
 def _replace_runs(paragraph, old: str, new: str) -> None:
     # Preserve formatting when the match sits inside a run. Cross-run matches
     # retain paragraph style but use the first run's character style.
@@ -19,6 +85,7 @@ def _replace_runs(paragraph, old: str, new: str) -> None:
 
 
 def apply_operations(content: bytes, filename: str, operations: list[dict]) -> bytes:
+    operations = normalize_operations(operations)
     suffix = Path(filename).suffix.lower()
     if suffix == '.pdf':
         raise ValueError('PDF is read-only')
@@ -115,10 +182,21 @@ def extract_text(content: bytes, filename: str) -> str:
         return '\n'.join(lines)
     if suffix == '.xlsx':
         from openpyxl import load_workbook
+        from openpyxl.utils import get_column_letter
 
         book = load_workbook(BytesIO(content), read_only=True, data_only=False)
-        return '\n'.join(f'{sheet.title}!{row[0].coordinate}: ' + '\t'.join('' if c.value is None else str(c.value) for c in row)
-                         for sheet in book for row in sheet.rows if row)
+        try:
+            lines = []
+            for sheet in book:
+                first_column = get_column_letter(sheet.min_column or 1)
+                for row_number, row in enumerate(sheet.iter_rows(), start=sheet.min_row or 1):
+                    if not row:
+                        continue
+                    values = '\t'.join('' if cell.value is None else str(cell.value) for cell in row)
+                    lines.append(f'{sheet.title}!{first_column}{row_number}: {values}')
+            return '\n'.join(lines)
+        finally:
+            book.close()
     if suffix == '.pptx':
         from pptx import Presentation
 

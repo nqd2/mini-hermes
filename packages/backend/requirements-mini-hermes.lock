@@ -62,7 +62,10 @@ azure-search-documents==12.0.0
 bcrypt==5.0.0
     # via -r requirements-slim.txt
 beautifulsoup4==4.14.3
-    # via -r requirements-slim.txt
+    # via
+    #   -r requirements-slim.txt
+    #   markdownify
+    #   markitdown
 bidict==0.24.1
     # via python-socketio
 black==26.5.1
@@ -86,6 +89,7 @@ certifi==2026.10.23
     # via
     #   httpcore
     #   httpx
+    #   markitdown
     #   requests
 cffi==2.1.1
     # via
@@ -96,11 +100,15 @@ cffi==2.1.1
 chardet==7.4.3
     # via -r requirements-slim.txt
 charset-normalizer==3.5.2
-    # via requests
+    # via
+    #   markitdown
+    #   reportlab
+    #   requests
 click==8.5.0
     # via
     #   black
     #   httpx
+    #   magika
     #   typer
     #   uvicorn
 colorama==0.4.6 ; sys_platform == 'win32'
@@ -117,7 +125,9 @@ cryptography==48.0.1
     #   msal
     #   pyjwt
 defusedxml==0.7.1
-    # via youtube-transcript-api
+    # via
+    #   markitdown
+    #   youtube-transcript-api
 distro==1.9.0
     # via
     #   langsmith
@@ -128,6 +138,8 @@ fake-useragent==2.2.0
     # via -r requirements-slim.txt
 fastapi==0.136.3
     # via -r requirements-slim.txt
+flatbuffers==25.12.19
+    # via onnxruntime
 frozenlist==1.8.0
     # via
     #   aiohttp
@@ -235,12 +247,18 @@ lxml==6.1.1
     #   -r requirements-slim.txt
     #   python-docx
     #   python-pptx
+magika==1.0.3
+    # via markitdown
 mako==1.4.3
     # via alembic
 markdown==3.10.2
     # via -r requirements-slim.txt
 markdown-it-py==4.2.0
     # via rich
+markdownify==1.2.3
+    # via markitdown
+markitdown==0.1.9
+    # via -r requirements-mini-hermes.in
 markupsafe==3.0.4
     # via mako
 mcp==2.3.0
@@ -264,8 +282,11 @@ mypy-extensions==1.2.0
 numpy==2.4.6
     # via
     #   -r requirements-slim.txt
+    #   onnxruntime
     #   pgvector
     #   rank-bm25
+onnxruntime==1.31.1
+    # via magika
 openai==2.29.0
     # via -r requirements-slim.txt
 openpyxl==3.1.5
@@ -367,6 +388,7 @@ packaging==26.3
     #   black
     #   langchain-core
     #   langsmith
+    #   onnxruntime
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-sqlalchemy
 pathspec==1.1.1
@@ -377,6 +399,7 @@ pillow==13.0.0
     # via
     #   -r requirements-slim.txt
     #   python-pptx
+    #   reportlab
 platformdirs==4.14.4
     # via black
 propcache==0.5.4
@@ -386,6 +409,7 @@ propcache==0.5.4
 protobuf==6.33.6
     # via
     #   googleapis-common-protos
+    #   onnxruntime
     #   opentelemetry-proto
 psutil==7.2.2
     # via
@@ -430,6 +454,8 @@ pyotp==2.9.0
     # via -r requirements-slim.txt
 pypdf==6.21.2
     # via -r requirements-mini-hermes.in
+pypdfium2==5.10.1
+    # via -r requirements-mini-hermes.in
 python-dateutil==2.9.0.post0
     # via
     #   -r requirements-slim.txt
@@ -447,7 +473,9 @@ python-multipart==0.0.32
     #   -r requirements-slim.txt
     #   mcp
 python-pptx==1.0.2
-    # via -r requirements-mini-hermes.in
+    # via
+    #   -r requirements-mini-hermes.in
+    #   markitdown
 python-socketio==5.16.2
     # via -r requirements-slim.txt
 pytokens==0.4.1
@@ -477,12 +505,15 @@ regex==2026.5.9
     # via
     #   -r requirements-slim.txt
     #   tiktoken
+reportlab==5.1.0
+    # via -r requirements-mini-hermes.in
 requests==2.34.2
     # via
     #   -r requirements-slim.txt
     #   azure-core
     #   langchain-classic
     #   langsmith
+    #   markitdown
     #   msal
     #   opentelemetry-exporter-otlp-proto-http
     #   requests-toolbelt
@@ -505,7 +536,9 @@ shellingham==1.5.4
 simple-websocket==1.1.0
     # via python-engineio
 six==1.17.0
-    # via python-dateutil
+    # via
+    #   markdownify
+    #   python-dateutil
 sniffio==1.3.1
     # via
     #   langsmith

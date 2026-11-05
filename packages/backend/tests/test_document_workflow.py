@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from open_webui.mini_hermes import worker
 from open_webui.mini_hermes.drive import DriveClient, DriveError, sheet_range
-from open_webui.mini_hermes.models import Document, DriveCredential, Preview, Revision, SyncJob, now
+from open_webui.mini_hermes.models import Document, DriveCredential, Folder, Preview, Revision, SyncJob, now
 from open_webui.mini_hermes.oauth import save_refresh_token
 from open_webui.mini_hermes.service import commit_preview, create_document, create_preview, owned_document
 
@@ -105,7 +105,7 @@ async def test_preview_commit_is_idempotent_and_owned():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Document.__table__, Revision.__table__, Preview.__table__, SyncJob.__table__, DriveCredential.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, Preview.__table__, SyncJob.__table__, DriveCredential.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     from io import BytesIO
@@ -128,8 +128,20 @@ async def test_preview_commit_is_idempotent_and_owned():
         first_revision, first_job = await commit_preview(db, store, 'owner', preview.id)
         second_revision, second_job = await commit_preview(db, store, 'owner', preview.id)
         assert first_revision.id == second_revision.id
-        assert first_job.id == second_job.id
+        assert first_job is second_job is None
+        assert first_job is None  # Personal Folder revisions stay local until Drive sync is implemented.
         assert doc.current_revision == 2
+        assert len((await db.execute(select(SyncJob))).scalars().all()) == 0
+
+        doc.drive_file_id = 'drive-file-1'
+        await db.commit()
+        preview = await create_preview(db, doc, 'owner', [{'op': 'replace_text', 'find': 'After', 'replace': 'Synced'}])
+        preview.preview_key = f'documents/{doc.id}/previews/{preview.id}'
+        preview.status = 'ready'
+        await store.put(preview.preview_key, data.getvalue(), doc.mime_type)
+        await db.commit()
+        _, drive_job = await commit_preview(db, store, 'owner', preview.id)
+        assert drive_job is not None and drive_job.status == 'pending'
         assert len((await db.execute(select(SyncJob))).scalars().all()) == 1
     await engine.dispose()
 

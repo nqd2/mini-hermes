@@ -10,4 +10,5 @@
 **/*.pyc
 /.data/
 /.env
+**/.env
 **/.env.local

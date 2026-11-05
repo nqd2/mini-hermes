@@ -24,6 +24,7 @@
 	export let onFork: () => void = () => {};
 	export let onModel: () => void = () => {};
 	export let onCompare: (() => void) | null = null;
+	export let onFiles: () => void = () => {};
 	export let onSettings: () => void = () => {};
 	export let onTemporary: () => void = () => {};
 	export let onCreateSkill: () => void = () => {};
@@ -114,6 +115,7 @@
 					bind:this={suggestionElement}
 					{query}
 					canCompare={onCompare !== null}
+					onFiles={onFiles}
 					bind:filteredItems
 					canCompact={compactAvailable}
 					compactDisabled={isCompactDisabled}
@@ -162,6 +164,9 @@
 						} else if (type === 'command' && data.id === 'settings') {
 							command({ id: data.id, label: data.id });
 							onSettings();
+						} else if (type === 'command' && data.id === 'files') {
+							command({ id: data.id, label: data.id });
+							onFiles();
 						} else if (type === 'command' && data.id === 'temporary') {
 							command({ id: data.id, label: data.id });
 							onTemporary();

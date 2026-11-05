@@ -1,6 +1,9 @@
 .git
 .venv
 .data
+.env
+**/.env
+**/.env.local
 references
 docs
 packages/outline-backend

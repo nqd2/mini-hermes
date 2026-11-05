@@ -7,7 +7,8 @@
 export const APP_NAME = 'Open WebUI';
 
 export const WEBUI_HOSTNAME = '';
-export const WEBUI_BASE_URL = '';
+// Empty in the backend-served build; explicit origin for a standalone dev frontend.
+export const WEBUI_BASE_URL = (import.meta.env.VITE_WEBUI_BACKEND_URL || '').replace(/\/$/, '');
 export const WEBUI_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1`;
 
 export const OLLAMA_API_BASE_URL = `${WEBUI_BASE_URL}/ollama`;

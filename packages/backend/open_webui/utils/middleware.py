@@ -2178,6 +2178,31 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     if regeneration_prompt:
         form_data['messages'].append({'role': 'user', 'content': regeneration_prompt})
 
+    # Decide from the un-compacted user history so /tool and /stop-tool remain
+    # effective even when older turns are summarized for the model.
+    from open_webui.mini_hermes.agent_mode import document_agent_mode
+
+    has_scoped_documents = False
+    if chat and chat.user_id == user.id:
+        from sqlalchemy import select
+        from open_webui.internal.db import get_async_db
+        from open_webui.mini_hermes.models import ChatResource
+
+        async with get_async_db() as db:
+            has_scoped_documents = (await db.execute(
+                select(ChatResource.id).where(ChatResource.chat_id == chat_id).limit(1)
+            )).scalar_one_or_none() is not None
+
+    metadata['mh_agent_enabled'] = document_agent_mode(
+        form_data.get('messages', []),
+        has_files=bool(
+            has_scoped_documents
+            or form_data.get('files')
+            or (metadata.get('user_message') or {}).get('files')
+            or any(message.get('files') for message in form_data.get('messages', []) if message.get('role') == 'user')
+        ),
+    )
+
     filter_functions = (
         await get_filter_functions(request, model, metadata.get('filter_ids', [])) if ENABLE_FUNCTIONS else []
     )
@@ -2637,6 +2662,19 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     resolved_skill_ids = {s.id for s in available_skills} | {s['id'] for s in terminal_skills}
     chat_context['mentioned_skill_ids'] = sorted(mentioned_skill_ids & resolved_skill_ids)
     strip_skill_mentions(form_data.get('messages', []), resolved_skill_ids)
+
+    if metadata.get('mh_agent_enabled') and use_builtin_tools:
+        form_data['messages'] = add_or_update_system_message(
+            'Mini-Hermes document agent is active. Available bundled skills: '
+            'docx, pdf, pptx, xlsx. Read the relevant SKILL.md with '
+            'read_document_skill before using its scripts. Work only with '
+            'documents granted to this chat. Use run_document_code or '
+            'run_skill_script to prepare and inspect files, then '
+            'publish_document_output to save the final file. Do not claim '
+            'a file was saved until publish_document_output succeeds.',
+            form_data['messages'],
+            append=True,
+        )
 
     prompt = get_last_user_message(form_data['messages'])
 

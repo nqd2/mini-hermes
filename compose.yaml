@@ -13,6 +13,11 @@ x-app-env: &app-env
   MH_TOKEN_ENCRYPTION_KEY: ${MH_TOKEN_ENCRYPTION_KEY:?Set MH_TOKEN_ENCRYPTION_KEY in .env}
   MH_CONNECTOR_SECRET: ${MH_CONNECTOR_SECRET:?Set MH_CONNECTOR_SECRET in .env}
   MH_CONNECTOR_URL: http://google-connector:8090
+  MH_SANDBOX_URL: http://sandbox:8765
+  MH_SANDBOX_TOKEN: ${MH_SANDBOX_TOKEN:?Set MH_SANDBOX_TOKEN in .env}
+  OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.1min.ai/openai/v1}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  MH_SMALL_TASK_MODEL: ${MH_SMALL_TASK_MODEL:-gpt-4.1-mini}
   MH_GOOGLE_CLIENT_ID: ${MH_GOOGLE_CLIENT_ID:-}
   MH_GOOGLE_CLIENT_SECRET: ${MH_GOOGLE_CLIENT_SECRET:-}
   MH_GOOGLE_REDIRECT_URI: ${MH_GOOGLE_REDIRECT_URI:-http://localhost:8080/api/v1/mini-hermes/drive/callback}
@@ -27,9 +32,16 @@ services:
     image: mini-hermes:local
     ports:
       - '127.0.0.1:8080:8080'
-    environment: *app-env
+    environment:
+      <<: *app-env
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.1min.ai/openai/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-http://127.0.0.1:5173}
     volumes:
       - app-data:/app/data
+    networks:
+      - default
+      - sandbox
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,6 +51,8 @@ services:
         condition: service_started
       google-connector:
         condition: service_started
+      sandbox:
+        condition: service_started
 
   worker:
     image: mini-hermes:local
@@ -46,9 +60,42 @@ services:
     environment: *app-env
     volumes:
       - app-data:/app/data
+    networks:
+      - default
+      - sandbox
     depends_on:
       app:
         condition: service_started
+
+  sandbox:
+    image: mini-hermes:local
+    command: ["python", "-m", "open_webui.mini_hermes.sandbox_service"]
+    environment:
+      MH_SANDBOX_HOST: 0.0.0.0
+      MH_SANDBOX_PORT: '8765'
+      MH_SANDBOX_TOKEN: ${MH_SANDBOX_TOKEN:?Set MH_SANDBOX_TOKEN in .env}
+      PYTHONDONTWRITEBYTECODE: '1'
+      HOME: /tmp
+    expose:
+      - '8765'
+    networks:
+      - sandbox
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.0
 
   google-connector:
     image: mini-hermes:local
@@ -95,3 +142,7 @@ volumes:
   postgres-data:
   redis-data:
   seaweedfs-data:
+
+networks:
+  sandbox:
+    internal: true

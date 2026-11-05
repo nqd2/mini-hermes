@@ -1,0 +1,1 @@
+{"model": "gpt-6.1-sol", "messages": [{"role": "user", "content": "Say Hello, world"}], "stream": true}

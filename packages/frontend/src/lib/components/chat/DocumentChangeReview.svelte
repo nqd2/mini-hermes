@@ -14,6 +14,8 @@
     diff: string | null;
     error: string | null;
     base_revision: number;
+    base_sha256: string | null;
+    artifact_sha256: string | null;
     revision?: number;
     viewer_url?: string;
     download_url?: string;
@@ -105,6 +107,8 @@
           diff: null,
           error: null,
           base_revision: Math.max(0, record.revision - 1),
+          base_sha256: null,
+          artifact_sha256: null,
           revision: record.revision,
           viewer_url: record.viewer_url,
           download_url: record.download_url,
@@ -269,8 +273,17 @@
     committing = true;
     error = "";
     try {
+      const approval = active.base_sha256 && active.artifact_sha256
+        ? active
+        : await (await api(`/previews/${active.id}`)).json();
       const response = await api(`/previews/${active.id}/commit`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          base_revision: approval.base_revision,
+          base_sha256: approval.base_sha256,
+          artifact_sha256: approval.artifact_sha256,
+        }),
       });
       const result = await response.json();
       commitMessage = "Saved as a new local revision.";

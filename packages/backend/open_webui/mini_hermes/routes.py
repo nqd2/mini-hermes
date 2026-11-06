@@ -286,6 +286,8 @@ async def list_chat_previews(chat_id: str, user=Depends(get_verified_user), db=D
         result.append({'id': preview.id, 'document_id': document.id, 'filename': document.filename,
                        'status': preview.status, 'diff': preview.diff, 'error': preview.error,
                        'base_revision': preview.base_revision,
+                       'base_sha256': preview.base_sha256,
+                       'artifact_sha256': preview.artifact_sha256,
                        'revision': committed.number if committed else None,
                        'viewer_url': url, 'download_url': url,
                        'sync_status': job.status if job else 'local_only' if committed else None})

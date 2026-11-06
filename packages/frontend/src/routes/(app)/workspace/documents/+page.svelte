@@ -9,7 +9,16 @@
 		drive_file_id: string | null;
 		sync: { status: string; attempts: number; error: string | null } | null;
 	};
-	type PreviewItem = { id: string; status: string; diff: string | null; error: string | null; operations: object[] };
+	type PreviewItem = {
+		id: string;
+		status: string;
+		diff: string | null;
+		error: string | null;
+		operations: object[];
+		base_revision: number;
+		base_sha256: string | null;
+		artifact_sha256: string | null;
+	};
 	let documents: DocumentItem[] = [];
 	let selected: DocumentItem | null = null;
 	let previews: PreviewItem[] = [];
@@ -93,10 +102,21 @@
 		finally { busy = false; }
 	}
 
-	async function commit(previewId: string) {
+	async function commit(preview: PreviewItem) {
 		busy = true;
 		try {
-			await api(`/previews/${previewId}/commit`, { method: 'POST' });
+			const approval = preview.base_sha256 && preview.artifact_sha256
+				? preview
+				: await api(`/previews/${preview.id}`);
+			await api(`/previews/${preview.id}/commit`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					base_revision: approval.base_revision,
+					base_sha256: approval.base_sha256,
+					artifact_sha256: approval.artifact_sha256
+				})
+			});
 			statusMessage = 'Revision committed. Drive sync queued automatically.';
 			await refresh();
 		} catch (error) { statusMessage = String(error); }
@@ -215,7 +235,7 @@
 							{#if preview.diff}<pre class="mt-2 max-h-64 overflow-auto rounded bg-gray-100 p-3 text-xs dark:bg-gray-800">{preview.diff}</pre>{/if}
 							{#if preview.error}<p class="text-sm text-red-600">{preview.error}</p>{/if}
 							{#if preview.status === 'ready' || preview.status === 'committed'}<button class="mt-3 mr-3 text-sm underline" onclick={() => downloadPreview(preview.id)}>Download preview</button>{/if}
-							{#if preview.status === 'ready'}<button class="mt-3 rounded-lg bg-gray-900 px-3 py-2 text-sm text-white dark:bg-gray-100 dark:text-gray-900" onclick={() => commit(preview.id)} disabled={busy}>Confirm and commit</button>{/if}
+							{#if preview.status === 'ready'}<button class="mt-3 rounded-lg bg-gray-900 px-3 py-2 text-sm text-white dark:bg-gray-100 dark:text-gray-900" onclick={() => commit(preview)} disabled={busy}>Confirm and commit</button>{/if}
 						</div>
 					{/each}
 				</div>

@@ -301,6 +301,42 @@ async def test_chat_artifacts_lists_generated_outputs_only(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_chat_preview_list_exposes_hashes_needed_for_user_approval(monkeypatch):
+    from open_webui.mini_hermes import routes
+
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    async with engine.begin() as connection:
+        await connection.run_sync(lambda sync: Document.metadata.create_all(
+            sync, tables=[Folder.__table__, Document.__table__, Preview.__table__,
+                          Revision.__table__, ChatResource.__table__, SyncJob.__table__]))
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        db.add(Document(id='approval-doc', owner_id='alice', filename='report.docx',
+                        mime_type='application/docx', current_revision=1))
+        db.add(ChatResource(id='approval-scope', chat_id='chat-approval',
+                            document_id='approval-doc', granted_by='alice'))
+        db.add(Preview(
+            id='approval-preview', document_id='approval-doc', owner_id='alice',
+            base_revision=1, base_sha256='a' * 64, artifact_sha256='b' * 64,
+            operations=[{'op': 'replace_text'}], status='ready', preview_key='preview.docx',
+        ))
+        await db.commit()
+
+        async def fake_chat(*args, **kwargs):
+            return SimpleNamespace(id='chat-approval', chat={'messages': []})
+
+        monkeypatch.setattr(routes.Chats, 'get_chat_by_id_and_user_id', fake_chat)
+        previews = await routes.list_chat_previews(
+            'chat-approval', user=SimpleNamespace(id='alice', role='user'), db=db
+        )
+
+        assert previews[0]['base_revision'] == 1
+        assert previews[0]['base_sha256'] == 'a' * 64
+        assert previews[0]['artifact_sha256'] == 'b' * 64
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_viewer_history_and_source_resolution_check_read_permission():
     from open_webui.mini_hermes.routes import list_document_revisions, resolve_source_file
 

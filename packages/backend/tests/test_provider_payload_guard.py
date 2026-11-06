@@ -61,9 +61,41 @@ def test_context_budget_uses_serialized_payload_and_reserved_output():
 
 
 def test_unknown_model_rejects_tool_schemas_with_structured_error():
-    payload = {'model': 'unregistered-model', 'tools': [{'type': 'function', 'function': {'name': 'read'}}]}
+    payload = {
+        'model': 'unregistered-model',
+        'tools': [{'type': 'function', 'function': {'name': 'read'}}],
+        'tool_choice': 'required',
+    }
     with pytest.raises(ProviderCapabilityUnsupported) as exc:
         apply_capability_constraints(payload, 'https://provider.example/v1')
+    assert exc.value.detail['code'] == 'provider_model_does_not_support_tools'
+
+
+def test_unknown_model_drops_optional_tools_instead_of_breaking_chat():
+    payload = {
+        'model': 'unregistered-model',
+        'tools': [{'type': 'function', 'function': {'name': 'read'}}],
+        'tool_choice': 'auto',
+        'parallel_tool_calls': True,
+    }
+
+    constrained = apply_capability_constraints(payload, 'https://provider.example/v1')
+
+    assert 'tools' not in constrained
+    assert 'tool_choice' not in constrained
+    assert 'parallel_tool_calls' not in constrained
+
+
+def test_unknown_model_still_rejects_a_required_tool_call():
+    payload = {
+        'model': 'unregistered-model',
+        'tools': [{'type': 'function', 'function': {'name': 'read'}}],
+        'tool_choice': 'required',
+    }
+
+    with pytest.raises(ProviderCapabilityUnsupported) as exc:
+        apply_capability_constraints(payload, 'https://provider.example/v1')
+
     assert exc.value.detail['code'] == 'provider_model_does_not_support_tools'
 
 

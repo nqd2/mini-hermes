@@ -18,18 +18,21 @@ class ProviderCapabilityUnsupported(HTTPException):
 
 
 def apply_capability_constraints(payload: dict, base_url: str, overrides: dict | None = None) -> dict:
-    """Fail closed for unsupported tools and omit unsupported parallel-call flags."""
+    """Omit optional tools for unsupported models and reject forced tool calls."""
     from .model_capabilities import resolve_model_capabilities
 
     model = str(payload.get('model') or '')
     capabilities = resolve_model_capabilities(model, base_url, overrides)
     tools = payload.get('tools') or []
     if tools and not capabilities.supports_tools:
-        raise ProviderCapabilityUnsupported({
-            'code': 'provider_model_does_not_support_tools',
-            'message': f'Model {model} is not configured for tool calling.',
-            'model': model,
-        })
+        tool_choice = payload.get('tool_choice')
+        if tool_choice not in (None, 'auto'):
+            raise ProviderCapabilityUnsupported({
+                'code': 'provider_model_does_not_support_tools',
+                'message': f'Model {model} is not configured for tool calling.',
+                'model': model,
+            })
+        payload.pop('tools', None)
     if not capabilities.supports_tools:
         payload.pop('tool_choice', None)
     if not capabilities.parallel_tool_calls:

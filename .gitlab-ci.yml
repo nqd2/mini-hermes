@@ -1,0 +1,60 @@
+stages:
+  - test
+  - build
+  - deploy_dev
+  - deploy_prod
+
+variables:
+  DOCKER_BUILDKIT: "1"
+  IMAGE_NAME: "mini-hermes"
+
+contract_and_security_tests:
+  stage: test
+  image: python:3.12-slim
+  tags:
+    - local
+  before_script:
+    - pip install --no-cache-dir pytest pyyaml
+  script:
+    - echo "=== Running CI Contract & Security Architecture Tests ==="
+    - python3 -m pytest packages/backend/tests/test_ci_pipeline_contract.py -v
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+build_image:
+  stage: build
+  image: docker:cli
+  tags:
+    - local
+  script:
+    - echo "=== Building Docker image with commit tag: ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ==="
+    - docker build -t ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+deploy_dev:
+  stage: deploy_dev
+  image: docker:cli
+  tags:
+    - local
+  script:
+    - echo "=== Deploying to DEV Environment ==="
+    - chmod +x scripts/deploy_and_verify.sh
+    - ./scripts/deploy_and_verify.sh dev ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.dev.env
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+deploy_prod:
+  stage: deploy_prod
+  image: docker:cli
+  tags:
+    - local
+  script:
+    - echo "=== Deploying to PRODUCTION Environment ==="
+    - chmod +x scripts/deploy_and_verify.sh
+    - ./scripts/deploy_and_verify.sh prod ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.prod.env
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

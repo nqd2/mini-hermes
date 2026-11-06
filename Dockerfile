@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM node:22-alpine AS frontend
+ARG VITE_WEBUI_BACKEND_URL=""
+ENV VITE_WEBUI_BACKEND_URL=${VITE_WEBUI_BACKEND_URL}
 WORKDIR /src/packages/frontend
 COPY packages/frontend/package.json packages/frontend/package-lock.json ./
 RUN npm ci --ignore-scripts --force
@@ -14,7 +16,7 @@ FROM python:3.12-slim AS runtime
 COPY --from=ghcr.io/astral-sh/uv:0.12.20 /uv /uvx /bin/
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer libreoffice-calc libreoffice-impress \
-    poppler-utils pandoc zip unzip libstdc++6 \
+    poppler-utils pandoc zip unzip libstdc++6 curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=js-tools /usr/local/bin/node /usr/local/bin/node
 COPY --from=js-tools /opt/mini-hermes-js/node_modules /opt/mini-hermes-js/node_modules

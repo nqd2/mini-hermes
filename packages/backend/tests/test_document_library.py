@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from open_webui.models.access_grants import AccessGrant, AccessGrants
-from open_webui.mini_hermes.models import ChatResource, Document, Folder, Revision
+from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, Revision
 from open_webui.mini_hermes.library import document_in_chat_scope, ensure_personal_folder, has_document_access, list_chat_documents, list_personal_documents, move_document, set_chat_document_access
 from open_webui.mini_hermes.service import create_document
 
@@ -26,7 +26,7 @@ async def test_personal_folder_is_created_once_and_document_uses_stable_object_k
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
 
     async with sessions() as db:
@@ -54,7 +54,7 @@ async def test_uploaded_document_is_stored_under_owner_prefix():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
 
     class Store:
@@ -79,7 +79,7 @@ async def test_moving_document_changes_metadata_without_moving_object():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         root = await ensure_personal_folder(db, 'alice')
@@ -103,7 +103,7 @@ async def test_folder_read_grant_inherits_but_does_not_grant_write():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[AccessGrant.__table__, Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[AccessGrant.__table__, Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         folder = Folder(id='folder-1', owner_id='alice', name='Reports', is_personal_root=False)
@@ -126,7 +126,7 @@ async def test_description_failure_keeps_uploaded_revision_and_is_retryable(monk
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
 
     class Store:
@@ -160,7 +160,7 @@ async def test_chat_document_access_is_scoped_and_revocable():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         folder = await ensure_personal_folder(db, 'alice')
@@ -189,7 +189,7 @@ async def test_agent_list_adopts_chat_attachment_once_and_returns_it(monkeypatch
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     source = tmp_path / 'upload.docx'
     source.write_bytes(valid_docx())

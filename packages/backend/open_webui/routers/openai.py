@@ -62,6 +62,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 log = logging.getLogger(__name__)
 
 
+def _log_provider_error(status: int, headers, response_data) -> None:
+    """Log provider diagnostics without request/response content or credentials."""
+    error = response_data.get('error', response_data) if isinstance(response_data, dict) else {}
+    if not isinstance(error, dict):
+        error = {}
+    log.warning(
+        'Provider request failed: status=%s request_id=%s error_code=%s error_type=%s error_param=%s',
+        status,
+        headers.get('x-request-id') or headers.get('request-id'),
+        error.get('code'),
+        error.get('type'),
+        error.get('param'),
+    )
+
+
 # Utility functions
 # Let the responses returned through this gate be worth
 # the question that summoned them.
@@ -1597,7 +1612,21 @@ async def generate_chat_completion(
     if not is_streaming_request:
         payload.pop('stream_options', None)
 
-    payload = JSONCodec.dumps(payload)
+    from open_webui.mini_hermes.provider_guard import apply_capability_constraints, validate_provider_payload
+
+    capability_overrides = getattr(request.state, 'resource_model_capabilities', None)
+    payload = apply_capability_constraints(payload, url, capability_overrides)
+    serialized_payload = JSONCodec.dumps(payload)
+    payload_metrics = validate_provider_payload(serialized_payload, payload, url, capability_overrides)
+    log.info(
+        'Provider chat request size: model=%s messages=%d serialized_chars=%d message_chars=%d tool_chars=%d',
+        requested_model,
+        payload_metrics['message_count'],
+        payload_metrics['serialized_chars'],
+        payload_metrics['message_chars'],
+        payload_metrics['tool_chars'],
+    )
+    payload = serialized_payload
 
     r = None
     streaming = False
@@ -1615,6 +1644,12 @@ async def generate_chat_completion(
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(stream=is_streaming_request),
         )
+        log.info(
+            'Provider chat response: model=%s status=%s request_id=%s',
+            requested_model,
+            r.status,
+            r.headers.get('x-request-id') or r.headers.get('request-id'),
+        )
 
         # Check if response is SSE
         if 'text/event-stream' in r.headers.get('Content-Type', ''):
@@ -1625,9 +1660,8 @@ async def generate_chat_completion(
                 retry_headers = {k: v for k, v in r.headers.items() if k.lower() in ('retry-after', 'retry-after-ms')}
                 error_body = await r.text()
                 log.error(
-                    'Provider returned HTTP %d with SSE content-type: %s',
+                    'Provider returned HTTP %d with SSE content-type',
                     r.status,
-                    error_body[:1000],
                 )
                 try:
                     error_json = JSONCodec.loads(error_body)
@@ -1673,6 +1707,7 @@ async def generate_chat_completion(
                 response = await r.text()
 
             if r.status >= 400:
+                _log_provider_error(r.status, r.headers, response)
                 retry_headers = {k: v for k, v in r.headers.items() if k.lower() in ('retry-after', 'retry-after-ms')}
                 await publish_model_provider_request_failed(
                     request,
@@ -1787,6 +1822,7 @@ async def embeddings(request: Request, form_data: dict, user):
                 response_data = await r.text()
 
             if r.status >= 400:
+                _log_provider_error(r.status, r.headers, response_data)
                 retry_headers = {k: v for k, v in r.headers.items() if k.lower() in ('retry-after', 'retry-after-ms')}
                 await publish_model_provider_request_failed(
                     request,
@@ -1866,7 +1902,17 @@ async def responses(
     url, key, api_config = await get_openai_connection(idx)
 
     payload['model'] = strip_provider_model_prefix(payload['model'], api_config.get('prefix_id'))
+    from open_webui.mini_hermes.provider_guard import apply_capability_constraints, validate_provider_payload
+
+    capability_overrides = getattr(request.state, 'resource_model_capabilities', None)
+    payload = apply_capability_constraints(payload, url, capability_overrides)
     body = JSONCodec.dumps(payload)
+
+    payload_metrics = validate_provider_payload(body, payload, url, capability_overrides)
+    log.info(
+        'Provider responses request size: model=%s messages=%d serialized_chars=%d',
+        payload.get('model'), payload_metrics['message_count'], payload_metrics['serialized_chars'],
+    )
 
     r = None
     streaming = False
@@ -1901,6 +1947,11 @@ async def responses(
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(stream=is_streaming_request),
         )
+        log.info(
+            'Provider responses response: model=%s status=%s request_id=%s',
+            payload.get('model'), r.status,
+            r.headers.get('x-request-id') or r.headers.get('request-id'),
+        )
 
         # Check if response is SSE
         if 'text/event-stream' in r.headers.get('Content-Type', ''):
@@ -1917,6 +1968,7 @@ async def responses(
                 response_data = await r.text()
 
             if r.status >= 400:
+                _log_provider_error(r.status, r.headers, response_data)
                 retry_headers = {k: v for k, v in r.headers.items() if k.lower() in ('retry-after', 'retry-after-ms')}
                 await publish_model_provider_request_failed(
                     request,
@@ -2015,6 +2067,24 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
         else:
             request_url = f'{url}/{path}'
 
+        # Guard after provider-specific URL and payload transformations. The bytes
+        # below are the exact body sent on this attempt (and therefore every retry).
+        try:
+            validation_payload = JSONCodec.loads(body)
+        except Exception:
+            validation_payload = None
+        if isinstance(validation_payload, dict):
+            from open_webui.mini_hermes.provider_guard import apply_capability_constraints, validate_provider_payload
+
+            validation_payload = apply_capability_constraints(validation_payload, base_url)
+            body = JSONCodec.dumps(validation_payload).encode('utf-8')
+            payload_metrics = validate_provider_payload(body, validation_payload, base_url)
+            log.info(
+                'Provider proxy request size: model=%s messages=%d serialized_chars=%d',
+                validation_payload.get('model'), payload_metrics['message_count'],
+                payload_metrics['serialized_chars'],
+            )
+
         session = await get_session()
         r = await session.request(
             method=request.method,
@@ -2024,6 +2094,10 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
             cookies=cookies,
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(stream=is_streaming_request),
+        )
+        log.info(
+            'Provider proxy response: status=%s request_id=%s',
+            r.status, r.headers.get('x-request-id') or r.headers.get('request-id'),
         )
 
         # Check if response is SSE

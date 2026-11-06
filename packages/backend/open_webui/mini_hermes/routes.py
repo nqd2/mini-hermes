@@ -23,9 +23,9 @@ from open_webui.utils.auth import get_verified_user
 
 from .drive import Gateway, NATIVE_TO_OFFICE
 from .edits import normalize_operations
-from .models import ChatResource, Document, Folder, Preview, Revision, SyncJob, now
+from .models import ChatResource, Document, Folder, Preview, ResourceTask, Revision, SyncJob, now
 from .oauth import access_token_for, authorization_url, exchange_code, save_refresh_token
-from .service import MAX_BYTES, commit_preview, create_document, create_preview, owned_document, revision_for
+from .service import MAX_BYTES, commit_preview, create_document, create_preview, ensure_preview_hashes, owned_document, revision_for
 from .storage import ObjectStore
 from .library import (
     accessible_document,
@@ -40,7 +40,9 @@ from .library import (
     register_chat_upload,
     set_chat_document_access,
     ensure_personal_folder,
+    document_in_chat_scope,
 )
+from .resource_tasks import create_summary_task, get_summary_task, request_task_cancel, resume_summary_task
 
 
 router = APIRouter()
@@ -52,6 +54,17 @@ class LinkRequest(BaseModel):
 
 class PreviewRequest(BaseModel):
     operations: list[dict]
+
+
+class PreviewApprovalRequest(BaseModel):
+    base_revision: int
+    base_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+    artifact_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class ResourceTaskRequest(BaseModel):
+    kind: str = Field(default='summary', pattern='^summary$')
+    chat_id: str | None = None
 
 
 class FolderRequest(BaseModel):
@@ -386,6 +399,57 @@ async def request_preview(document_id: str, request: PreviewRequest,
     return {'id': preview.id, 'status': preview.status}
 
 
+@router.post('/documents/{document_id}/tasks')
+async def start_resource_task(document_id: str, request: ResourceTaskRequest,
+                              user=Depends(get_verified_user), db=Depends(get_async_session)):
+    doc = await accessible_document(db, document_id, user.id, 'read', is_admin=user.role == 'admin')
+    if request.chat_id and not await document_in_chat_scope(db, doc, request.chat_id, set()):
+        raise HTTPException(404, 'Document is not available in this conversation')
+    task = await create_summary_task(db, doc, user.id, request.chat_id)
+    return {'task_id': task.id, 'status': task.status, 'kind': task.kind,
+            'status_endpoint': f'/api/v1/mini-hermes/tasks/{task.id}',
+            'cancel_endpoint': f'/api/v1/mini-hermes/tasks/{task.id}/cancel',
+            'resume_endpoint': f'/api/v1/mini-hermes/tasks/{task.id}/resume'}
+
+
+@router.get('/tasks/{task_id}')
+async def resource_task_status(task_id: str, evidence_offset: int = 0, evidence_limit: int = 100,
+                               user=Depends(get_verified_user), db=Depends(get_async_session)):
+    result = await get_summary_task(
+        db, task_id, user.id, evidence_offset=evidence_offset, evidence_limit=evidence_limit
+    )
+    doc = await accessible_document(db, result['document_id'], user.id, 'read', is_admin=user.role == 'admin')
+    task = (await db.execute(select(ResourceTask).where(ResourceTask.id == task_id))).scalar_one()
+    if task.chat_id and not await document_in_chat_scope(db, doc, task.chat_id, set()):
+        raise HTTPException(404, 'Task not found')
+    return result
+
+
+@router.post('/tasks/{task_id}/cancel')
+async def cancel_resource_task(task_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
+    task = (await db.execute(select(ResourceTask).where(
+        ResourceTask.id == task_id, ResourceTask.owner_id == user.id
+    ))).scalar_one_or_none()
+    if not task:
+        raise HTTPException(404, 'Task not found')
+    await accessible_document(db, task.document_id, user.id, 'read', is_admin=user.role == 'admin')
+    task = await request_task_cancel(db, task_id, user.id)
+    return {'task_id': task.id, 'status': task.status, 'cancel_requested': task.cancel_requested}
+
+
+@router.post('/tasks/{task_id}/resume')
+async def resume_resource_task(task_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
+    task = (await db.execute(select(ResourceTask).where(
+        ResourceTask.id == task_id, ResourceTask.owner_id == user.id
+    ))).scalar_one_or_none()
+    if not task:
+        raise HTTPException(404, 'Task not found')
+    doc = await accessible_document(db, task.document_id, user.id, 'read', is_admin=user.role == 'admin')
+    resumed = await resume_summary_task(db, task_id, user.id, doc)
+    return {'task_id': resumed.id, 'status': resumed.status,
+            'completed_units': resumed.completed_units, 'total_units': resumed.total_units}
+
+
 @router.get('/documents/{document_id}/previews')
 async def list_previews(document_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
     await accessible_document(db, document_id, user.id, 'read', is_admin=user.role == 'admin')
@@ -393,7 +457,8 @@ async def list_previews(document_id: str, user=Depends(get_verified_user), db=De
                                                        Preview.owner_id == user.id)
                                  .order_by(Preview.created_at.desc()).limit(10))).scalars().all()
     return [{'id': item.id, 'status': item.status, 'diff': item.diff, 'error': item.error,
-             'operations': item.operations, 'base_revision': item.base_revision} for item in previews]
+             'operations': item.operations, 'base_revision': item.base_revision,
+             'base_sha256': item.base_sha256, 'artifact_sha256': item.artifact_sha256} for item in previews]
 
 
 @router.get('/previews/{preview_id}')
@@ -401,17 +466,19 @@ async def get_preview(preview_id: str, user=Depends(get_verified_user), db=Depen
     preview = (await db.execute(select(Preview).where(Preview.id == preview_id, Preview.owner_id == user.id))).scalar_one_or_none()
     if not preview:
         raise HTTPException(404, 'Preview not found')
+    await ensure_preview_hashes(db, ObjectStore(), preview)
     document = await db.get(Document, preview.document_id)
     return {'id': preview.id, 'document_id': preview.document_id, 'status': preview.status,
             'diff': preview.diff, 'operations': preview.operations, 'error': preview.error,
-            'base_revision': preview.base_revision,
+            'base_revision': preview.base_revision, 'base_sha256': preview.base_sha256,
+            'artifact_sha256': preview.artifact_sha256,
             'filename': document.filename if document else 'document'}
 
 
 @router.get('/previews/{preview_id}/content')
 async def get_preview_content(preview_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
     preview = (await db.execute(select(Preview).where(Preview.id == preview_id, Preview.owner_id == user.id))).scalar_one_or_none()
-    if not preview or not preview.preview_key:
+    if not preview or not preview.preview_key or preview.status not in {'ready', 'committed'}:
         raise HTTPException(404, 'Preview file not found')
     doc = await accessible_document(db, preview.document_id, user.id, 'read', is_admin=user.role == 'admin')
     return Response(await ObjectStore().get(preview.preview_key), media_type=doc.mime_type,
@@ -427,6 +494,8 @@ async def retry_preview(preview_id: str, user=Depends(get_verified_user), db=Dep
         raise HTTPException(404, 'Preview not found')
     if preview.status != 'failed':
         raise HTTPException(409, 'Only failed previews can be retried')
+    if preview.operations == [{'op': 'sandbox_publish'}]:
+        raise HTTPException(409, 'Rerun the sandbox and create a new preview for this generated artifact')
     doc = await accessible_document(db, preview.document_id, user.id, 'write', is_admin=user.role == 'admin')
     if doc.current_revision != preview.base_revision:
         raise HTTPException(409, 'Document changed since this preview was created; ask the agent to create a new preview')
@@ -438,14 +507,18 @@ async def retry_preview(preview_id: str, user=Depends(get_verified_user), db=Dep
     preview.error = None
     preview.diff = None
     preview.preview_key = None
+    preview.artifact_sha256 = None
     preview.lease_until = None
     await db.commit()
     return {'id': preview.id, 'status': preview.status}
 
 
 @router.post('/previews/{preview_id}/commit')
-async def commit(preview_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
-    revision, job = await commit_preview(db, ObjectStore(), user.id, preview_id, user.role == 'admin')
+async def commit(preview_id: str, approval: PreviewApprovalRequest,
+                 user=Depends(get_verified_user), db=Depends(get_async_session)):
+    revision, job = await commit_preview(
+        db, ObjectStore(), user.id, preview_id, user.role == 'admin', approval=approval.model_dump()
+    )
     return {'revision': revision.number, 'sync_job_id': job.id if job else None,
             'sync_status': job.status if job else 'local_only'}
 

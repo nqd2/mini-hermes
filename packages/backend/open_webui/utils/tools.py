@@ -723,7 +723,9 @@ async def get_builtin_tools(
         builtin_functions.append(ask_user)
 
     metadata = extra_params.get('__metadata__') or {}
-    chat_files = metadata.get('files') or extra_params.get('__files__') or []
+    chat_files = metadata.get(
+        'resource_files', metadata.get('files') or extra_params.get('__files__') or []
+    )
     has_chat_files = any(
         isinstance(item, dict)
         and item.get('type', 'file') == 'file'
@@ -734,12 +736,44 @@ async def get_builtin_tools(
 
     if (
         is_builtin_tool_enabled('files')
-        and get_model_capability('file_upload')
-        and not get_model_capability('file_context')
-        and has_chat_files
+        and (metadata.get('resource_aware_files') or get_model_capability('file_upload'))
+        and (metadata.get('resource_aware_files') or not get_model_capability('file_context'))
+        and (not metadata.get('resource_aware_files') or metadata.get('resource_model_tools'))
+        and not metadata.get('resource_greeting')
+        and (has_chat_files or (metadata.get('resource_aware_files') and metadata.get('resource_chat_has_files')))
         and await has_user_chat_permission('file_upload')
     ):
-        builtin_functions.extend([list_chat_files, query_chat_files, grep_chat_files, view_file, display_file])
+        if metadata.get('resource_aware_files'):
+            # query_chat_files may return a full document in slim mode.
+            builtin_functions.extend([list_chat_files, grep_chat_files, view_file, display_file])
+            # Resource API readers are request-scoped adapters over the same chat ACL.
+            # Expose them here even when the model's global Mini-Hermes category is off.
+            from open_webui.mini_hermes.tools import (
+                cancel_document_task,
+                get_document_task,
+                list_editable_documents,
+                read_editable_document,
+                resume_document_task,
+                search_editable_document,
+                start_document_summary_task,
+            )
+
+            existing_names = {func.__name__ for func in builtin_functions}
+            builtin_functions.extend(
+                func
+                for func in (
+                    list_editable_documents,
+                    read_editable_document,
+                    search_editable_document,
+                    start_document_summary_task,
+                    get_document_task,
+                    cancel_document_task,
+                    resume_document_task,
+                )
+                if func.__name__ not in existing_names
+            )
+        else:
+            builtin_functions.extend([list_chat_files, query_chat_files, grep_chat_files, view_file, display_file])
 
     # Knowledge base tools - conditional injection based on model knowledge
     # If model has attached knowledge (any type), only provide query_knowledge_files
@@ -899,7 +933,14 @@ async def get_builtin_tools(
     if is_builtin_tool_enabled('tasks') and is_saved_chat_id(metadata.get('chat_id')):
         builtin_functions.extend([create_tasks, update_task])
 
-    if is_builtin_tool_enabled('mini_hermes_documents') and extra_params.get('__metadata__', {}).get('mh_agent_enabled'):
+    if (
+        is_builtin_tool_enabled('mini_hermes_documents')
+        and extra_params.get('__metadata__', {}).get('mh_agent_enabled')
+        and not (
+            extra_params.get('__metadata__', {}).get('resource_aware_files')
+            and extra_params.get('__metadata__', {}).get('resource_greeting')
+        )
+    ):
         from open_webui.mini_hermes.agent_tools import get_agent_tools
 
         builtin_functions.extend(get_agent_tools())

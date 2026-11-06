@@ -5,12 +5,12 @@ import hashlib
 from pathlib import Path, PurePosixPath
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from open_webui.internal.db import get_async_db
 from open_webui.utils.chat_id import is_saved_chat_id
 
-from .edits import extract_text, normalize_operations
+from .edits import normalize_operations
 from .library import (
     accessible_document,
     document_in_chat_scope,
@@ -19,9 +19,9 @@ from .library import (
     chat_attachment_file_ids,
     set_chat_document_access,
 )
-from .models import Document
+from .models import Document, DocumentChunk, ResourceTask
 from .sandbox import SandboxClient
-from .service import build_preview, commit_preview, create_preview, publish_generated_document
+from .service import build_preview, create_artifact_preview, create_preview, publish_generated_document
 from .storage import ObjectStore
 
 def _file_ids(files: list[dict] | None) -> set[str]:
@@ -97,8 +97,11 @@ async def read_editable_document(
             Revision.document_id == doc.id, Revision.number == doc.current_revision
         ))).scalar_one()
         content = await ObjectStore().get(revision.object_key)
-        text = extract_text(content, doc.filename)
+        from .chunks import extract_structured_text
+
+        text = extract_structured_text(content, doc.filename)
         end = min(offset + limit, len(text))
+        evidence_id = hashlib.sha256(f'{doc.id}:{revision.number}:{offset}:{end}'.encode()).hexdigest()[:24]
         return {
             'document_id': doc.id,
             'filename': doc.filename,
@@ -106,15 +109,134 @@ async def read_editable_document(
             'offset': offset,
             'next_offset': end if end < len(text) else None,
             'total_characters': len(text),
+            'evidence_id': evidence_id,
             'text': text[offset:end],
         }
+
+
+async def search_editable_document(
+    document_id: str, query: str, limit: int = 8,
+    __user__: dict = None, __files__: list[dict] = None, __chat_id__: str = None,
+) -> dict:
+    """Search indexed document content and return versioned source evidence."""
+    if not __user__:
+        return {'error': 'User context unavailable'}
+    if not query.strip() or limit < 1 or limit > 20:
+        return {'error': 'query must be non-empty and limit must be between 1 and 20'}
+    async with get_async_db() as db:
+        doc = await _scoped_document(db, document_id, __user__, __chat_id__, __files__, 'read')
+        from .chunks import replace_document_chunks, search_document_chunks
+        from .models import Revision
+
+        revision = (await db.execute(select(Revision).where(
+            Revision.document_id == doc.id, Revision.number == doc.current_revision
+        ))).scalar_one()
+        count = (await db.execute(select(func.count()).select_from(DocumentChunk).where(
+            DocumentChunk.document_id == doc.id, DocumentChunk.revision == revision.number
+        ))).scalar_one()
+        if not count:
+            content = await ObjectStore().get(revision.object_key)
+            await replace_document_chunks(db, doc.id, revision.number, doc.filename, content)
+            await db.commit()
+        matches = await search_document_chunks(db, doc.id, revision.number, query, limit)
+        return {
+            'document_id': doc.id, 'filename': doc.filename, 'revision': revision.number,
+            'query': query, 'results': [
+                {'evidence_id': chunk.id, 'section': chunk.section, 'page': chunk.page,
+                 'start_offset': chunk.start_offset, 'end_offset': chunk.end_offset,
+                 'metadata': chunk.metadata_json, 'text': chunk.content}
+                for chunk in matches
+            ],
+        }
+
+
+async def start_document_summary_task(
+    document_id: str, __user__: dict = None, __files__: list[dict] = None,
+    __chat_id__: str = None, __event_emitter__=None,
+) -> dict:
+    """Start a resumable hierarchical summary for a scoped document version."""
+    if not __user__:
+        return {'error': 'User context unavailable'}
+    async with get_async_db() as db:
+        doc = await _scoped_document(db, document_id, __user__, __chat_id__, __files__, 'read')
+        from .resource_tasks import create_summary_task
+
+        task = await create_summary_task(db, doc, __user__['id'], __chat_id__)
+        if __event_emitter__:
+            await __event_emitter__({'type': 'status', 'data': {
+                'description': f'Document summary task queued ({task.id})', 'done': False,
+            }})
+        return {'task_id': task.id, 'status': task.status, 'revision': task.revision,
+                'status_endpoint': f'/api/v1/mini-hermes/tasks/{task.id}',
+                'cancel_endpoint': f'/api/v1/mini-hermes/tasks/{task.id}/cancel',
+                'resume_endpoint': f'/api/v1/mini-hermes/tasks/{task.id}/resume'}
+
+
+async def get_document_task(
+    task_id: str, evidence_offset: int = 0,
+    __user__: dict = None, __files__: list[dict] = None,
+    __chat_id__: str = None, __event_emitter__=None,
+) -> dict:
+    """Read progress and a bounded evidence page for a document task."""
+    if not __user__:
+        return {'error': 'User context unavailable'}
+    async with get_async_db() as db:
+        from .resource_tasks import get_summary_task
+
+        result = await get_summary_task(db, task_id, __user__['id'], evidence_offset=evidence_offset)
+        doc = await _scoped_document(db, result['document_id'], __user__, __chat_id__, __files__, 'read')
+        result['filename'] = doc.filename
+        if __event_emitter__:
+            progress = result['progress']
+            await __event_emitter__({'type': 'status', 'data': {
+                'description': f"Document task {task_id}: {result['status']} ({progress['completed_units']}/{progress['total_units']})",
+                'done': result['status'] in {'completed', 'failed', 'cancelled'},
+            }})
+        return result
+
+
+async def cancel_document_task(
+    task_id: str, __user__: dict = None, __files__: list[dict] = None, __chat_id__: str = None,
+) -> dict:
+    if not __user__:
+        return {'error': 'User context unavailable'}
+    async with get_async_db() as db:
+        task = (await db.execute(select(ResourceTask).where(
+            ResourceTask.id == task_id, ResourceTask.owner_id == __user__['id']
+        ))).scalar_one_or_none()
+        if not task:
+            return {'error': 'Task not found'}
+        await _scoped_document(db, task.document_id, __user__, __chat_id__, __files__, 'read')
+        from .resource_tasks import request_task_cancel
+
+        task = await request_task_cancel(db, task_id, __user__['id'])
+        return {'task_id': task.id, 'status': task.status, 'cancel_requested': task.cancel_requested}
+
+
+async def resume_document_task(
+    task_id: str, __user__: dict = None, __files__: list[dict] = None, __chat_id__: str = None,
+) -> dict:
+    if not __user__:
+        return {'error': 'User context unavailable'}
+    async with get_async_db() as db:
+        task = (await db.execute(select(ResourceTask).where(
+            ResourceTask.id == task_id, ResourceTask.owner_id == __user__['id']
+        ))).scalar_one_or_none()
+        if not task:
+            return {'error': 'Task not found'}
+        doc = await _scoped_document(db, task.document_id, __user__, __chat_id__, __files__, 'read')
+        from .resource_tasks import resume_summary_task
+
+        task = await resume_summary_task(db, task_id, __user__['id'], doc)
+        return {'task_id': task.id, 'status': task.status, 'completed_units': task.completed_units,
+                'total_units': task.total_units}
 
 
 async def propose_document_edit(
     document_id: str, operations: list[dict], __user__: dict = None,
     __files__: list[dict] = None, __chat_id__: str = None,
 ) -> dict:
-    """Apply document operations and auto-save a revision. Use {"op":"replace_text","find":"old text","replace":"new text"} for DOCX or PPTX text changes."""
+    """Create a staged edit preview; a user must review and approve its exact hashes before commit."""
     if not __user__:
         return {'error': 'User context unavailable'}
     async with get_async_db() as db:
@@ -128,12 +250,13 @@ async def propose_document_edit(
         await build_preview(db, store, preview)
         if preview.status != 'ready':
             return {'error': preview.error or 'Document edit failed', 'preview_id': preview.id}
-        revision, job = await commit_preview(
-            db, store, __user__['id'], preview.id, __user__.get('role') == 'admin', sync=False)
-        url = f'/api/v1/mini-hermes/documents/{doc.id}/content?revision={revision.number}'
-        return {'preview_id': preview.id, 'status': 'committed', 'document_id': doc.id,
-                'revision': revision.number, 'viewer_url': url, 'download_url': url,
-                'sync_status': job.status if job else 'local_only'}
+        return {
+            'preview_id': preview.id, 'status': 'ready', 'document_id': doc.id,
+            'base_revision': preview.base_revision, 'base_sha256': preview.base_sha256,
+            'artifact_sha256': preview.artifact_sha256, 'diff': preview.diff,
+            'approval_endpoint': f'/api/v1/mini-hermes/previews/{preview.id}/commit',
+            'approval_required': True,
+        }
 
 
 def _workspace_id(user: dict, chat_id: str | None, files: list[dict] | None) -> str:
@@ -238,7 +361,7 @@ async def publish_document_output(
     path: str, source_document_id: str | None = None, __user__: dict = None,
     __files__: list[dict] = None, __chat_id__: str = None,
 ) -> dict:
-    """Save a sandbox output as a Personal document, or commit it as a source document revision."""
+    """Save a new output, or stage an update to an existing document for user approval."""
     if not __user__ or not __user__.get('id'):
         return {'error': 'User context unavailable'}
     relative = PurePosixPath(path)
@@ -252,8 +375,13 @@ async def publish_document_output(
 
             if not await Chats.get_chat_by_id_and_user_id(__chat_id__, __user__['id'], db=db):
                 raise HTTPException(404, 'Chat not found')
+        source_document = None
         if source_document_id:
-            await _scoped_document(db, source_document_id, __user__, __chat_id__, __files__, 'write')
+            source_document = await _scoped_document(
+                db, source_document_id, __user__, __chat_id__, __files__, 'write'
+            )
+            if PurePosixPath(source_document.filename).suffix.lower() != relative.suffix.lower():
+                raise HTTPException(400, 'Output format must match source document')
         output = await SandboxClient().read(workspace_id, path)
         input_paths = output.get('input_paths')
         input_revisions = output.get('input_revisions')
@@ -273,11 +401,23 @@ async def publish_document_output(
         }:
             raise HTTPException(409, 'Source document was not included in the sandbox run')
         content = base64.b64decode(output['content_b64'], validate=True)
+        if source_document:
+            preview = await create_artifact_preview(
+                db, ObjectStore(), source_document, __user__['id'], content
+            )
+            if preview.status != 'ready':
+                return {'error': preview.error or 'Document preview failed', 'preview_id': preview.id}
+            return {
+                'preview_id': preview.id, 'status': 'ready', 'document_id': source_document.id,
+                'base_revision': preview.base_revision, 'base_sha256': preview.base_sha256,
+                'artifact_sha256': preview.artifact_sha256, 'diff': preview.diff,
+                'preview_url': f'/api/v1/mini-hermes/previews/{preview.id}/content',
+                'approval_endpoint': f'/api/v1/mini-hermes/previews/{preview.id}/commit',
+                'approval_required': True,
+            }
         doc, revision, job = await publish_generated_document(
             db, ObjectStore(), __user__['id'], path, content, f'{workspace_id}:{path}',
-            source_document_id=source_document_id, is_admin=__user__.get('role') == 'admin',
-            expected_revision=next((input_revisions[input_path] for input_path in input_paths
-                                    if PurePosixPath(input_path).parts[1] == source_document_id), None))
+        )
         if is_saved_chat_id(__chat_id__) and not source_document_id:
             await set_chat_document_access(db, __chat_id__, __user__['id'], doc.id, True)
     url = f'/api/v1/mini-hermes/documents/{doc.id}/content?revision={revision.number}'

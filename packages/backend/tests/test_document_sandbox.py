@@ -12,9 +12,9 @@ from docx import Document as WordDocument
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import ChatResource, Document, Folder, Preview, Revision, SyncJob
+from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, Preview, Revision, SyncJob
 from open_webui.mini_hermes.sandbox_service import app, RunRequest, ReadRequest, run_workspace, read_output
-from open_webui.mini_hermes.service import publish_generated_document
+from open_webui.mini_hermes.service import commit_preview, create_artifact_preview, publish_generated_document
 
 
 class MemoryStore:
@@ -96,11 +96,12 @@ async def test_javascript_execution_has_no_service_secrets(tmp_path, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_publish_generated_document_is_idempotent_and_creates_revision():
+async def test_sandbox_update_requires_preview_approval_and_commit_is_idempotent():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, SyncJob.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__,
+                          Preview.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     first_doc = WordDocument()
@@ -121,23 +122,31 @@ async def test_publish_generated_document_is_idempotent_and_creates_revision():
             db, store, 'alice', 'outputs/report.docx', first_bytes.getvalue(), 'workspace/output-1')
         assert repeated.id == created.id
         assert repeated_revision.id == revision.id
-        created.drive_file_id = 'remote-1'
-        await db.commit()
-        updated, second_revision, _ = await publish_generated_document(
-            db, store, 'alice', 'outputs/report.docx', second_bytes.getvalue(), 'workspace/output-2',
-            source_document_id=created.id, expected_revision=1)
-        assert updated.id == created.id
-        assert second_revision.number == 2
-        assert store.objects[second_revision.object_key] == second_bytes.getvalue()
-        again, again_revision, _ = await publish_generated_document(
-            db, store, 'alice', 'outputs/report.docx', second_bytes.getvalue(), 'workspace/output-2',
-            source_document_id=created.id, expected_revision=1)
-        assert again_revision.id == second_revision.id
-        with pytest.raises(HTTPException) as stale:
+        with pytest.raises(HTTPException) as direct_update:
             await publish_generated_document(
-                db, store, 'alice', 'outputs/report.docx', first_bytes.getvalue(), 'workspace/output-3',
+                db, store, 'alice', 'outputs/report.docx', second_bytes.getvalue(), 'workspace/output-2',
                 source_document_id=created.id, expected_revision=1)
-        assert stale.value.status_code == 409
+        assert direct_update.value.status_code == 409
+
+        preview = await create_artifact_preview(db, store, created, 'alice', second_bytes.getvalue())
+        assert preview.status == 'ready'
+        assert preview.base_revision == 1
+        assert preview.base_sha256
+        assert preview.artifact_sha256 == hashlib.sha256(second_bytes.getvalue()).hexdigest()
+        assert created.current_revision == 1
+        with pytest.raises(HTTPException) as unapproved:
+            await commit_preview(db, store, 'alice', preview.id, sync=False)
+        assert unapproved.value.status_code == 400
+
+        approval = {
+            'base_revision': preview.base_revision,
+            'base_sha256': preview.base_sha256,
+            'artifact_sha256': preview.artifact_sha256,
+        }
+        updated, _ = await commit_preview(db, store, 'alice', preview.id, sync=False, approval=approval)
+        again, _ = await commit_preview(db, store, 'alice', preview.id, sync=False, approval=approval)
+        assert updated.number == again.number == 2
+        assert store.objects[updated.object_key] == second_bytes.getvalue()
         assert len((await db.execute(select(Revision))).scalars().all()) == 2
         assert (await db.execute(select(SyncJob))).scalars().all() == []
     await engine.dispose()
@@ -148,7 +157,7 @@ async def test_publish_rejects_invalid_office_bytes_and_pdf_revision():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, SyncJob.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     async with sessions() as db:
@@ -171,7 +180,7 @@ async def test_agent_execution_mounts_only_chat_scoped_documents(monkeypatch):
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         db.add_all([
@@ -214,13 +223,13 @@ async def test_agent_execution_mounts_only_chat_scoped_documents(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_agent_edit_commits_revision_without_waiting_for_manual_preview(monkeypatch):
+async def test_agent_edit_creates_preview_until_user_approval(monkeypatch):
     from open_webui.mini_hermes import tools
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__, Preview.__table__, SyncJob.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__, Preview.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     source = WordDocument()
     source.add_paragraph('Before')
@@ -231,7 +240,7 @@ async def test_agent_edit_commits_revision_without_waiting_for_manual_preview(mo
     async with sessions() as db:
         db.add_all([
             Document(id='doc-1', owner_id='alice', filename='report.docx', mime_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document', current_revision=1, drive_file_id='remote-1'),
-            Revision(id='rev-1', document_id='doc-1', number=1, object_key='source', sha256='x', size=len(buffer.getvalue())),
+            Revision(id='rev-1', document_id='doc-1', number=1, object_key='source', sha256=hashlib.sha256(buffer.getvalue()).hexdigest(), size=len(buffer.getvalue())),
             ChatResource(id='scope-1', chat_id='chat-1', document_id='doc-1', granted_by='alice'),
         ])
         await db.commit()
@@ -246,11 +255,19 @@ async def test_agent_edit_commits_revision_without_waiting_for_manual_preview(mo
     result = await tools.propose_document_edit(
         'doc-1', [{'op': 'replace_text', 'find': 'Before', 'replace': 'After'}],
         __user__={'id': 'alice', 'role': 'user'}, __chat_id__='chat-1')
-    assert result['revision'] == 2
-    assert result['status'] == 'committed'
+    assert result['status'] == 'ready'
+    assert result['approval_required'] is True
+    assert result['base_revision'] == 1
+    assert len(result['base_sha256']) == len(result['artifact_sha256']) == 64
     async with sessions() as db:
-        assert (await db.get(Document, 'doc-1')).current_revision == 2
+        assert (await db.get(Document, 'doc-1')).current_revision == 1
         assert (await db.execute(select(SyncJob))).scalars().all() == []
+        from open_webui.mini_hermes.service import commit_preview
+        approval = {'base_revision': result['base_revision'], 'base_sha256': result['base_sha256'],
+                    'artifact_sha256': result['artifact_sha256']}
+        revision, _ = await commit_preview(db, store, 'alice', result['preview_id'], approval=approval)
+        assert revision.number == 2
+        assert (await db.get(Document, 'doc-1')).current_revision == 2
     await engine.dispose()
 
 
@@ -261,7 +278,7 @@ async def test_chat_artifacts_lists_generated_outputs_only(monkeypatch):
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__, SyncJob.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         db.add_all([
@@ -290,7 +307,7 @@ async def test_viewer_history_and_source_resolution_check_read_permission():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         db.add(Document(id='viewer-doc', owner_id='alice', filename='report.docx',
@@ -324,7 +341,7 @@ async def test_publish_rejects_output_after_input_is_removed_from_chat(monkeypat
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         db.add(Document(id='old-input', owner_id='alice', filename='source.pdf', mime_type='application/pdf', current_revision=1))

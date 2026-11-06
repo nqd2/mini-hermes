@@ -71,12 +71,57 @@ class Revision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class DocumentChunk(Base):
+    """Versioned searchable text with stable source coordinates."""
+    __tablename__ = 'mh_document_chunk'
+    __table_args__ = (UniqueConstraint('document_id', 'revision', 'ordinal'),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id'), index=True)
+    revision: Mapped[int] = mapped_column(Integer, index=True)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    source_kind: Mapped[str] = mapped_column(String(24), default='text')
+    section: Mapped[str | None] = mapped_column(String(512))
+    page: Mapped[int | None] = mapped_column(Integer)
+    start_offset: Mapped[int] = mapped_column(Integer)
+    end_offset: Mapped[int] = mapped_column(Integer)
+    content: Mapped[str] = mapped_column(Text)
+    metadata_json: Mapped[dict | None] = mapped_column(JSONField)
+
+
+class ResourceTask(Base):
+    """Durable checkpoint for long resource operations handled by the existing worker."""
+    __tablename__ = 'mh_resource_task'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id'), index=True)
+    owner_id: Mapped[str] = mapped_column(String, index=True)
+    chat_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(32), default='summary')
+    status: Mapped[str] = mapped_column(String(24), default='pending', index=True)
+    phase: Mapped[str] = mapped_column(String(24), default='chunks')
+    next_ordinal: Mapped[int] = mapped_column(Integer, default=0)
+    next_group: Mapped[int] = mapped_column(Integer, default=0)
+    level: Mapped[int] = mapped_column(Integer, default=0)
+    completed_units: Mapped[int] = mapped_column(Integer, default=0)
+    total_units: Mapped[int] = mapped_column(Integer, default=0)
+    checkpoint: Mapped[dict | None] = mapped_column(JSONField)
+    result: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
 class Preview(Base):
     __tablename__ = 'mh_preview'
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     document_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id'), index=True)
     owner_id: Mapped[str] = mapped_column(String)
     base_revision: Mapped[int] = mapped_column(Integer)
+    base_sha256: Mapped[str | None] = mapped_column(String(64))
+    artifact_sha256: Mapped[str | None] = mapped_column(String(64))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     drive_version: Mapped[str | None] = mapped_column(String(255))
     operations: Mapped[list] = mapped_column(JSONField)
     status: Mapped[str] = mapped_column(String(24), default='pending')

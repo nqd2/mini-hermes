@@ -207,14 +207,14 @@ export const splitStream = (splitOn) => {
 	});
 };
 
-export const convertMessagesToHistory = (messages) => {
-	const history = {
+export const convertMessagesToHistory = (messages: any) => {
+	const history: any = {
 		messages: {},
 		currentId: null
 	};
 
-	let parentMessageId = null;
-	let messageId = null;
+	let parentMessageId: any = null;
+	let messageId: any = null;
 
 	for (const message of messages) {
 		messageId = message?.id ?? uuidv4();
@@ -230,7 +230,7 @@ export const convertMessagesToHistory = (messages) => {
 		parentMessageId = messageId;
 	}
 
-	for (const message of Object.values(history.messages)) {
+	for (const message of Object.values(history.messages) as any[]) {
 		if (message.parentId && history.messages[message.parentId]) {
 			history.messages[message.parentId].childrenIds = [
 				...history.messages[message.parentId].childrenIds,
@@ -244,25 +244,26 @@ export const convertMessagesToHistory = (messages) => {
 };
 
 // Rebuild missing graph fields so chats with incomplete regeneration placeholders can reopen.
-export const sanitizeHistory = (history) => {
+export const sanitizeHistory = (history: any) => {
 	if (!history?.messages || typeof history.messages !== 'object') return;
+	const messages: Record<string, any> = history.messages;
 
 	// Purge entries that aren't usable objects
-	for (const [id, message] of Object.entries(history.messages)) {
+	for (const [id, message] of Object.entries(messages)) {
 		if (!message || typeof message !== 'object') {
-			delete history.messages[id];
+			delete messages[id];
 		}
 	}
 
 	// Ensure every surviving node has its canonical id and a childrenIds array
-	for (const [id, message] of Object.entries(history.messages)) {
+	for (const [id, message] of Object.entries(messages)) {
 		if (message.id !== id) message.id = id;
 		if (!Array.isArray(message.childrenIds)) message.childrenIds = [];
 	}
 
 	// Build reverse lookup: parent, indexed by child id
-	const parentByChildId = {};
-	for (const [id, message] of Object.entries(history.messages)) {
+	const parentByChildId: Record<string, string> = {};
+	for (const [id, message] of Object.entries(messages)) {
 		for (const childId of message.childrenIds) {
 			parentByChildId[childId] = id;
 		}
@@ -270,23 +271,23 @@ export const sanitizeHistory = (history) => {
 
 	// Recover currentId before role reconstruction can make a malformed node
 	// look valid.
-	const currentMessage = history.messages?.[history.currentId];
+	const currentMessage = messages?.[history.currentId];
 	if (!currentMessage?.id || !currentMessage?.role) {
-		let latestLeafId = null;
+		let latestLeafId: string | null = null;
 		let latestTimestamp = -1;
 
-		for (const [id, message] of Object.entries(history.messages)) {
+		for (const [id, message] of Object.entries(messages)) {
 			if (message.childrenIds.length === 0 && (message.timestamp ?? 0) > latestTimestamp) {
 				latestLeafId = id;
 				latestTimestamp = message.timestamp ?? 0;
 			}
 		}
 
-		history.currentId = latestLeafId ?? Object.keys(history.messages)[0] ?? null;
+		history.currentId = latestLeafId ?? Object.keys(messages)[0] ?? null;
 	}
 
 	// Reconstruct missing parentId and role
-	for (const [id, message] of Object.entries(history.messages)) {
+	for (const [id, message] of Object.entries(messages)) {
 		// Well-formed: has role and explicit parentId (null is valid for root)
 		if (message.role && message.parentId !== undefined) continue;
 
@@ -295,7 +296,7 @@ export const sanitizeHistory = (history) => {
 		}
 
 		if (!message.role) {
-			const parent = message.parentId ? history.messages[message.parentId] : null;
+			const parent = message.parentId ? messages[message.parentId] : null;
 			message.role =
 				parent?.role === 'user'
 					? 'assistant'
@@ -308,8 +309,8 @@ export const sanitizeHistory = (history) => {
 	}
 
 	// Prune childrenIds referencing deleted/missing nodes
-	for (const message of Object.values(history.messages)) {
-		message.childrenIds = message.childrenIds.filter((childId) => history.messages[childId]);
+	for (const message of Object.values(messages) as any[]) {
+		message.childrenIds = message.childrenIds.filter((childId: string) => messages[childId]);
 	}
 };
 
@@ -320,7 +321,7 @@ export const getGravatarURL = (email) => {
 	const address = String(email).trim().toLowerCase();
 
 	// Create a SHA256 hash of the final string
-	const hash = sha256(address);
+	const hash = (sha256 as any)(address);
 
 	// Grab the actual image URL
 	return `https://www.gravatar.com/avatar/${hash}`;
@@ -773,7 +774,7 @@ export const calculateSHA256 = async (file) => {
 		const buffer = await readFile;
 
 		// Convert the ArrayBuffer to a Uint8Array
-		const uint8Array = new Uint8Array(buffer);
+		const uint8Array = new Uint8Array(buffer as ArrayBuffer);
 
 		// Calculate the SHA-256 hash using Web Crypto API
 		const hashBuffer = await crypto.subtle.digest('SHA-256', uint8Array);
@@ -801,7 +802,7 @@ export const getImportOrigin = (_chats) => {
 
 export const getUserPosition = async (raw = false) => {
 	// Ask the browser for coordinates; we have not installed a crystal ball.
-	const position = await new Promise((resolve, reject) => {
+	const position: any = await new Promise((resolve, reject) => {
 		navigator.geolocation.getCurrentPosition(resolve, reject);
 	}).catch((error) => {
 		console.error('Error getting user location:', error);
@@ -1088,7 +1089,7 @@ export const processDetails = (content) => {
 	if (matches) {
 		for (const match of matches) {
 			const attributesRegex = /(\w+)="([^"]*)"/g;
-			const attributes = {};
+			const attributes: Record<string, string> = {};
 			let attributeMatch;
 			while ((attributeMatch = attributesRegex.exec(match)) !== null) {
 				attributes[attributeMatch[1]] = attributeMatch[2];
@@ -1521,7 +1522,7 @@ export function resolveSchema(
 	}
 
 	if (schemaRef.type) {
-		const schemaObj = { type: schemaRef.type };
+		const schemaObj: any = { type: schemaRef.type };
 
 		if (schemaRef.description) {
 			schemaObj.description = schemaRef.description;
@@ -1612,7 +1613,7 @@ export const convertOpenApiToToolPayload = (openApiSpec) => {
 			if (!OPENAPI_HTTP_METHODS.has(method)) continue;
 			if (!operation || typeof operation !== 'object') continue;
 			if ((operation as any)?.operationId) {
-				const tool = {
+				const tool: any = {
 					name: (operation as any).operationId,
 					description:
 						(operation as any).description ||

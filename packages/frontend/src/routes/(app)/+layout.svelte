@@ -306,11 +306,11 @@
 				} else if (shortcut === Shortcut.COPY_LAST_CODE_BLOCK) {
 					console.log('Shortcut triggered: COPY_LAST_CODE_BLOCK');
 					event.preventDefault();
-					[...document.getElementsByClassName('copy-code-button')]?.at(-1)?.click();
+					([ ...document.getElementsByClassName('copy-code-button') ] as HTMLElement[])?.at(-1)?.click();
 				} else if (shortcut === Shortcut.COPY_LAST_RESPONSE) {
 					console.log('Shortcut triggered: COPY_LAST_RESPONSE');
 					event.preventDefault();
-					[...document.getElementsByClassName('copy-response-button')]?.at(-1)?.click();
+					([ ...document.getElementsByClassName('copy-response-button') ] as HTMLElement[])?.at(-1)?.click();
 				} else if (shortcut === Shortcut.TOGGLE_SIDEBAR) {
 					console.log('Shortcut triggered: TOGGLE_SIDEBAR');
 					event.preventDefault();
@@ -386,7 +386,7 @@
 				) {
 					console.log('Shortcut triggered: REGENERATE_RESPONSE');
 					event.preventDefault();
-					[...document.getElementsByClassName('regenerate-response-button')]?.at(-1)?.click();
+					([ ...document.getElementsByClassName('regenerate-response-button') ] as HTMLElement[])?.at(-1)?.click();
 				}
 			});
 		};
@@ -417,7 +417,7 @@
 				const dismissedUpdateToast = new Date(Number(localStorage.dismissedUpdateToast));
 				const now = new Date();
 
-				if (now - dismissedUpdateToast > 24 * 60 * 60 * 1000) {
+				if (now.getTime() - dismissedUpdateToast.getTime() > 24 * 60 * 60 * 1000) {
 					checkForVersionUpdates();
 				}
 			} else {

@@ -12,3 +12,4 @@
 /.env
 **/.env
 **/.env.local
+/packages/backend/test-mini-hermes.db*

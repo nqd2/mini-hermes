@@ -1,5 +1,11 @@
 // See https://kit.svelte.dev/docs/types#app
 // for information about these interfaces
+import 'svelte';
+
+declare module 'svelte' {
+	export function getContext<T = any>(key: any): T;
+}
+
 declare global {
 	class AudioWorkletProcessor {
 		readonly port: MessagePort;
@@ -9,6 +15,7 @@ declare global {
 	const APP_VERSION: string;
 	const APP_BUILD_HASH: string;
 	const APP_BUILD_CHANNEL: 'main' | 'dev' | 'unknown';
+	const google: any;
 
 	namespace App {
 		interface PageState {

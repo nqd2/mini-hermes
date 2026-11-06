@@ -192,7 +192,7 @@
 		system = content;
 		showSystemPrompt = true;
 	};
-	let info = {
+	let info: any = {
 		id: '',
 		base_model_id: null,
 		name: '',

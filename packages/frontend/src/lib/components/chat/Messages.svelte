@@ -24,11 +24,12 @@
 	export let user = $_user;
 
 	export let prompt;
-	export let history = {};
+	export let history: any = {};
 	export let selectedModels;
 	export let atSelectedModel;
+	export let processing: any = '';
 
-	let messages = [];
+	export let messages: any = [];
 
 	export let setInputText: Function = () => {};
 

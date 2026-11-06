@@ -14,7 +14,7 @@
 
 	export let url = '';
 	export let key = '';
-	export let config = {};
+	export let config: any = {};
 
 	let showConfigModal = false;
 </script>

@@ -5285,7 +5285,7 @@
 		: 'h-screen max-h-[100dvh]'} transition-width duration-200 ease-in-out {$showSidebar &&
 	!embedded
 		? '  md:max-w-[calc(100%-var(--sidebar-width))]'
-		: ' '} {$documentViewerOpen && !embedded ? 'md:pr-[min(50vw,58rem)]' : ''} w-full max-w-full min-w-0 flex flex-col"
+		: ' '} {$documentViewerOpen && !embedded ? 'md:pr-[50vw]' : ''} w-full max-w-full min-w-0 flex flex-col"
 	id={chatContainerId}
 >
 	<div in:fade={{ duration: 50 }} class="w-full h-full flex flex-col">

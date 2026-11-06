@@ -263,6 +263,7 @@ type OllamaModelDetails = {
 };
 
 type Settings = {
+	[key: string]: any;
 	pinnedModels?: string[];
 	toolServers?: never[];
 	detectArtifacts?: boolean;
@@ -373,6 +374,7 @@ type Document = {
 };
 
 type Config = {
+	[key: string]: any;
 	audio?: {
 		realtime?: { enabled: boolean; model: string; voice: string };
 		stt: { engine: string };
@@ -389,6 +391,7 @@ type Config = {
 	default_prompt_suggestions: PromptSuggestion[] | null;
 	default_prompt_suggestions_i18n?: Record<string, { suggestion_prompts: PromptSuggestion[] }>;
 	features: {
+		[key: string]: any;
 		enable_encrypted_channels?: boolean;
 		slim?: boolean;
 		auth: boolean;

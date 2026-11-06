@@ -17,7 +17,7 @@
 
 	export let url = '';
 	export let idx = 0;
-	export let config = {};
+	export let config: any = {};
 
 	let showManageModal = false;
 	let showConfigModal = false;

@@ -24,7 +24,7 @@ const OPENAPI_HTTP_METHODS = new Set([
 // and let those who wait receive an answer worthy of their patience.
 export const getModels = async (
 	token: string = '',
-	connections: object | null = null,
+	connections: any = null,
 	base: boolean = false,
 	refresh: boolean = false
 ) => {
@@ -449,7 +449,7 @@ export const getToolServerData = async (token: string, url: string) => {
 	return res;
 };
 
-export const getToolServersData = async (servers: object[]) => {
+export const getToolServersData = async (servers: any[]) => {
 	if (!get(config)?.features?.enable_tool_servers) return [];
 	return (
 		await Promise.all(

@@ -1090,12 +1090,13 @@
 
 	<button
 		id="sidebar-new-chat-button"
+		aria-label={$i18n.t('New Chat')}
 		class="hidden"
 		on:click={() => {
 			goto('/');
 			newChatHandler();
 		}}
-	/>
+	></button>
 
 	{#if !$mobile && !$showSidebar}
 		<div
@@ -2006,6 +2007,7 @@
 		</div>
 
 		{#if !$mobile && visible}
+			<!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
 			<div
 				class="relative flex items-center justify-center group border-r border-gray-50 dark:border-gray-850/30 hover:border-gray-200 dark:hover:border-gray-800 transition z-20 bg-transparent p-0 appearance-none"
 				id="sidebar-resizer"

@@ -37,6 +37,7 @@
 		setTerminalServerConnections
 	} from '$lib/apis/configs';
 
+	// svelte-ignore export_let_unused
 	export let saveSettings: Function;
 
 	type ToolServerConnection = any;

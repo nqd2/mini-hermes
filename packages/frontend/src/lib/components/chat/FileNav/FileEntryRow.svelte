@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-	let closeActiveHoverPreview: (() => void) | null = null;
+	const activeHoverPreview: { close: (() => void) | null } = { close: null };
 </script>
 
 <script lang="ts">
@@ -101,9 +101,9 @@
 		dragging ||
 		selectionMode;
 	$: if (hoverDisabled) openPreview = false;
-	$: if (openPreview && closeActiveHoverPreview !== closeHoverPreview) {
-		closeActiveHoverPreview?.();
-		closeActiveHoverPreview = closeHoverPreview;
+	$: if (openPreview && activeHoverPreview.close !== closeHoverPreview) {
+		activeHoverPreview.close?.();
+		activeHoverPreview.close = closeHoverPreview;
 	}
 
 	const clearExpandTimer = () => {
@@ -208,7 +208,7 @@
 	};
 
 	onDestroy(() => {
-		if (closeActiveHoverPreview === closeHoverPreview) closeActiveHoverPreview = null;
+		if (activeHoverPreview.close === closeHoverPreview) activeHoverPreview.close = null;
 		if (longPressTimer) clearTimeout(longPressTimer);
 		clearExpandTimer();
 	});

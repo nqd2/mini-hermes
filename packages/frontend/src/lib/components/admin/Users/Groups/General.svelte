@@ -15,6 +15,7 @@
 	const i18n = getContext<import('svelte/store').Writable<import('i18next').i18n>>('i18n');
 
 	export let name = '';
+	// svelte-ignore export_let_unused
 	export let color = '';
 	export let description = '';
 	export let data: Record<string, any> = {};

@@ -134,6 +134,7 @@
 	export let history;
 	export let messageId;
 	$: compactionStatus = $contextCompactions?.[messageId];
+	// svelte-ignore export_let_unused
 	export let selectedModels = [];
 
 	let messageSource = history.messages[messageId];
@@ -169,6 +170,7 @@
 	export let updateChat: Function;
 	export let editMessage: Function;
 	export let saveMessage: Function;
+	// svelte-ignore export_let_unused
 	export let rateMessage: Function;
 	export let actionMessage: Function;
 	export let deleteMessage: Function;
@@ -178,6 +180,7 @@
 	export let regenerateResponse: Function;
 	export let forkHandler: Function | null = null;
 
+	// svelte-ignore export_let_unused
 	export let addMessages: Function;
 	export let onToolCallResolved: Function = () => {};
 
@@ -1451,6 +1454,7 @@
 										{#if $settings?.regenerateMenu ?? true}
 											<button
 												type="button"
+												aria-label={$i18n.t('Regenerate')}
 												class="hidden regenerate-response-button"
 												on:click={() => {
 													showRateComment = false;
@@ -1468,7 +1472,7 @@
 														});
 													});
 												}}
-											/>
+											></button>
 
 											<RegenerateMenu
 												onRegenerate={(prompt = null) => {

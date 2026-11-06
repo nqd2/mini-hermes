@@ -197,6 +197,7 @@
 					</button>
 
 					{#if showCapabilities}
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 						<div
 							class="max-h-[24rem] overflow-y-auto pb-2 pl-3 pr-1 scrollbar-hover"
 							on:click={updateDirty}
@@ -234,6 +235,7 @@
 					</button>
 
 					{#if showParameters}
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 						<div
 							class="max-h-[24rem] overflow-y-auto pb-2 pl-3 pr-1 scrollbar-hover"
 							on:click={updateDirty}
@@ -268,6 +270,7 @@
 					</button>
 
 					{#if showPromptSuggestions}
+						<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 						<div
 							class="max-h-[24rem] space-y-2 overflow-y-auto pb-2 pl-3 pr-1 scrollbar-hover"
 							on:click={updateDirty}

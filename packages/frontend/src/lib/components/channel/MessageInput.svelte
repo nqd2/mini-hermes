@@ -81,6 +81,7 @@
 
 	export let disabled = false;
 	export let acceptFiles = true;
+	// svelte-ignore export_let_unused
 	export let showFormattingToolbar = true;
 
 	export let userSuggestions = false;

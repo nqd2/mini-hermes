@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import './MobileSwipePanel.css';
 
 	const UNSAFE_EDGE = 16;
 	const SWIPE_SLOP = 8;
@@ -328,16 +329,3 @@
 </script>
 
 <slot {visible} {progress} {panelStyle} {backdropStyle} />
-
-<style>
-	:global(html),
-	:global(body) {
-		overflow-x: hidden;
-		overscroll-behavior-x: contain;
-	}
-
-	:global(html.mobile-swipe-panel-active),
-	:global(body.mobile-swipe-panel-active) {
-		touch-action: pan-y;
-	}
-</style>

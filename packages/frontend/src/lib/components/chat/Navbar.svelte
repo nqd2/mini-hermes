@@ -53,6 +53,7 @@
 	export let readOnly: boolean = false;
 	export let liveParticipants: { id: string; name: string }[] = [];
 	export let shareEnabled: boolean = false;
+	// svelte-ignore export_let_unused
 	export let scrollTop = 0;
 	export let scrollToTop: (() => void) | null = null;
 
@@ -297,7 +298,7 @@
 		initNewChat();
 	}}
 	aria-label={$i18n.t('New Chat')}
-/>
+></button>
 
 <nav
 	class:hidden={tabbed}

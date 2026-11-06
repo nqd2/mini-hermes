@@ -187,6 +187,7 @@
 						? 'bg-gray-50 dark:bg-gray-800'
 						: ''}"
 					role="option"
+					aria-selected={matchedVoices.every((voice) => selectedIds.includes(voice.id))}
 					tabindex="-1"
 					on:mousedown={(event) => {
 						event.preventDefault();

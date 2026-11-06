@@ -57,6 +57,7 @@
 
 <svelte:window on:blur={release} />
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
 <div
 	bind:this={surface}
 	class="flex h-full w-full touch-none items-start justify-center overflow-hidden outline-none"

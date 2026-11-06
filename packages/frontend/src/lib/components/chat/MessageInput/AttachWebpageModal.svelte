@@ -78,7 +78,7 @@
 					placeholder={'https://example.com'}
 					autocomplete="off"
 					required
-				/>
+				></textarea>
 
 				<div class="flex justify-end gap-2 pt-3">
 					<button

@@ -6,7 +6,7 @@
 	 * row while still inside the previous row's grace area; opening a preview
 	 * therefore force-closes whichever one is still up.
 	 */
-	let closeActiveProfilePreview: (() => void) | null = null;
+	const activeProfilePreview: { close: (() => void) | null } = { close: null };
 </script>
 
 <script lang="ts">
@@ -32,14 +32,14 @@
 		}
 	};
 
-	$: if (openPreview && closeActiveProfilePreview !== closeProfilePreview) {
-		closeActiveProfilePreview?.();
-		closeActiveProfilePreview = closeProfilePreview;
+	$: if (openPreview && activeProfilePreview.close !== closeProfilePreview) {
+		activeProfilePreview.close?.();
+		activeProfilePreview.close = closeProfilePreview;
 	}
 
 	onDestroy(() => {
-		if (closeActiveProfilePreview === closeProfilePreview) {
-			closeActiveProfilePreview = null;
+		if (activeProfilePreview.close === closeProfilePreview) {
+			activeProfilePreview.close = null;
 		}
 	});
 </script>

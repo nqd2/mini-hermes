@@ -43,7 +43,7 @@
 		</div>
 
 		{#if value}
-			<div class="size-3.5 shrink-0" />
+			<div class="size-3.5 shrink-0"></div>
 		{:else}
 			<ChevronDown className="size-2.5" strokeWidth="2.5" />
 		{/if}

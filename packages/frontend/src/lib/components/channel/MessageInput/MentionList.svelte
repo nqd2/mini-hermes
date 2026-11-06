@@ -20,6 +20,7 @@
 	export let command: (payload: { id: string; label: string }) => void;
 	export let selectedIndex = 0;
 
+	// svelte-ignore export_let_unused
 	export let label = '';
 	export let triggerChar = '@';
 

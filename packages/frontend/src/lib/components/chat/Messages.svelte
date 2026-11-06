@@ -23,10 +23,12 @@
 	export let chatId = '';
 	export let user = $_user;
 
+	// svelte-ignore export_let_unused
 	export let prompt;
 	export let history: any = {};
 	export let selectedModels;
 	export let atSelectedModel;
+	// svelte-ignore export_let_unused
 	export let processing: any = '';
 
 	export let messages: any = [];
@@ -39,6 +41,7 @@
 	export let mergeResponses: Function;
 
 	export let chatActionHandler: Function;
+	// svelte-ignore export_let_unused
 	export let showMessage: Function = () => {};
 	export let submitMessage: Function = () => {};
 	export let addMessages: Function = () => {};
@@ -557,9 +560,9 @@
 						</ul>
 					</div>
 				</section>
-				<div class="pb-18" />
+				<div class="pb-18"></div>
 				{#if bottomPadding}
-					<div class="  pb-6" />
+					<div class="  pb-6"></div>
 				{/if}
 			{/key}
 		</div>

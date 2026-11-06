@@ -131,7 +131,7 @@
 							bind:value={text}
 							placeholder={$i18n.t("You're a helpful assistant.")}
 							aria-label={$i18n.t('Completions')}
-						/>
+						></textarea>
 					</div>
 				</div>
 			</div>
@@ -175,14 +175,3 @@
 		</div>
 	</div>
 </div>
-
-<style>
-	.scrollbar-hidden::-webkit-scrollbar {
-		display: none; /* for Chrome, Safari and Opera */
-	}
-
-	.scrollbar-hidden {
-		-ms-overflow-style: none; /* IE and Edge */
-		scrollbar-width: none; /* Firefox */
-	}
-</style>

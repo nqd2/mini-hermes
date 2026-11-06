@@ -11,6 +11,7 @@
 	export let show = false;
 
 	export let onImport = (e) => {};
+	// svelte-ignore export_let_unused
 	export let onClose = () => {};
 
 	export let loadUrlHandler: Function = () => {};

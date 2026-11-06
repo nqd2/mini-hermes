@@ -348,4 +348,4 @@ print("${endTag}")
 	bind:this={codeEditorContainerElement}
 	id="code-textarea-{id}"
 	class="{className} h-full w-full min-w-0 overflow-hidden"
-/>
+></div>

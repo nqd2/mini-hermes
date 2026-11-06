@@ -9,6 +9,7 @@
 	const i18n: any = getContext('i18n');
 	const markdown = getContext<{ document?: boolean } | undefined>('markdown');
 
+	// svelte-ignore export_let_unused
 	export let id: string;
 	export let token: Token;
 

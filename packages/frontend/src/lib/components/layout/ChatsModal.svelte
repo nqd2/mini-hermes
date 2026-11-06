@@ -31,6 +31,7 @@
 	export let show = false;
 
 	export let title = 'Chats';
+	// svelte-ignore export_let_unused
 	export let emptyPlaceholder = '';
 	export let shareUrl = false;
 	export let showUserInfo = false;

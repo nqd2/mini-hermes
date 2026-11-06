@@ -9,6 +9,7 @@
 	const i18n = getContext('i18n');
 
 	export let show = false;
+	// svelte-ignore export_let_unused
 	export let className = 'max-w-[10.625rem]';
 
 	export let onEdit = () => {};

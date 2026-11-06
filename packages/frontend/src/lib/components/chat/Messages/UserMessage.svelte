@@ -344,7 +344,7 @@
 									document.getElementById('confirm-edit-message-button')?.click();
 								}
 							}}
-						/>
+						></textarea>
 					</div>
 
 					<div class=" mt-2 -mx-1 flex justify-between text-sm font-normal">

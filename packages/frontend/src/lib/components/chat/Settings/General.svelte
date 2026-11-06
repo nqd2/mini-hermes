@@ -18,6 +18,7 @@
 	import UserSettingSection from './UserSettingSection.svelte';
 	import SettingsSelect from '$lib/components/common/SettingsSelect.svelte';
 	export let saveSettings: Function;
+	// svelte-ignore export_let_unused
 	export let getModels: Function;
 
 	// General

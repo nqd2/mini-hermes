@@ -31,6 +31,7 @@
 
 	export let query = '';
 	export let onSelect = (e) => {};
+	// svelte-ignore export_let_unused
 	export let onFiles: () => void = () => {};
 	export let canCompact = false;
 	export let canCompare = false;

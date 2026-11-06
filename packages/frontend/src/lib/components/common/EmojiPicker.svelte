@@ -21,6 +21,7 @@
 	export let onSubmit = (name) => {};
 	export let side = 'top';
 	export let align = 'start';
+	// svelte-ignore export_let_unused
 	export let user = null;
 	export let selected = null;
 

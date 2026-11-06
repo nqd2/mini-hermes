@@ -2377,6 +2377,7 @@
 				>
 			</div>{/if}
 		<!-- Content -->
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 		<div
 			bind:this={viewerRoot}
 			class="flex-1 overflow-y-auto min-h-0 min-w-0"
@@ -2750,8 +2751,8 @@
 					<div class="relative cursor-row-resize group" on:mousedown={onHandleMouseDown}>
 						<div
 							class="h-px bg-transparent group-hover:bg-black/10 dark:group-hover:bg-white/10 transition"
-						/>
-						<div class="absolute inset-x-0 -top-1.5 -bottom-1.5" />
+						></div>
+						<div class="absolute inset-x-0 -top-1.5 -bottom-1.5"></div>
 					</div>
 				{/if}
 
@@ -2782,6 +2783,7 @@
 		/>
 
 		{#if directoryMenu}
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 			<div
 				class="fixed z-[9999999]"
 				style="left: {directoryMenu.x}px; top: {directoryMenu.y}px;"
@@ -2909,7 +2911,7 @@
 							submitFileAsk();
 						}
 					}}
-				/>
+				></textarea>
 				<button
 					type="submit"
 					disabled={asking || !fileAskInput.trim()}

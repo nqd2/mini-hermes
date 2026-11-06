@@ -81,9 +81,11 @@
 	/** @type {import('./structuredOutput').OutputItem[]} */
 	export let output = [];
 
+	// svelte-ignore export_let_unused
 	export let history;
 	export let messageId;
 
+	// svelte-ignore export_let_unused
 	export let selectedModels = [];
 
 	export let done = true;

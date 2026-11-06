@@ -105,7 +105,7 @@
 							style="background-color: {c};"
 							on:click={() => (color = c)}
 							aria-label={c}
-						/>
+						></button>
 					{/each}
 
 					<label

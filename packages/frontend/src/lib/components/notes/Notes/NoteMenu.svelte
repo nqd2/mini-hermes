@@ -20,6 +20,7 @@
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 
 	export let show = false;
+	// svelte-ignore export_let_unused
 	export let className = 'max-w-[11.25rem]';
 
 	export let onDownload = (type) => {};

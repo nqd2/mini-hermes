@@ -1,5 +1,6 @@
 <script lang="ts">
 	export let className = 'w-4 h-4';
+	// svelte-ignore export_let_unused
 	export let strokeWidth = '1.5';
 </script>
 

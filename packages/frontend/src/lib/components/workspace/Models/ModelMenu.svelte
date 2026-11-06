@@ -31,6 +31,7 @@
 
 	const i18n = getContext<any>('i18n');
 
+	// svelte-ignore export_let_unused
 	export let user;
 	export let model;
 

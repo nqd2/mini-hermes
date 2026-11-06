@@ -11,7 +11,7 @@
 	 * while still inside the previous row's grace area; opening a preview
 	 * therefore force-closes whichever one is still up.
 	 */
-	let closeActiveHoverPreview: (() => void) | null = null;
+	const activeHoverPreview: { close: (() => void) | null } = { close: null };
 </script>
 
 <script lang="ts">
@@ -144,9 +144,9 @@
 		}
 	};
 
-	$: if (openPreview && closeActiveHoverPreview !== closeHoverPreview) {
-		closeActiveHoverPreview?.();
-		closeActiveHoverPreview = closeHoverPreview;
+	$: if (openPreview && activeHoverPreview.close !== closeHoverPreview) {
+		activeHoverPreview.close?.();
+		activeHoverPreview.close = closeHoverPreview;
 	}
 
 	// Local state: tracks the last updatedAt seen while the user was viewing
@@ -441,8 +441,8 @@
 			el.removeEventListener('drag', onDrag);
 			el.removeEventListener('dragend', onDragEndHandler);
 
-			if (closeActiveHoverPreview === closeHoverPreview) {
-				closeActiveHoverPreview = null;
+			if (activeHoverPreview.close === closeHoverPreview) {
+				activeHoverPreview.close = null;
 			}
 		};
 	});

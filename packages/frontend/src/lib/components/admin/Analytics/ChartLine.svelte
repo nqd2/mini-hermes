@@ -51,6 +51,7 @@
 		viewBox="0 0 {w} {height - 20}"
 		class="absolute inset-x-0 top-0 h-[calc(100%-20px)] w-full"
 		preserveAspectRatio="none"
+		role="img"
 		onmousemove={onMove}
 		onmouseleave={() => (hoveredIdx = null)}
 	>

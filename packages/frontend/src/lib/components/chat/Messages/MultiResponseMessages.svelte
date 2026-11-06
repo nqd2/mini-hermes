@@ -322,11 +322,10 @@
 			{:else}
 				{#each Object.keys(groupedMessageIds) as modelIdx}
 					{#if groupedMessageIdsIdx[modelIdx] !== undefined && groupedMessageIds[modelIdx].messageIds.length > 0}
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						{@const _messageId =
 							groupedMessageIds[modelIdx].messageIds[groupedMessageIdsIdx[modelIdx]]}
 
+						<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 						<div
 							class="snap-center w-full max-w-full transition-all {compactPreview
 								? ''

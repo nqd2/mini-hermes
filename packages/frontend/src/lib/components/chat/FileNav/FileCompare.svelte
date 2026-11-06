@@ -333,8 +333,7 @@
 	.control:disabled {
 		opacity: 0.4;
 	}
-	.control:focus-visible,
-	summary:focus-visible {
+	.control:focus-visible {
 		outline: 2px solid currentColor;
 		outline-offset: 2px;
 	}

@@ -44,6 +44,7 @@
 
 	const i18n = getContext('i18n');
 
+	// svelte-ignore export_let_unused
 	export let shareEnabled: boolean = false;
 	export let readOnly: boolean = false;
 

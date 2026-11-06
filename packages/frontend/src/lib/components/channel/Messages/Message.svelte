@@ -226,6 +226,7 @@
 />
 
 {#if message}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="swipe-reply-wrapper relative"
 		data-sidebar-no-gesture={disabled || edit ? undefined : ''}
@@ -600,6 +601,7 @@
 									{#if file.type === 'image' || (file?.content_type ?? '').startsWith('image/')}
 										<Image src={fileUrl} alt={file.name} imageClassName=" max-h-96 rounded-lg" />
 									{:else if file.type === 'video' || (file?.content_type ?? '').startsWith('video/')}
+										<!-- svelte-ignore a11y_media_has_caption -->
 										<video src={fileUrl} controls class=" max-h-96 rounded-lg"></video>
 									{:else}
 										<FileItem

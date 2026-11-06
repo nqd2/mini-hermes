@@ -1,5 +1,5 @@
 <script context="module">
-	let closeActiveHoverPreview = null;
+	const activeHoverPreview = { close: null };
 </script>
 
 <script>
@@ -92,9 +92,9 @@
 		}
 	};
 
-	$: if (openPreview && closeActiveHoverPreview !== closeHoverPreview) {
-		closeActiveHoverPreview?.();
-		closeActiveHoverPreview = closeHoverPreview;
+	$: if (openPreview && activeHoverPreview.close !== closeHoverPreview) {
+		activeHoverPreview.close?.();
+		activeHoverPreview.close = closeHoverPreview;
 	}
 
 	let name = '';
@@ -450,8 +450,8 @@
 	onDestroy(() => {
 		delete folderRegistry[folderId];
 
-		if (closeActiveHoverPreview === closeHoverPreview) {
-			closeActiveHoverPreview = null;
+		if (activeHoverPreview.close === closeHoverPreview) {
+			activeHoverPreview.close = null;
 		}
 
 		if (folderElement) {

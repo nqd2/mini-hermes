@@ -10,6 +10,7 @@
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 
 	import { config, user, settings } from '$lib/stores';
+	// svelte-ignore export_let_unused
 	export let models = [];
 	export let chatFiles = [];
 	export let params: Record<string, any> = {};
@@ -126,7 +127,7 @@
 							rows="3"
 							placeholder={$i18n.t('Enter system prompt')}
 							aria-label={$i18n.t('System Prompt')}
-						/>
+						></textarea>
 					</div>
 				</Collapsible>
 			{/if}

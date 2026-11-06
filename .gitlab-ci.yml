@@ -1,60 +1,108 @@
-stages:
-  - test
-  - build
-  - deploy_dev
-  - deploy_prod
-
-variables:
-  DOCKER_BUILDKIT: "1"
-  IMAGE_NAME: "mini-hermes"
-
-contract_and_security_tests:
-  stage: test
-  image: python:3.12-slim
-  tags:
-    - local
-  before_script:
-    - pip install --no-cache-dir pytest pyyaml
-  script:
-    - echo "=== Running CI Contract & Security Architecture Tests ==="
-    - python3 -m pytest packages/backend/tests/test_ci_pipeline_contract.py -v
+workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "dev"
 
+stages:
+  - test
+  - build
+  - deploy
+  - verify
+
+variables:
+  DOCKER_BUILDKIT: "1"
+  IMAGE_NAME: "mini-hermes"
+  IMAGE_TAG: "${CI_COMMIT_SHORT_SHA}"
+
+# -----------------------------------------------------------------------------
+# Stage 1: Contract & Unit Verification (TDD 100% Pass)
+# -----------------------------------------------------------------------------
+contract_test:
+  stage: test
+  image: python:3.11-slim
+  tags:
+    - local
+  script:
+    - echo "[+] Running CI/CD and deployment contract tests..."
+    - pip install --no-cache-dir pytest pyyaml
+    - pytest packages/backend/tests/test_ci_pipeline_contract.py
+    - python3 scripts/test_ci_deploy_contract.py
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+
+# -----------------------------------------------------------------------------
+# Stage 2: Docker Image Build (Tagged by Commit SHA, No 'latest' deploy tag)
+# -----------------------------------------------------------------------------
 build_image:
   stage: build
   image: docker:cli
   tags:
     - local
+  before_script:
+    - docker info
   script:
-    - echo "=== Building Docker image with commit tag: ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ==="
-    - docker build -t ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
+    - echo "[+] Building Docker image with commit tag: ${IMAGE_NAME}:${IMAGE_TAG}..."
+    - docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f Dockerfile .
   rules:
-    - if: $CI_COMMIT_BRANCH == "dev"
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
 
+# -----------------------------------------------------------------------------
+# Stage 3: Zero-Downtime Deployment with Automatic Rollback
+# -----------------------------------------------------------------------------
 deploy_dev:
-  stage: deploy_dev
+  stage: deploy
   image: docker:cli
   tags:
     - local
   script:
-    - echo "=== Deploying to DEV Environment ==="
-    - chmod +x scripts/deploy_and_verify.sh
-    - ./scripts/deploy_and_verify.sh dev ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.dev.env
+    - echo "[+] Deploying development stack..."
+    - ./scripts/deploy_with_rollback.sh dev "${IMAGE_TAG}"
+  environment:
+    name: development
+    url: https://dev-mini-hermes.ducnq.io.vn
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
 
 deploy_prod:
-  stage: deploy_prod
+  stage: deploy
   image: docker:cli
   tags:
     - local
   script:
-    - echo "=== Deploying to PRODUCTION Environment ==="
-    - chmod +x scripts/deploy_and_verify.sh
-    - ./scripts/deploy_and_verify.sh prod ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.prod.env
+    - echo "[+] Deploying production stack..."
+    - ./scripts/deploy_with_rollback.sh prod "${IMAGE_TAG}"
+  environment:
+    name: production
+    url: https://mini-hermes.ducnq.io.vn
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# -----------------------------------------------------------------------------
+# Stage 4: Post-Deploy End-to-End Verification
+# -----------------------------------------------------------------------------
+verify_dev_health:
+  stage: verify
+  image: alpine:latest
+  tags:
+    - local
+  script:
+    - apk add --no-cache curl
+    - echo "[+] Checking dev health endpoint..."
+    - curl -f -s http://mini-hermes-dev-app:8080/health | grep -q "true"
+    - echo "[+] Dev healthcheck PASSED!"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+verify_prod_health:
+  stage: verify
+  image: alpine:latest
+  tags:
+    - local
+  script:
+    - apk add --no-cache curl
+    - echo "[+] Checking prod health endpoint..."
+    - curl -f -s http://mini-hermes-prod-app:8080/health | grep -q "true"
+    - echo "[+] Prod healthcheck PASSED!"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"

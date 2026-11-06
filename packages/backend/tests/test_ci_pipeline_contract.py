@@ -120,5 +120,18 @@ def test_deploy_and_verify_script_valid():
     assert os.path.isfile(script_path), "deploy_and_verify.sh must exist"
     assert os.access(script_path, os.X_OK), "deploy_and_verify.sh must be executable"
 
-    res = subprocess.run(["bash", "-n", script_path], capture_output=True, text=True)
-    assert res.returncode == 0, f"Script syntax error: {res.stderr}"
+    res = subprocess.run(["sh", "-n", script_path], capture_output=True, text=True)
+    assert res.returncode == 0, f"Script syntax error in sh: {res.stderr}"
+
+
+def test_gitlab_ci_yaml_contract_and_domains():
+    """Verify .gitlab-ci.yml syntax and target domain contracts."""
+    ci_path = os.path.join(REPO_ROOT, ".gitlab-ci.yml")
+    with open(ci_path, "r", encoding="utf-8") as f:
+        doc = yaml.safe_load(f)
+
+    deploy_dev = doc.get("deploy_dev", {})
+    deploy_prod = doc.get("deploy_prod", {})
+
+    assert deploy_dev.get("environment", {}).get("url") == "https://dev-mini-hermes.ducnq.io.vn"
+    assert deploy_prod.get("environment", {}).get("url") == "https://mini-hermes.ducnq.io.vn"

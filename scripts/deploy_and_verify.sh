@@ -1,5 +1,5 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 ENV="${1:-dev}"
 IMAGE_TAG="${2:-latest}"

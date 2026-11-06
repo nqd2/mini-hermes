@@ -39,10 +39,10 @@ deploy_dev:
     - local
   script:
     - chmod +x scripts/deploy_and_verify.sh
-    - ./scripts/deploy_and_verify.sh dev ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.dev.env
+    - sh ./scripts/deploy_and_verify.sh dev ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.dev.env
   environment:
     name: development
-    url: https://dev-mini-hermes.vietnh.io.vn
+    url: https://dev-mini-hermes.ducnq.io.vn
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
 
@@ -53,10 +53,10 @@ deploy_prod:
     - local
   script:
     - chmod +x scripts/deploy_and_verify.sh
-    - ./scripts/deploy_and_verify.sh prod ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.prod.env
+    - sh ./scripts/deploy_and_verify.sh prod ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/mini-hermes/envs/backend.prod.env
   environment:
     name: production
-    url: https://mini-hermes.vietnh.io.vn
+    url: https://mini-hermes.ducnq.io.vn
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 

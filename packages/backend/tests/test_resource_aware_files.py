@@ -4,6 +4,7 @@ from open_webui.mini_hermes.resource_aware import (
     has_resource_file_tools,
     is_independent_greeting,
     plan_resource_context,
+    requires_resource_evidence,
     resource_aware_context_enabled,
     resource_aware_file_ids,
     resource_file_context_budget,
@@ -23,8 +24,18 @@ def test_only_uploaded_document_references_activate_resource_aware_mode():
 def test_resource_file_tool_routing_uses_tools_registered_for_this_request():
     assert not has_resource_file_tools(None)
     assert not has_resource_file_tools({'search_web': {}})
+    assert not has_resource_file_tools({'list_chat_files': {}})
+    assert not has_resource_file_tools({'display_file': {}})
     assert has_resource_file_tools({'read_editable_document': {}})
     assert has_resource_file_tools({'view_file': {}})
+
+
+def test_resource_evidence_is_loaded_for_references_but_not_unrelated_messages():
+    assert requires_resource_evidence('File này về cái gì?')
+    assert requires_resource_evidence('Còn file thứ hai thì sao?')
+    assert requires_resource_evidence('Summarize the attached document')
+    assert not requires_resource_evidence('hi')
+    assert not requires_resource_evidence('What is the weather today?')
 
 
 def test_existing_chat_resources_keep_resource_mode_without_current_message_attachment(monkeypatch):

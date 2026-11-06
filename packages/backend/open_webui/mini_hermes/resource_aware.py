@@ -7,10 +7,8 @@ import re
 
 RESOURCE_FILE_TOOL_NAMES = frozenset(
     {
-        'list_chat_files',
         'grep_chat_files',
         'view_file',
-        'list_editable_documents',
         'read_editable_document',
         'search_editable_document',
     }
@@ -62,6 +60,22 @@ def plan_resource_context(message: str, *, has_pending_task: bool = False) -> st
     if re.search(full_request, message, re.IGNORECASE):
         return 'FULL'
     return 'FOCUSED'
+
+
+def requires_resource_evidence(message: str, *, has_pending_task: bool = False) -> bool:
+    """Whether the user asks about or continues work on an attached resource."""
+    if has_pending_task:
+        return True
+    if is_independent_greeting(message, pending_task=False):
+        return False
+    references = (
+        r'\b(file|document|attachment|spreadsheet|workbook|sheet|page|slide|'
+        r'content|data|this|these|it|second one|first one)\b|'
+        r'\bwhat is (?:this|it|inside)\b|'
+        r'file này|tài liệu này|tệp này|nội dung|sheet thứ|trang thứ|'
+        r'cái này|phần này|file thứ|tệp thứ|tài liệu thứ'
+    )
+    return bool(re.search(references, message or '', re.IGNORECASE))
 
 
 def bounded_file_sources(

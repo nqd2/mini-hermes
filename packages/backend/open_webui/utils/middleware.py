@@ -93,6 +93,7 @@ from open_webui.utils.chat_runtime.citations import (
     get_citation_source_from_tool_result,
     get_source_context,
 )
+from open_webui.utils.chat_runtime.context_preparation import ContextPreparationAdapters, prepare_chat_context
 from open_webui.utils.chat_runtime.file_retrieval import chat_completion_files_handler
 from open_webui.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS, load_messages_from_db
 from open_webui.utils.chat_runtime.image_generation import run_chat_image_generation
@@ -1429,40 +1430,24 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             form_data.pop('tools', None)
             form_data.pop('tool_choice', None)
 
-    # The tool loop restores these prompts before rebuilding file and tool source context.
-    system_message = get_system_message(form_data['messages'])
-    base_system_prompt = get_content_from_message(system_message) if system_message else ''
-    resource_instructions = build_resource_instructions(metadata)
-    if resource_instructions:
-        base_system_prompt = f'{base_system_prompt}\n\n{resource_instructions}'.strip()
-    resolved_model_system_prompt = await resolve_system_prompt(
-        model_system_prompt_template,
+    form_data, metadata, events = await prepare_chat_context(
+        request,
+        form_data,
         metadata,
+        events,
+        sources,
+        prompt,
+        model_system_prompt_template,
         user,
+        ContextPreparationAdapters(
+            apply_source_context_to_messages=apply_source_context_to_messages,
+            build_resource_instructions=build_resource_instructions,
+            resolve_system_prompt=resolve_system_prompt,
+            get_system_message=get_system_message,
+            get_content_from_message=get_content_from_message,
+            get_last_user_message=get_last_user_message,
+        ),
     )
-    if resolved_model_system_prompt:
-        base_system_prompt = (
-            f'{resolved_model_system_prompt}\n{base_system_prompt}'
-            if base_system_prompt
-            else resolved_model_system_prompt
-        )
-    metadata['base_system_prompt'] = base_system_prompt or None
-    metadata['base_user_prompt'] = get_last_user_message(form_data['messages'])
-    metadata['sources'] = sources[:] if sources else []
-
-    # If context is not empty, insert it into the messages
-    if sources and prompt:
-        form_data['messages'] = await apply_source_context_to_messages(request, form_data['messages'], sources, prompt)
-
-    # If there are citations, add them to the data_items
-    sources = [
-        source
-        for source in sources
-        if source.get('source', {}).get('name', '') or source.get('source', {}).get('id', '')
-    ]
-
-    if len(sources) > 0:
-        events.append({'sources': sources})
 
     if model_knowledge:
         await event_emitter(

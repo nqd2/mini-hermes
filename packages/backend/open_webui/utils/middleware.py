@@ -54,7 +54,7 @@ from open_webui.models.config import Config
 from open_webui.models.folders import Folders
 from open_webui.models.models import Models
 from open_webui.models.users import UserModel, Users
-from open_webui.retrieval.utils import filter_source_metadata, get_sources_from_items
+from open_webui.retrieval.utils import filter_source_metadata
 from open_webui.routers.images import (
     CreateImageForm,
     EditImageForm,
@@ -95,6 +95,7 @@ from open_webui.utils.chat_runtime.citations import (
     get_citation_source_from_tool_result,
     get_source_context,
 )
+from open_webui.utils.chat_runtime.file_retrieval import chat_completion_files_handler
 from open_webui.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS, load_messages_from_db
 from open_webui.utils.chat_runtime.messages import (
     add_file_context,
@@ -1050,127 +1051,6 @@ async def chat_image_generation_handler(request: Request, form_data: dict, extra
         form_data['messages'] = add_or_update_system_message(system_message_content, form_data['messages'])
 
     return form_data
-
-
-async def chat_completion_files_handler(
-    request: Request, body: dict, extra_params: dict, user: UserModel
-) -> tuple[dict, dict[str, list]]:
-    __event_emitter__ = extra_params['__event_emitter__']
-    sources = []
-
-    files = [item for item in (body.get('metadata', {}).get('files', None) or []) if item.get('type') != 'filesystem']
-    if files:
-        # Check if all files are in full context mode
-        all_full_context = all(item.get('context') == 'full' for item in files)
-
-        queries = []
-        if not all_full_context:
-            try:
-                queries_response = await generate_queries(
-                    request,
-                    {
-                        'model': body['model'],
-                        'messages': body['messages'],
-                        'type': 'retrieval',
-                        'chat_id': body.get('metadata', {}).get('chat_id'),
-                    },
-                    user,
-                )
-                queries_response = queries_response['choices'][0]['message']['content']
-
-                try:
-                    bracket_start = queries_response.rfind('{')
-                    bracket_end = queries_response.rfind('}') + 1
-
-                    if bracket_start == -1 or bracket_end == -1:
-                        raise Exception('No JSON object found in the response')
-
-                    queries_response = queries_response[bracket_start:bracket_end]
-                    queries_response = JSONCodec.loads(queries_response)
-                except Exception as e:
-                    queries_response = {'queries': [queries_response]}
-
-                queries = queries_response.get('queries', [])
-            except Exception:
-                pass
-
-            await __event_emitter__(
-                {
-                    'type': 'status',
-                    'data': {
-                        'action': 'queries_generated',
-                        'queries': queries,
-                        'done': False,
-                    },
-                }
-            )
-
-        if len(queries) == 0:
-            queries = [get_last_user_message(body['messages']) or '']
-
-        try:
-            # One batched SELECT instead of six sequential round trips.
-            rag_config = await Config.get_many(
-                'rag.top_k',
-                'rag.top_k_reranker',
-                'rag.relevance_threshold',
-                'rag.hybrid_bm25_weight',
-                'rag.enable_hybrid_search',
-                'rag.full_context',
-            )
-            # Directly await async get_sources_from_items (no thread needed - fully async now)
-            sources = await get_sources_from_items(
-                request=request,
-                items=files,
-                queries=queries,
-                embedding_function=lambda query, prefix: request.app.state.EMBEDDING_FUNCTION(
-                    query, prefix=prefix, user=user
-                ),
-                k=rag_config.get('rag.top_k'),
-                reranking_function=(
-                    (lambda query, documents: request.app.state.RERANKING_FUNCTION(query, documents, user=user))
-                    if request.app.state.RERANKING_FUNCTION
-                    else None
-                ),
-                k_reranker=rag_config.get('rag.top_k_reranker'),
-                r=rag_config.get('rag.relevance_threshold'),
-                hybrid_bm25_weight=rag_config.get('rag.hybrid_bm25_weight'),
-                hybrid_search=rag_config.get('rag.enable_hybrid_search'),
-                full_context=all_full_context or rag_config.get('rag.full_context'),
-                user=user,
-            )
-        except Exception as e:
-            log.exception(e)
-
-        log.debug('File retrieval completed: source_records=%d', len(sources or []))
-
-        unique_ids = set()
-        for source in sources or []:
-            if not source or len(source.keys()) == 0:
-                continue
-
-            documents = source.get('document') or []
-            metadatas = source.get('metadata') or []
-            src_info = source.get('source') or {}
-
-            for index, _ in enumerate(documents):
-                metadata = metadatas[index] if index < len(metadatas) else None
-                _id = (metadata or {}).get('source') or (src_info or {}).get('id') or 'N/A'
-                unique_ids.add(_id)
-
-        sources_count = len(unique_ids)
-        await __event_emitter__(
-            {
-                'type': 'status',
-                'data': {
-                    'action': 'sources_retrieved',
-                    'count': sources_count,
-                    'done': True,
-                },
-            }
-        )
-
-    return body, {'sources': sources}
 
 
 async def convert_url_images_to_base64(form_data, user=None):

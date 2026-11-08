@@ -11,6 +11,7 @@
 
 	import { getContext, setContext, onDestroy, onMount, tick } from 'svelte';
 	import { createChatRequestLifecycle } from './chatRequestLifecycle';
+	import { prepareChatSubmission } from './chatSubmissionPreparation';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -3973,16 +3974,17 @@
 		const currentHistory = history;
 		processing = 'uploading';
 		try {
-			const _chatId = await getChatId(currentHistory);
-			if (_chatId === null) return { status: 'rejected' };
-
-			if (history !== currentHistory) return { status: 'rejected' };
-			if (
-				files.some((file) => file.status === 'pending' && file.file instanceof File) &&
-				!(await messageInput?.uploadPendingFiles(_chatId || (await initChatHandler(history))))
-			)
-				return { status: 'rejected' };
-			if (history !== currentHistory) return { status: 'rejected' };
+			const preparation = await prepareChatSubmission({
+				history: currentHistory,
+				isCurrentHistory: (candidateHistory) => history === candidateHistory,
+				resolveChatId: getChatId,
+				ensureChatId: initChatHandler,
+				hasPendingFiles: () =>
+					files.some((file) => file.status === 'pending' && file.file instanceof File),
+				uploadPendingFiles: async (sessionId) =>
+					(await messageInput?.uploadPendingFiles(sessionId)) ?? false
+			});
+			if (preparation.status !== 'ready') return { status: 'rejected' };
 		} catch (error) {
 			toast.error(`${error}`);
 			return { status: 'rejected' };

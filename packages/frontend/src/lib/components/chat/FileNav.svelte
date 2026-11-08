@@ -6,6 +6,7 @@
 	import { createFileNavRequestLifecycle } from './FileNav/fileNavRequestLifecycle';
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import { createFileMutationController } from './FileNav/fileMutationController';
+	import { createFileUploadController, type FileUploadEntry } from './FileNav/fileUploadController';
 	import {
 		createFileNavigationHistory,
 		navigateFileHistoryEntry
@@ -1152,14 +1153,17 @@
 	};
 
 	// Drag-and-drop upload
-	type UploadEntry = { path: string; file?: File };
+	const fileUploadController = createFileUploadController({
+		uploadFile: uploadToTerminal,
+		createDirectory
+	});
 
-	async function readDroppedFiles(data: DataTransfer): Promise<UploadEntry[]> {
+	async function readDroppedFiles(data: DataTransfer): Promise<FileUploadEntry[]> {
 		// Capture all roots before the browser locks the drag data after this event.
 		const items = Array.from(data.items ?? []).filter((item) => item.kind === 'file');
 		const roots = items.map((item) => item.webkitGetAsEntry?.() ?? item.getAsFile());
 		if (!items.length) roots.push(...Array.from(data.files));
-		const entries: UploadEntry[] = [];
+		const entries: FileUploadEntry[] = [];
 		async function visit(entry: FileSystemEntry | File, parent = ''): Promise<void> {
 			const path = parent + entry.name;
 			if (!('isDirectory' in entry)) {
@@ -1219,33 +1223,16 @@
 		if (e.dataTransfer && !uploading) await handleUploadEntries(readDroppedFiles(e.dataTransfer));
 	};
 
-	const handleUploadEntries = async (input: UploadEntry[] | Promise<UploadEntry[]>) => {
+	const handleUploadEntries = async (
+		input: FileUploadEntry[] | Promise<FileUploadEntry[]>
+	) => {
 		const terminal = selectedTerminal;
 		if (!terminal || !currentWritable || uploading) return;
 		const destination = currentPath;
 		const sessionId = chatId ?? undefined;
 		uploading = true;
 		try {
-			for (const entry of await input) {
-				if (
-					entry.path
-						.split('/')
-						.some((part) => !part || part === '.' || part === '..' || /[\\\0]/.test(part))
-				) {
-					throw new Error(`Invalid upload path: ${entry.path}`);
-				}
-				const path = `${destination.replace(/\/$/, '')}/${entry.path}`;
-				const result = entry.file
-					? await uploadToTerminal(
-							terminal.url,
-							terminal.key,
-							path.slice(0, path.lastIndexOf('/')) || '/',
-							entry.file,
-							sessionId
-						)
-					: await createDirectory(terminal.url, terminal.key, path, sessionId);
-				if (!result) throw new Error(entry.path);
-			}
+			await fileUploadController.upload(await input, terminal, destination, sessionId);
 		} catch (error) {
 			toast.error(`${$i18n.t('Upload failed')}: ${error instanceof Error ? error.message : error}`);
 		} finally {

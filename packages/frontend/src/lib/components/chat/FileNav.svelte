@@ -4,6 +4,7 @@
 	import type { GitStatus } from '$lib/apis/terminal/git';
 	import FileGitDiff from './FileNav/FileGitDiff.svelte';
 	import { createFileNavRequestLifecycle } from './FileNav/fileNavRequestLifecycle';
+	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import {
 		createFileNavigationHistory,
 		navigateFileHistoryEntry
@@ -375,6 +376,19 @@
 	let expandedDirs: Set<string> = new Set();
 	let treeCache: Map<string, FileEntry[]> = new Map();
 	let loadingDirs: Set<string> = new Set();
+	const fileDirectoryController = createFileDirectoryController({
+		lifecycle: fileNavRequestLifecycle,
+		getScope: () => ({ terminalId: effectiveTerminalId, chatId }),
+		listFiles,
+		setCwd,
+		onCurrentRequest: (request) => (loadGeneration = request.generation),
+		onExpandedLoading: (path, isLoading) => {
+			const next = new Set(loadingDirs);
+			if (isLoading) next.add(path);
+			else next.delete(path);
+			loadingDirs = next;
+		}
+	});
 	let directoryMenu: { x: number; y: number } | null = null;
 	let searchQuery = '';
 	let showSearch = false;
@@ -855,8 +869,7 @@
 	) => {
 		if (disposed) return;
 		if (!(await protectBuffer())) return;
-		const request = fileNavRequestLifecycle.begin(effectiveTerminalId, chatId);
-		loadGeneration = request.generation;
+		const request = fileDirectoryController.beginCurrentRequest();
 		const terminal = selectedTerminal;
 		if (!terminal) return;
 		const directory = clampToFileRoot(path);
@@ -882,50 +895,40 @@
 		savedPath = directory;
 		pushNavHistory(directory);
 
-		const result = await listFiles(terminal.url, terminal.key, directory, chatId ?? undefined);
-		if (!fileNavRequestLifecycle.isCurrent(request, effectiveTerminalId, chatId)) return;
+		const outcome = await fileDirectoryController.loadCurrent(request, {
+			terminal,
+			path: directory,
+			sessionId: chatId ?? undefined,
+			initialFile: !!initialFile
+		});
+		if (outcome.status === 'stale') return;
 		loading = false;
 
-		// Set working directory on the terminal server (fire-and-forget)
-		if (!initialFile) setCwd(terminal.url, terminal.key, directory, chatId ?? undefined);
-
-		if (result === null) {
+		if (outcome.status === 'failed') {
 			error =
 				'Failed to load directory. Check your Terminal connection in Settings → Integrations.';
 			entries = [];
 		} else {
+			const result = outcome.result;
 			currentWritable = result.writable !== false;
 			entries = normalizeEntries(result.entries);
 			treeCache = new Map(treeCache).set(directory, entries);
 			saveTreeState();
 		}
-		return result !== null;
+		return outcome.status === 'loaded';
 	};
 
 	const fetchExpandedDir = async (path: string) => {
 		const terminal = selectedTerminal;
 		if (!terminal) return null;
 		const directory = asDirectoryPath(path);
-		const request = fileNavRequestLifecycle.beginScoped(
-			`directory:${directory}`,
-			effectiveTerminalId,
-			chatId
+		const outcome = await fileDirectoryController.loadExpanded(
+			directory,
+			terminal,
+			chatId ?? undefined
 		);
-		loadingDirs = new Set(loadingDirs).add(directory);
-		const isCurrent = () =>
-			fileNavRequestLifecycle.isScopedCurrent(request, effectiveTerminalId, chatId);
-		let result: Awaited<ReturnType<typeof listFiles>>;
-		try {
-			result = await listFiles(terminal.url, terminal.key, directory, chatId ?? undefined);
-		} finally {
-			if (isCurrent()) {
-				const nextLoading = new Set(loadingDirs);
-				nextLoading.delete(directory);
-				loadingDirs = nextLoading;
-			}
-		}
-		if (!isCurrent()) return null;
-		if (result === null) return null;
+		if (outcome.status !== 'loaded') return null;
+		const result = outcome.result;
 		const normalizedEntries = normalizeEntries(result.entries);
 		treeCache = new Map(treeCache).set(directory, normalizedEntries);
 		saveTreeState();

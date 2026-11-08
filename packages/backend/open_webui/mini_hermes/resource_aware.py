@@ -69,6 +69,7 @@ def requires_resource_evidence(message: str, *, has_pending_task: bool = False) 
     if is_independent_greeting(message, pending_task=False):
         return False
     references = (
+        r'\b(summari[sz]e|summary|analy[sz]e|continue)\b|tóm tắt|phân tích|làm tiếp|tiếp tục|'
         r'\b(file|document|attachment|spreadsheet|workbook|sheet|page|slide|'
         r'content|data|this|these|it|second one|first one)\b|'
         r'\bwhat is (?:this|it|inside)\b|'
@@ -137,14 +138,17 @@ def bounded_file_sources(
             start = max(0, min(match_at - size // 3, len(doc) - size))
             end = min(len(doc), start + size)
             file_id = str((source.get('source') or {}).get('id') or (meta or {}).get('file_id') or '')
-            evidence_id = hashlib.sha256(f'{file_id}:{start}:{end}:{len(doc)}'.encode()).hexdigest()[:24]
+            source_start = int((meta or {}).get('start_offset', 0))
+            evidence_id = (meta or {}).get('evidence_id') or hashlib.sha256(
+                f'{file_id}:{(meta or {}).get("revision")}:{source_start}:{start}:{end}:{doc}'.encode()
+            ).hexdigest()[:24]
             documents.append(doc[start:end])
             metadatas.append({
                 **(meta or {}),
                 'evidence_id': evidence_id,
-                'start_char': start,
-                'end_char': end,
-                'total_chars': len(doc),
+                'start_char': source_start + start,
+                'end_char': source_start + end,
+                'total_chars': (meta or {}).get('total_chars', source_start + len(doc)),
                 'truncated': start > 0 or end < len(doc),
             })
             remaining -= end - start

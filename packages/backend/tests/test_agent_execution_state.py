@@ -44,3 +44,21 @@ def test_display_task_can_complete_after_successful_display():
     record_tool_result(state, 'display_file', {'displayed': True})
 
     assert can_answer_task(state)
+
+
+def test_legacy_error_string_cannot_complete_search():
+    state = initialize_task_state('Find a value', required_action='search')
+    record_tool_result(state, 'grep_chat_files', 'Error: permission denied')
+    assert not can_answer_task(state)
+
+
+def test_compound_display_and_read_requires_both_effects():
+    state = initialize_task_state('Open the file and summarize its contents')
+    record_tool_result(state, 'display_file', {'displayed': True})
+    assert not can_answer_task(state)
+
+
+def test_empty_reader_output_with_evidence_id_is_not_content():
+    state = initialize_task_state('Read this file')
+    record_tool_result(state, 'read_editable_document', {'evidence_id': 'ev-empty', 'text': ''})
+    assert not can_answer_task(state)

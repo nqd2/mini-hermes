@@ -36,6 +36,21 @@ def test_resource_evidence_is_loaded_for_references_but_not_unrelated_messages()
     assert requires_resource_evidence('Summarize the attached document')
     assert not requires_resource_evidence('hi')
     assert not requires_resource_evidence('What is the weather today?')
+    assert requires_resource_evidence('tóm tắt')
+    assert requires_resource_evidence('summarize')
+
+
+def test_window_evidence_preserves_source_chunk_and_version():
+    def select(revision):
+        return bounded_file_sources([{
+            'source': {'id': 'file-1'}, 'document': ['same content'],
+            'metadata': [{'revision': revision, 'evidence_id': f'chunk-{revision}',
+                          'start_offset': 100}],
+        }], '')[0]['metadata'][0]
+    first, second = select(1), select(2)
+    assert first['evidence_id'] == 'chunk-1'
+    assert second['evidence_id'] == 'chunk-2'
+    assert first['start_char'] == 100
 
 
 def test_existing_chat_resources_keep_resource_mode_without_current_message_attachment(monkeypatch):

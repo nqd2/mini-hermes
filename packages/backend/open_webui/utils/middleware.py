@@ -2763,11 +2763,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         )
 
     prompt = get_last_user_message(form_data['messages'])
-    if metadata.get('resource_aware_files'):
-        from open_webui.mini_hermes.agent_execution import initialize_task_state
-
-        metadata['agent_task_state'] = initialize_task_state(prompt or '')
-
     # Supply fallback text for skill-only messages; some providers reject empty content.
     if not prompt or not prompt.strip():
         fallback = ', '.join([s.name for s in available_skills] + [s['name'] for s in terminal_skills])
@@ -2793,6 +2788,9 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     )
     if metadata['resource_aware_files']:
         metadata['resource_files'] = metadata.get('resource_history_files', [])
+        from open_webui.mini_hermes.agent_execution import initialize_task_state
+
+        metadata.setdefault('agent_task_state', initialize_task_state(prompt or ''))
     else:
         metadata.pop('resource_files', None)
     if metadata['resource_aware_files']:

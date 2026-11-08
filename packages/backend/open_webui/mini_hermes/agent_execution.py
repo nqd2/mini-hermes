@@ -29,21 +29,30 @@ _EVIDENCE_KEYS = ('evidence_id', 'evidence_ids')
 def infer_required_action(prompt: str) -> str:
     """Choose a conservative completion requirement from the user's request."""
     text = (prompt or '').casefold()
-    if re.search(r'\b(open|show|display|preview)\b|mở|hiển thị|xem file', text):
-        return 'display'
     if re.search(r'\b(edit|change|update|save|write)\b|sửa|đổi|cập nhật|lưu', text):
         return 'commit'
     if re.search(r'\b(calculate|compute|sum|average|count)\b|tính|tổng|trung bình|đếm', text):
         return 'calculate'
     if re.search(r'\b(find|search|where|which)\b|tìm|ở đâu|nào', text):
         return 'search'
+    if re.search(r'\b(read|summari[sz]e|summary|contents?|explain|analy[sz]e)\b|đọc|tóm tắt|nội dung|phân tích', text):
+        return 'read'
+    if re.search(r'\b(open|show|display|preview)\b|mở|hiển thị|xem file', text):
+        return 'display'
     return 'read'
 
 
 def initialize_task_state(prompt: str, *, required_action: str | None = None) -> dict:
+    primary = required_action or infer_required_action(prompt)
+    actions = [primary]
+    if not required_action and primary != 'display' and re.search(
+        r'\b(open|show|display|preview)\b|mở|hiển thị', prompt or '', re.IGNORECASE
+    ):
+        actions.append('display')
     return {
         'goal': prompt or '',
-        'required_action': required_action or infer_required_action(prompt),
+        'required_action': primary,
+        'required_actions': actions,
         'steps': [],
         'evidence_ids': [],
         'status': 'ready',
@@ -80,6 +89,9 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
         or item.get('code') in {'resource_read_limit', 'resource_task_time_limit'}
         for item in records
     )
+    blocked = blocked or (isinstance(decoded, str) and bool(re.match(
+        r'\s*(?:error\b|failed\b|permission denied\b)', decoded, re.IGNORECASE
+    ))) or any(isinstance(item.get('exit_code'), int) and item['exit_code'] != 0 for item in records)
     pending = any(item.get('status') in {'pending', 'processing', 'queued'} for item in records)
     evidence_ids = []
     for item in records:
@@ -94,6 +106,9 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
         'action': action,
         'status': 'blocked' if blocked else 'pending' if pending else 'succeeded',
         'evidence_ids': list(dict.fromkeys(evidence_ids)),
+        'has_content': any(
+            bool(item.get('text') or item.get('content') or item.get('document')) for item in records
+        ),
     }
     for key in ('revision', 'coverage_complete', 'truncated', 'next_offset', 'next_start_line'):
         for item in records:
@@ -109,15 +124,14 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
 
 
 def can_answer_task(state: dict) -> bool:
-    action = state.get('required_action', 'read')
+    actions = state.get('required_actions') or [state.get('required_action', 'read')]
     steps = state.get('steps') or []
     successful = [step for step in steps if step.get('status') == 'succeeded']
-    if action == 'display':
-        return any(step.get('action') == 'display' for step in successful)
-    if action == 'commit':
-        return any(step.get('action') == 'commit' for step in successful)
-    if action == 'calculate':
-        return any(step.get('action') == 'calculate' and step.get('evidence_ids') for step in successful)
-    if action == 'search':
-        return any(step.get('action') == 'search' for step in successful)
-    return any(step.get('action') == 'read' and step.get('evidence_ids') for step in successful)
+    def satisfied(action):
+        if action in {'display', 'commit', 'search'}:
+            return any(step.get('action') == action for step in successful)
+        if action == 'calculate':
+            return any(step.get('action') == 'calculate' and step.get('evidence_ids') for step in successful)
+        return any(step.get('action') in {'read', 'search'} and step.get('evidence_ids')
+                   and step.get('has_content') for step in successful)
+    return all(satisfied(action) for action in actions)

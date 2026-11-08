@@ -108,6 +108,13 @@ from open_webui.utils.chat_runtime.messages import (
 from open_webui.utils.chat_runtime.outlet_filters import OutletFilterAdapters, run_outlet_filters
 from open_webui.utils.chat_runtime.resource_context import resolve_chat_resource_context
 from open_webui.utils.chat_runtime.resource_prompts import build_resource_instructions
+from open_webui.utils.chat_runtime.response_context import (
+    ResponseContextAdapters,
+    resolve_response_event_handlers,
+)
+from open_webui.utils.chat_runtime.response_context import (
+    build_response_context as build_response_context_service,
+)
 from open_webui.utils.chat_runtime.stream_state import (
     _split_tool_calls,
     append_to_text_field,
@@ -2233,51 +2240,29 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
 
 async def get_event_emitter_and_caller(metadata):
-    event_emitter = None
-    event_caller = None
-
-    # event_emitter only needs user_id + chat_id + message_id.
-    # It broadcasts to user:{user_id} room AND persists to DB,
-    # so it works for backend-initiated calls (automations, API).
-    if metadata.get('chat_id') and metadata.get('message_id'):
-        event_emitter = await get_event_emitter(metadata)
-
-    # event_caller needs session_id — it calls back to a specific
-    # websocket session (used by direct tools, pyodide code interpreter).
-    if metadata.get('session_id') and metadata.get('chat_id') and metadata.get('message_id'):
-        event_caller = await get_event_call(metadata)
-
-    return event_emitter, event_caller
+    return await resolve_response_event_handlers(metadata, _response_context_adapters())
 
 
 async def build_chat_response_context(request, form_data, user, model, metadata, tasks, events):
-    event_emitter, event_caller = await get_event_emitter_and_caller(metadata)
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+    return await build_response_context_service(
+        request,
+        form_data,
+        user,
+        model,
+        metadata,
+        tasks,
+        events,
+        _response_context_adapters(),
+    )
 
-    answer_gate = ResourceAnswerGate(metadata)
-    event_emitter = answer_gate.bind(event_emitter)
-    assistant_message = None
-    if metadata.get('assistant_message_id'):
-        # Preserve the original output before request conversion strips it from temporary chats.
-        if is_saved_chat_id(metadata.get('chat_id')):
-            assistant_message = await Chats.get_message_by_id_and_message_id(
-                metadata['chat_id'], metadata['assistant_message_id']
-            )
-        elif form_data.get('messages') and form_data['messages'][-1].get('role') == 'assistant':
-            assistant_message = form_data['messages'][-1]
-    return {
-        'request': request,
-        'form_data': form_data,
-        'user': user,
-        'model': model,
-        'metadata': metadata,
-        'tasks': tasks,
-        'events': events,
-        'event_emitter': event_emitter,
-        'event_caller': event_caller,
-        'resource_answer_gate': answer_gate,
-        'assistant_message': copy.deepcopy(assistant_message),
-    }
+
+def _response_context_adapters():
+    return ResponseContextAdapters(
+        get_event_emitter=get_event_emitter,
+        get_event_call=get_event_call,
+        get_saved_message=Chats.get_message_by_id_and_message_id,
+        is_saved_chat_id=is_saved_chat_id,
+    )
 
 
 async def resume_tool_calls(request, form_data, user, model, metadata, message) -> bool:

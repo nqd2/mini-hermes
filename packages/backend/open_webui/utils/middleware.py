@@ -191,7 +191,7 @@ from open_webui.utils.task import (
     tools_function_calling_generation_template,
 )
 from open_webui.utils.terminals import filter_user_terminal_tools, upload_files_to_terminal
-from open_webui.utils.tool_approval import complete_tool_call, pending_tool_calls
+from open_webui.utils.tool_approval import complete_tool_call, pause_for_tool_approval, pending_tool_calls
 from open_webui.utils.tool_search import apply_tool_search, resolve_tool_call
 from open_webui.utils.tools import (
     connect_mcp_server,
@@ -2437,68 +2437,6 @@ async def resume_tool_calls(request, form_data, user, model, metadata, message) 
             entry.get('approved') is True for entry in pending
         ):
             return True
-
-
-async def pause_for_tool_approval(chat_id: str, message_id: str, output: list[dict], form_data: dict, metadata: dict):
-    from open_webui.utils.chat_runtime.resource_execution import resource_task_state_metadata
-
-    result_call_ids = {
-        item.get('call_id') for item in output if item.get('type') == 'function_call_output' and item.get('call_id')
-    }
-    has_pending_approval = False
-    for item in output:
-        if item.get('type') == 'function_call' and not item.get('call_id') and item.get('id'):
-            item['call_id'] = item['id']
-
-        if (
-            item.get('type') == 'function_call'
-            and item.get('call_id')
-            and item.get('call_id') not in result_call_ids
-            and item.get('status') != 'rejected'
-        ):
-            if not has_pending_approval:
-                item['status'] = 'pending'
-                has_pending_approval = True
-            elif item.get('status') in {'in_progress', 'completed'}:
-                item['status'] = 'queued'
-
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
-
-    persisted_output = ResourceAnswerGate(metadata).present(output)
-    await Chats.upsert_message_to_chat_by_id_and_message_id(
-        chat_id,
-        message_id,
-        {
-            'done': False,
-            'output': persisted_output,
-            'meta': {
-                **(metadata.get('tool_approval') or {}),
-                **resource_task_state_metadata(metadata),
-                'session_id': metadata.get('session_id'),
-                'tool_ids': metadata.get('tool_ids') or [],
-                'skill_ids': metadata.get('skill_ids') or [],
-                'terminal_id': metadata.get('terminal_id'),
-                'tool_servers': metadata.get('tool_servers'),
-                'filter_ids': metadata.get('filter_ids') or [],
-                'features': metadata.get('features') or {},
-                'variables': metadata.get('variables') or {},
-                'files': metadata.get('files') or [],
-                'params': metadata.get('params') or {},
-            },
-        },
-        touch=False,
-    )
-    event_emitter = await get_event_emitter(metadata, update_db=False)
-    if event_emitter:
-        await event_emitter({'type': 'chat:active', 'data': {'active': True}})
-
-
-
-
-
-
-
-
 
 
 async def outlet_filter_handler(ctx):

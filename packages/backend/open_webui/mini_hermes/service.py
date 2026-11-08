@@ -15,10 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .drive import NATIVE_TO_OFFICE
 from .edits import apply_operations, extract_text, normalize_operations
+from .library import SUPPORTED_RESOURCE_SUFFIXES, ensure_personal_folder
 from .models import Document, Preview, Revision, SyncJob, now
 from .storage import ObjectStore
-from .library import ensure_personal_folder
-
 
 SUPPORTED = {'.docx', '.xlsx', '.pptx', '.pdf'}
 MIME_TYPES = {
@@ -26,6 +25,11 @@ MIME_TYPES = {
     '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     '.pdf': 'application/pdf',
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.csv': 'text/csv',
+    '.tsv': 'text/tab-separated-values',
+    '.json': 'application/json',
 }
 MAX_BYTES = 20 * 1024 * 1024
 
@@ -94,11 +98,12 @@ async def create_document(db: AsyncSession, store: ObjectStore, user_id: str, fi
     from pathlib import Path
 
     suffix = Path(filename).suffix.lower()
-    if suffix not in SUPPORTED:
-        raise HTTPException(400, 'Supported formats: DOCX, XLSX, PPTX and PDF')
+    if suffix not in SUPPORTED_RESOURCE_SUFFIXES:
+        raise HTTPException(400, 'Supported resource formats: DOCX, XLSX, PPTX, PDF, TXT, MD, CSV, TSV and JSON')
     if len(content) > MAX_BYTES:
         raise HTTPException(413, 'File exceeds 20 MB limit')
-    validate_generated_content(content, suffix)
+    if suffix in SUPPORTED:
+        validate_generated_content(content, suffix)
     if source_file_id:
         existing = (await db.execute(select(Document).where(Document.source_file_id == source_file_id))).scalar_one_or_none()
         if existing:
@@ -124,9 +129,14 @@ async def create_document(db: AsyncSession, store: ObjectStore, user_id: str, fi
     db.add(doc)
     db.add(Revision(id=revision_id, document_id=document_id, number=1, object_key=key,
                     sha256=hashlib.sha256(content).hexdigest(), size=len(content), operations=None))
-    from .chunks import replace_document_chunks
+    from .resource_indexing import enqueue_resource_index_job, resource_index_worker_enabled
 
-    await replace_document_chunks(db, document_id, 1, filename, content)
+    if resource_index_worker_enabled():
+        await enqueue_resource_index_job(db, document_id, 1)
+    else:
+        from .chunks import replace_document_chunks
+
+        await replace_document_chunks(db, document_id, 1, filename, content)
     await db.commit()
     return doc
 
@@ -329,8 +339,13 @@ async def commit_preview(
                       status='pending', attempts=0)
         db.add(job)
     db.add(revision)
-    from .chunks import replace_document_chunks
+    from .resource_indexing import enqueue_resource_index_job, resource_index_worker_enabled
 
-    await replace_document_chunks(db, doc.id, doc.current_revision, doc.filename, content)
+    if resource_index_worker_enabled():
+        await enqueue_resource_index_job(db, doc.id, doc.current_revision)
+    else:
+        from .chunks import replace_document_chunks
+
+        await replace_document_chunks(db, doc.id, doc.current_revision, doc.filename, content)
     await db.commit()
     return revision, job

@@ -4,11 +4,12 @@ import sys
 from typing import Any
 
 from fastapi import Request
+
 from open_webui.env import ENABLE_FUNCTIONS, GLOBAL_LOG_LEVEL
 from open_webui.models.functions import Functions
 from open_webui.models.users import UserModel
 from open_webui.socket.main import get_event_call, get_event_emitter
-from open_webui.utils.middleware import process_tool_result
+from open_webui.utils.chat_runtime.tool_results import process_tool_result
 from open_webui.utils.models import check_model_access, get_all_models
 from open_webui.utils.plugin import get_function_module_from_cache
 

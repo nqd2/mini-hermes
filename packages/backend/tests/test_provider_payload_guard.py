@@ -1,11 +1,15 @@
+from types import SimpleNamespace
+
 import pytest
 
 from open_webui.mini_hermes.provider_guard import (
-    ProviderCapabilityUnsupported, ProviderPayloadTooLarge, apply_capability_constraints,
-    validate_chat_payload, validate_provider_payload,
+    ProviderCapabilityUnsupported,
+    ProviderPayloadTooLarge,
+    apply_capability_constraints,
+    validate_chat_payload,
+    validate_provider_payload,
 )
 from open_webui.utils.json_codec import JSONCodec
-
 
 BASE_URL = 'https://api.1min.ai/openai/v1'
 
@@ -116,3 +120,66 @@ def test_provider_guard_rejects_output_limit_above_model_capability():
         apply_capability_constraints(payload, BASE_URL)
     assert exc.value.detail['code'] == 'model_output_limit_exceeded'
     assert exc.value.detail['param'] == 'max_tokens'
+
+
+@pytest.mark.asyncio
+async def test_anthropic_passthrough_validates_the_serialized_body_before_send(monkeypatch):
+    from importlib import import_module
+
+    main = import_module('open_webui.main')
+
+    payload = {
+        'model': 'claude-test',
+        'max_tokens': 32,
+        'messages': [{'role': 'user', 'content': 'hello'}],
+    }
+    observed = {'order': []}
+
+    async def request_target(*_args, **_kwargs):
+        return 'claude-test', payload, 'https://provider.example/v1', 'secret', {}, {}
+
+    class Response:
+        headers = {'Content-Type': 'application/json'}
+        status = 200
+
+        async def json(self):
+            return {'ok': True}
+
+    class Session:
+        async def request(self, **kwargs):
+            observed['order'].append('send')
+            observed['request'] = kwargs
+            return Response()
+
+    def validate(wire_body, request_payload, base_url, capabilities=None):
+        observed['order'].append('validate')
+        observed['wire_body'] = wire_body
+        observed['payload'] = request_payload
+        observed['base_url'] = base_url
+        return {'message_count': len(request_payload.get('messages', [])), 'serialized_chars': len(wire_body)}
+
+    async def get_session():
+        return Session()
+
+    async def cleanup_response(_response):
+        return None
+
+    monkeypatch.setattr(main.openai, 'get_anthropic_request_target', request_target)
+    monkeypatch.setattr(main, 'get_session', get_session)
+    monkeypatch.setattr(main, 'cleanup_response', cleanup_response)
+    monkeypatch.setattr(
+        'open_webui.mini_hermes.provider_guard.validate_provider_payload',
+        validate,
+    )
+
+    response = await main.passthrough_anthropic_messages(
+        SimpleNamespace(state=SimpleNamespace()),
+        {},
+        SimpleNamespace(),
+    )
+
+    expected_body = JSONCodec.dumps(payload)
+    assert response == {'ok': True}
+    assert observed['order'] == ['validate', 'send']
+    assert observed['wire_body'] == expected_body
+    assert observed['request']['data'] == expected_body

@@ -1,14 +1,23 @@
-import pytest
-from io import BytesIO
 from contextlib import asynccontextmanager
+from io import BytesIO
 from types import SimpleNamespace
+
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.models.access_grants import AccessGrant, AccessGrants
-from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, Revision
-from open_webui.mini_hermes.library import document_in_chat_scope, ensure_personal_folder, has_document_access, list_chat_documents, list_personal_documents, move_document, set_chat_document_access
+from open_webui.mini_hermes.library import (
+    document_in_chat_scope,
+    ensure_personal_folder,
+    has_document_access,
+    list_chat_documents,
+    list_personal_documents,
+    move_document,
+    set_chat_document_access,
+)
+from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, ResourceIndexJob, Revision
 from open_webui.mini_hermes.service import create_document
+from open_webui.models.access_grants import AccessGrant, AccessGrants
 
 
 def valid_docx(text='Office content'):
@@ -26,7 +35,7 @@ async def test_personal_folder_is_created_once_and_document_uses_stable_object_k
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
 
     async with sessions() as db:
@@ -54,7 +63,7 @@ async def test_uploaded_document_is_stored_under_owner_prefix():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
 
     class Store:
@@ -79,7 +88,7 @@ async def test_moving_document_changes_metadata_without_moving_object():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         root = await ensure_personal_folder(db, 'alice')
@@ -182,14 +191,14 @@ async def test_chat_document_access_is_scoped_and_revocable():
 
 @pytest.mark.asyncio
 async def test_agent_list_adopts_chat_attachment_once_and_returns_it(monkeypatch, tmp_path):
+    from open_webui.mini_hermes import tools
     from open_webui.models.files import Files
     from open_webui.storage.provider import Storage
-    from open_webui.mini_hermes import tools
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     source = tmp_path / 'upload.docx'
     source.write_bytes(valid_docx())
@@ -226,9 +235,14 @@ async def test_agent_list_adopts_chat_attachment_once_and_returns_it(monkeypatch
     listed_again = await tools.list_editable_documents(
         __user__={'id': 'alice', 'role': 'user'}, __files__=attached, __chat_id__='chat-1'
     )
+    excluded_by_scope = await tools.list_editable_documents(
+        __user__={'id': 'alice', 'role': 'user'}, __files__=attached, __chat_id__='chat-1',
+        __resource_scope_ids__=['another-upload'],
+    )
     assert len(listed) == 1
     assert listed[0]['filename'] == 'report.docx'
     assert listed_again == listed
+    assert excluded_by_scope == []
 
     async with sessions() as db:
         assert len((await db.execute(select(Document))).scalars().all()) == 1

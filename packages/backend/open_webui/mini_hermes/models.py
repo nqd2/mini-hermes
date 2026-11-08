@@ -88,6 +88,25 @@ class DocumentChunk(Base):
     metadata_json: Mapped[dict | None] = mapped_column(JSONField)
 
 
+class ResourceIndexJob(Base):
+    """Durable, idempotent indexing request for one immutable document revision."""
+    __tablename__ = 'mh_resource_index_job'
+    __table_args__ = (
+        UniqueConstraint('document_id', 'revision', name='uq_mh_resource_index_document_revision'),
+        Index('ix_mh_resource_index_status_next_attempt', 'status', 'next_attempt_at'),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id'), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(24), default='pending', index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
 class ResourceTask(Base):
     """Durable checkpoint for long resource operations handled by the existing worker."""
     __tablename__ = 'mh_resource_task'

@@ -48,6 +48,41 @@ def strip_tool_images(output: list, model: dict) -> list:
         stripped_output.append(item)
     return stripped_output
 
+
+def add_file_context(messages: list[dict]) -> list[dict]:
+    """Add safe file references to user messages for native tool-calling models."""
+    def format_file_tag(file: dict) -> str:
+        attrs = f'type="{file.get("type", "file")}" id="{file.get("id") or file.get("url")}"'
+        if file.get('url'):
+            attrs += f' url="{file["url"]}"'
+        if file.get('content_type'):
+            attrs += f' content_type="{file["content_type"]}"'
+        if file.get('name'):
+            attrs += f' name="{file["name"]}"'
+        return f'<file {attrs}/>'
+
+    for message in messages:
+        if message.get('role') != 'user':
+            continue
+        attached_files = [
+            file
+            for file in message.get('files', [])
+            if (file.get('url') and not file.get('url').startswith('data:'))
+            or (file.get('type') == 'chat' and file.get('id'))
+        ]
+        if not attached_files:
+            continue
+
+        file_context = '<attached_files>\n' + '\n'.join(map(format_file_tag, attached_files)) + '\n</attached_files>\n\n'
+        content = message.get('content', '')
+        if isinstance(content, list):
+            message['content'] = [{'type': 'text', 'text': file_context}] + content
+        else:
+            message['content'] = file_context + content
+
+    return messages
+
+
 def process_messages_with_output(
     messages: list[dict],
     reasoning_format: str | None = None,

@@ -6,14 +6,23 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
+from docx import Document as WordDocument
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from docx import Document as WordDocument
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, Preview, Revision, SyncJob
-from open_webui.mini_hermes.sandbox_service import app, RunRequest, ReadRequest, run_workspace, read_output
+from open_webui.mini_hermes.models import (
+    ChatResource,
+    Document,
+    DocumentChunk,
+    Folder,
+    Preview,
+    ResourceIndexJob,
+    Revision,
+    SyncJob,
+)
+from open_webui.mini_hermes.sandbox_service import ReadRequest, RunRequest, app, read_output, run_workspace
 from open_webui.mini_hermes.service import commit_preview, create_artifact_preview, publish_generated_document
 
 
@@ -101,7 +110,7 @@ async def test_sandbox_update_requires_preview_approval_and_commit_is_idempotent
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
             sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__,
-                          Preview.__table__, SyncJob.__table__]))
+                            ResourceIndexJob.__table__, Preview.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     first_doc = WordDocument()
@@ -229,7 +238,7 @@ async def test_agent_edit_creates_preview_until_user_approval(monkeypatch):
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__, Preview.__table__, SyncJob.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, ChatResource.__table__, Preview.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     source = WordDocument()
     source.add_paragraph('Before')

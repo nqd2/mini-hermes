@@ -12,7 +12,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from open_webui.mini_hermes import worker
 from open_webui.mini_hermes.drive import DriveClient, DriveError, sheet_range
-from open_webui.mini_hermes.models import Document, DocumentChunk, DriveCredential, Folder, Preview, Revision, SyncJob, now
+from open_webui.mini_hermes.models import (
+    Document,
+    DocumentChunk,
+    DriveCredential,
+    Folder,
+    Preview,
+    ResourceIndexJob,
+    Revision,
+    SyncJob,
+    now,
+)
 from open_webui.mini_hermes.oauth import save_refresh_token
 from open_webui.mini_hermes.service import commit_preview, create_document, create_preview, owned_document
 
@@ -105,7 +115,7 @@ async def test_preview_commit_is_idempotent_and_owned():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, Preview.__table__, SyncJob.__table__, DriveCredential.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, Preview.__table__, SyncJob.__table__, DriveCredential.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     from io import BytesIO
@@ -132,6 +142,10 @@ async def test_preview_commit_is_idempotent_and_owned():
         assert first_job is None  # Personal Folder revisions stay local until Drive sync is implemented.
         assert doc.current_revision == 2
         assert len((await db.execute(select(SyncJob))).scalars().all()) == 0
+        index_jobs = list((await db.execute(select(ResourceIndexJob).where(
+            ResourceIndexJob.document_id == doc.id,
+        ).order_by(ResourceIndexJob.revision))).scalars().all())
+        assert [(item.revision, item.status) for item in index_jobs] == [(1, 'pending'), (2, 'pending')]
 
         doc.drive_file_id = 'drive-file-1'
         await db.commit()
@@ -142,6 +156,9 @@ async def test_preview_commit_is_idempotent_and_owned():
         _, drive_job = await commit_preview(db, store, 'owner', preview.id, approval=approval)
         assert drive_job is not None and drive_job.status == 'pending'
         assert len((await db.execute(select(SyncJob))).scalars().all()) == 1
+        assert len((await db.execute(select(ResourceIndexJob).where(
+            ResourceIndexJob.document_id == doc.id,
+        ))).scalars().all()) == 3
     await engine.dispose()
 
 

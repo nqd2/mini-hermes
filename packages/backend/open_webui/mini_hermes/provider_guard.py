@@ -2,19 +2,9 @@
 
 from urllib.parse import urlparse
 
-from fastapi import HTTPException
-
 from open_webui.utils.json_codec import JSONCodec
 
-
-class ProviderPayloadTooLarge(HTTPException):
-    def __init__(self, detail: dict):
-        super().__init__(status_code=413, detail=detail)
-
-
-class ProviderCapabilityUnsupported(HTTPException):
-    def __init__(self, detail: dict):
-        super().__init__(status_code=400, detail=detail)
+from .provider_errors import ProviderCapabilityUnsupported, ProviderPayloadTooLarge
 
 
 def apply_capability_constraints(payload: dict, base_url: str, overrides: dict | None = None) -> dict:

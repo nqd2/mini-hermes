@@ -37,11 +37,11 @@ from .library import (
     list_chat_documents,
     chat_attachment_file_ids,
     move_document,
-    register_chat_upload,
     set_chat_document_access,
     ensure_personal_folder,
     document_in_chat_scope,
 )
+from .resource_uploads import register_chat_upload
 from .resource_tasks import create_summary_task, get_summary_task, request_task_cancel, resume_summary_task
 
 

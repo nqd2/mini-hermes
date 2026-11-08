@@ -34,6 +34,64 @@ def resource_aware_file_ids(files: list[dict] | None) -> list[str]:
     return result
 
 
+def resolve_resource_scope(message: str, files: list[dict] | None) -> tuple[list[str], bool]:
+    """Resolve explicit file references; report when a singular reference is ambiguous."""
+    ordered_ids = resource_aware_file_ids(files)
+    if not ordered_ids:
+        return [], False
+    text = (message or '').casefold()
+    by_id = {str(item.get('id')): item for item in files or [] if isinstance(item, dict) and item.get('id')}
+
+    named = [
+        file_id for file_id in ordered_ids
+        if any(
+            isinstance(by_id[file_id].get(key), str)
+            and by_id[file_id][key].strip()
+            and by_id[file_id][key].casefold() in text
+            for key in ('name', 'filename')
+        )
+    ]
+    if named:
+        return (named, False) if len(named) == 1 else ([], True)
+
+    ordinal_values = {
+        'first': 1, '1st': 1, 'đầu tiên': 1, 'nhất': 1, 'một': 1,
+        'second': 2, '2nd': 2, 'hai': 2,
+        'third': 3, '3rd': 3, 'ba': 3,
+        'fourth': 4, '4th': 4, 'bốn': 4,
+        'fifth': 5, '5th': 5, 'năm': 5,
+    }
+    ordinal = re.search(
+        r'\bfile\s+thứ\s+(đầu tiên|nhất|một|hai|ba|bốn|năm|\d+)\b|'
+        r'\b(?:the\s+)?(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th)\s+(?:file|document)\b|'
+        r'\b(?:file|document)\s+(?:number|no\.?\s*)?(\d+)\b',
+        text,
+    )
+    if ordinal:
+        raw = next(group for group in ordinal.groups() if group is not None)
+        try:
+            number = int(raw)
+        except ValueError:
+            number = ordinal_values.get(raw, 0)
+        return ([ordered_ids[number - 1]], False) if 1 <= number <= len(ordered_ids) else ([], True)
+
+    if re.search(r'\b(all|both|each|every)\s+(?:attached\s+)?(?:files?|documents?)\b|'
+                 r'\b(?:all\s+)?(?:files?|documents?)\b.*\b(?:all|both)\b|'
+                 r'tất cả (?:các )?(?:file|tệp|tài liệu)|cả hai (?:file|tệp|tài liệu)|'
+                 r'các (?:file|tệp|tài liệu)\b', text):
+        return ordered_ids, False
+
+    singular_reference = re.search(
+        r'\b(?:this|that|the)\s+(?:file|document|spreadsheet|workbook|one)\b|'
+        r'\b(?:it|this one|that one)\b|'
+        r'(?:file|tệp|tài liệu) này|cái này|phần này',
+        text,
+    )
+    if singular_reference and len(ordered_ids) > 1:
+        return [], True
+    return ordered_ids, False
+
+
 def resource_aware_context_enabled(files: list[dict] | None, *, has_chat_resources: bool = False) -> bool:
     return os.getenv('MH_RESOURCE_AWARE_FILES', 'true').lower() == 'true' and (
         bool(resource_aware_file_ids(files)) or has_chat_resources
@@ -70,6 +128,7 @@ def requires_resource_evidence(message: str, *, has_pending_task: bool = False) 
         return False
     references = (
         r'\b(summari[sz]e|summary|analy[sz]e|continue)\b|tóm tắt|phân tích|làm tiếp|tiếp tục|'
+        r'\b(which|list|extract|compare|find|show|tell me)\b|\bnào\b|liên quan|chỉ ra|liệt kê|lấy ra|'
         r'\b(file|document|attachment|spreadsheet|workbook|sheet|page|slide|'
         r'content|data|this|these|it|second one|first one)\b|'
         r'\bwhat is (?:this|it|inside)\b|'

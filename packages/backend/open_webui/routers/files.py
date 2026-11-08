@@ -457,7 +457,7 @@ async def upload_file_handler(
         # the agent tool can adopt the attachment lazily on its first call.
         if file_item and file_metadata.get('mini_hermes_chat_upload'):
             try:
-                from open_webui.mini_hermes.library import register_chat_upload
+                from open_webui.mini_hermes.resource_uploads import register_chat_upload
                 from open_webui.mini_hermes.storage import ObjectStore
 
                 await register_chat_upload(db, user.id, file_item.id, ObjectStore())

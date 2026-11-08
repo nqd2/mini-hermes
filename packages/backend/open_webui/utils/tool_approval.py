@@ -41,7 +41,7 @@ def tool_continuation():
     }
 
 
-async def complete_tool_call(chat_id, message_id, call, result):
+async def complete_tool_call(chat_id, message_id, call, result, *, output_filter=None):
     async with Chats.edit_message_output(chat_id, message_id) as message:
         if not message:
             raise HTTPException(status_code=404, detail=ERROR_MESSAGES.NOT_FOUND)
@@ -51,6 +51,9 @@ async def complete_tool_call(chat_id, message_id, call, result):
             raise HTTPException(status_code=409, detail='Tool call is no longer running.')
         saved.update(call)
         output.append(result)
+        if output_filter:
+            output = output_filter(output)
+            message['output'] = output
         pending = pending_tool_calls(output)
         if result.get('status') == 'incomplete':
             message['done'] = True

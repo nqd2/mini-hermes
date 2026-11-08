@@ -155,6 +155,7 @@ from open_webui.routers import (
     auths,
     automations,
     calendar,
+    chat_tasks,
     channels,
     chats,
     comments,
@@ -208,14 +209,9 @@ from open_webui.socket.main import (
 from open_webui.tasks import (
     cleanup_task,
     create_task,
-    get_response_streams_by_chat_id,
     has_active_tasks,
-    list_task_ids_by_item_id,
-    list_tasks,
     redis_task_command_listener,
     redis_task_heartbeat,
-    stop_item_tasks,
-    stop_task,
 )  # Import from tasks.py
 from open_webui.utils import logger
 from open_webui.utils.access_control import has_permission
@@ -235,13 +231,11 @@ from open_webui.utils.auth import (
 from open_webui.utils.chat import (
     register_temporary_chat_session,
     chat_completed as chat_completed_handler,
-    get_temporary_chat,
 )
 from open_webui.utils.chat import (
     generate_chat_completion as chat_completion_handler,
 )
 from open_webui.utils.chat_id import (
-    get_temporary_chat_session_id,
     is_saved_chat_id,
     is_temporary_chat_id,
 )
@@ -820,6 +814,7 @@ app.include_router(openai.router, prefix='/openai', tags=['openai'])
 
 app.include_router(pipelines.router, prefix='/api/v1/pipelines', tags=['pipelines'])
 app.include_router(tasks.router, prefix='/api/v1/tasks', tags=['tasks'])
+app.include_router(chat_tasks.router)
 app.include_router(images.router, prefix='/api/v1/images', tags=['images'])
 
 app.include_router(audio.router, prefix='/api/v1/audio', tags=['audio'])
@@ -1629,6 +1624,15 @@ async def chat_completion(
                 if paused:
                     return {'status': True, 'chat_id': metadata.get('chat_id'), 'paused': True}
 
+                if metadata.get('resource_execution_requested'):
+                    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+
+                    if not ResourceRequestPipeline.consume_model_call(metadata):
+                        raise HTTPException(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail='Resource task execution budget is exhausted. Narrow the request and try again.',
+                        )
+
                 response = await chat_completion_handler(request, form_data, user)
 
                 if isinstance(response, Response) and response.status_code >= 400:
@@ -1940,6 +1944,17 @@ async def passthrough_anthropic_messages(request: Request, form_data: dict, user
         request, form_data, user
     )
     request_url = f'{url.rstrip("/")}/messages'
+    streaming_requested = bool(payload.get('stream'))
+    from open_webui.mini_hermes.provider_guard import validate_provider_payload
+
+    wire_body = JSONCodec.dumps(payload)
+    payload_metrics = validate_provider_payload(
+        wire_body, payload, url, getattr(request.state, 'resource_model_capabilities', None),
+    )
+    log.info(
+        'Anthropic provider request size: model=%s messages=%d serialized_chars=%d',
+        requested_model, payload_metrics['message_count'], payload_metrics['serialized_chars'],
+    )
     response = None
     streaming = False
 
@@ -1948,11 +1963,11 @@ async def passthrough_anthropic_messages(request: Request, form_data: dict, user
         response = await session.request(
             method='POST',
             url=request_url,
-            data=JSONCodec.dumps(payload),
+            data=wire_body,
             headers=headers,
             cookies=cookies,
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
-            timeout=get_client_timeout(stream=bool(payload.get('stream'))),
+            timeout=get_client_timeout(stream=streaming_requested),
         )
 
         if 'text/event-stream' in response.headers.get('Content-Type', ''):
@@ -2126,129 +2141,6 @@ async def chat_action(request: Request, action_id: str, form_data: dict, user=De
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-
-
-@app.post('/api/tasks/stop/{task_id}')
-async def stop_task_endpoint(request: Request, task_id: str, user=Depends(get_admin_user)):
-    try:
-        result = await stop_task(request.app.state.redis, task_id)
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-
-@app.get('/api/tasks')
-async def list_tasks_endpoint(request: Request, user=Depends(get_admin_user)):
-    return {'tasks': await list_tasks(request.app.state.redis)}
-
-
-@app.get('/api/tasks/chat/{chat_id:path}')
-async def list_tasks_by_chat_id_endpoint(request: Request, chat_id: str, user=Depends(get_verified_user)):
-    socket_id = get_temporary_chat_session_id(chat_id)
-    if socket_id:
-        owner = await get_temporary_chat(request.app.state.redis, chat_id)
-        owner_id = owner['user_id'] if owner else get_user_id_from_session_pool(socket_id)
-        if owner_id != user.id and not (user.role == 'admin' and ENABLE_ADMIN_CHAT_ACCESS):
-            return {'task_ids': []}
-    else:
-        chat = await Chats.get_accessible_chat_by_id(chat_id, user, permission='write')
-        if chat is None:
-            return {'task_ids': []}
-
-    task_ids = await list_task_ids_by_item_id(request.app.state.redis, chat_id)
-
-    if not socket_id:
-        task_ids = await Chats.filter_task_ids_by_user_id(chat, user.id, task_ids)
-
-    log.debug('Task IDs for chat %s: %s', chat_id, task_ids)
-    return {'task_ids': task_ids}
-
-
-@app.post('/api/tasks/chat/{chat_id:path}/resume')
-async def resume_temporary_chat(request: Request, chat_id: str, form_data: dict, user=Depends(get_verified_user)):
-    session_id = form_data.get('session_id')
-    if not isinstance(session_id, str) or not await register_temporary_chat_session(
-        request.app.state.redis,
-        chat_id,
-        user.id,
-        session_id,
-        get_user_id_from_session_pool(session_id),
-        create=True,
-    ):
-        raise HTTPException(status_code=404, detail='Temporary chat expired or unavailable')
-    return {
-        'task_ids': await list_task_ids_by_item_id(request.app.state.redis, chat_id),
-        'streams': await get_response_streams_by_chat_id(request.app.state.redis, chat_id),
-    }
-
-
-@app.post('/api/tasks/chat/{chat_id:path}/stop')
-async def stop_tasks_by_chat_id_endpoint(request: Request, chat_id: str, user=Depends(get_verified_user)):
-    socket_id = get_temporary_chat_session_id(chat_id)
-    chat = None
-    if socket_id:
-        owner = await get_temporary_chat(request.app.state.redis, chat_id)
-        owner_id = owner['user_id'] if owner else get_user_id_from_session_pool(socket_id)
-        if owner_id != user.id and not (user.role == 'admin' and ENABLE_ADMIN_CHAT_ACCESS):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
-    else:
-        chat = await Chats.get_accessible_chat_by_id(chat_id, user, permission='write')
-        if chat is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
-    if socket_id:
-        result = await stop_item_tasks(request.app.state.redis, chat_id)
-    else:
-        task_ids = await Chats.filter_task_ids_by_user_id(
-            chat, user.id, await list_task_ids_by_item_id(request.app.state.redis, chat_id)
-        )
-        result = {'status': True, 'message': 'No tasks found.'}
-        for task_id in task_ids:
-            result = await stop_task(request.app.state.redis, task_id)
-
-    if not socket_id and str(result.get('message', '')).startswith('No tasks found'):
-        messages_map = await Chats.get_messages_map_by_chat_id(chat_id) or {}
-        for message_id, message in messages_map.items():
-            if (message.get('user_id') or chat.user_id) != user.id:
-                continue
-            if message.get('role') != 'assistant' or message.get('done') is not False:
-                continue
-
-            output = message.get('output')
-            if isinstance(output, list):
-                for item in output:
-                    if item.get('type') == 'function_call' and item.get('status') in {
-                        'pending',
-                        'queued',
-                        'requires_approval',
-                    }:
-                        item['status'] = 'rejected'
-                        item.pop('approved', None)
-
-            await Chats.upsert_message_to_chat_by_id_and_message_id(
-                chat_id,
-                message_id,
-                {'done': True, **({'output': output} if isinstance(output, list) else {})},
-                touch=False,
-            )
-            result = {
-                'status': True,
-                'message': 'Finalized pending approval message.',
-            }
-
-            event_emitter = await get_event_emitter(
-                {
-                    'user_id': user.id,
-                    'chat_id': chat_id,
-                    'message_id': message_id,
-                },
-                update_db=False,
-            )
-            if event_emitter:
-                await event_emitter({'type': 'chat:completion', 'data': {'done': True, 'output': output}})
-                await event_emitter({'type': 'chat:tasks:cancel'})
-                await event_emitter({'type': 'chat:active', 'data': {'active': False}})
-
-    return result
 
 
 # Config Endpoints

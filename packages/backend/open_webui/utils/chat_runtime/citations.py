@@ -16,9 +16,15 @@ import logging
 log = logging.getLogger(__name__)
 
 CITATION_TOOL_NAMES = (
-    'fetch_url', 'view_file', 'view_knowledge_file', 'query_knowledge_files', 'query_chat_files',
+    'fetch_url', 'view_file', 'view_knowledge_file', 'grep_chat_files', 'query_knowledge_files', 'query_chat_files',
     'read_editable_document', 'search_editable_document', 'get_document_task',
 )
+SOURCE_PROVENANCE_METADATA_KEYS = (
+    'evidence_id', 'revision', 'start_offset', 'end_offset', 'start_char', 'end_char',
+    'page', 'section', 'sheet', 'line', 'first_row', 'last_row', 'total_chars',
+    'coverage_complete', 'truncated',
+)
+MAX_SOURCE_EVIDENCE_IDS = 32
 
 def get_citation_source_from_tool_result(
     tool_name: str, tool_params: dict, tool_result: str, tool_id: str = ''
@@ -104,6 +110,10 @@ def get_citation_source_from_tool_result(
             filename = file_data.get('filename', 'Unknown File')
             file_id = file_data.get('id', '')
             knowledge_name = file_data.get('knowledge_name', '')
+            content = file_data.get('content', '')
+            evidence_id = file_data.get('evidence_id')
+            if not content or not evidence_id:
+                return []
 
             return [
                 {
@@ -112,16 +122,45 @@ def get_citation_source_from_tool_result(
                         'name': filename,
                         'type': 'file',
                     },
-                    'document': [file_data.get('content', '')],
+                    'document': [content],
                     'metadata': [
                         {
                             'file_id': file_id,
                             'name': filename,
                             'source': filename,
+                            'revision': file_data.get('revision'),
+                            'evidence_id': evidence_id,
+                            'start_offset': file_data.get('start_offset'),
+                            'end_offset': file_data.get('end_offset'),
                             **({'knowledge_name': knowledge_name} if knowledge_name else {}),
                         }
                     ],
                 }
+            ]
+
+        if tool_name == 'grep_chat_files' and isinstance(tool_result, dict):
+            return [
+                {
+                    'source': {
+                        'id': item.get('file_id', ''),
+                        'name': item.get('filename', 'Unknown file'),
+                        'type': 'file',
+                    },
+                    'document': [item['text']],
+                    'metadata': [{
+                        'file_id': item.get('file_id', ''),
+                        'name': item.get('filename', 'Unknown file'),
+                        'source': item.get('filename', 'Unknown file'),
+                        'revision': item.get('revision'),
+                        'evidence_id': item.get('evidence_id'),
+                        'line': item.get('line_number'),
+                        'start_offset': item.get('start_offset'),
+                        'end_offset': item.get('end_offset'),
+                        'truncated': item.get('truncated', False),
+                    }],
+                }
+                for item in tool_result.get('results', [])
+                if item.get('text') and item.get('evidence_id')
             ]
 
         elif tool_name == 'fetch_url':
@@ -181,6 +220,12 @@ def get_citation_source_from_tool_result(
                         'file_id': file_id,
                         'name': source_name,
                         'source': source_name,
+                        **{
+                            field: chunk[field] for field in (
+                                'revision', 'evidence_id', 'start_char', 'end_char',
+                                'start_offset', 'end_offset', 'page', 'section', 'sheet',
+                            ) if field in chunk
+                        },
                         **({'note_id': note_id} if note_id else {}),
                     }
                 )
@@ -234,7 +279,18 @@ def get_source_context(sources: list, source_ids: dict = None, include_content: 
             src_rid = source.get('source', {}).get('id') if src_type != 'text' else None
             body = doc if include_content else ''
             extra_attrs = ''
-            for key, value in filter_source_metadata(meta).items():
+            visible_metadata = filter_source_metadata(meta)
+            for key in SOURCE_PROVENANCE_METADATA_KEYS:
+                if meta.get(key) is not None:
+                    visible_metadata.setdefault(key, meta[key])
+            evidence_ids = meta.get('evidence_ids')
+            if isinstance(evidence_ids, list):
+                bounded_evidence_ids = [str(item) for item in evidence_ids[:MAX_SOURCE_EVIDENCE_IDS]]
+                if bounded_evidence_ids:
+                    visible_metadata.setdefault('evidence_ids', ','.join(bounded_evidence_ids))
+                if len(evidence_ids) > MAX_SOURCE_EVIDENCE_IDS:
+                    visible_metadata.setdefault('evidence_ids_truncated', True)
+            for key, value in visible_metadata.items():
                 if key in ('id', 'name', 'resource-type', 'resource-id'):
                     continue
                 extra_attrs += f' {key}="{html.escape(str(value))}"'

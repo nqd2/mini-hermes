@@ -6,7 +6,7 @@ import math
 import re
 
 from .model_capabilities import resolve_model_capabilities
-from .provider_guard import ProviderPayloadTooLarge
+from .provider_errors import ProviderPayloadTooLarge
 
 
 def estimate_tokens(text: str, model: str) -> int:

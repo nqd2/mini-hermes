@@ -12,12 +12,12 @@ Plan: Mini-Hermes production: refactor full stack và hoàn thiện agent execut
 
 ## Work ledger
 
-- Stage 0: in progress — characterization, ADR, correctness regressions.
-- Stage 1: pending — backend execution pipeline, normalized observations and answer gate.
-- Stage 2: pending — indexed readers, format adapters, retrieval and sandbox lifecycle.
-- Stage 3: pending — durable task checkpoints and long-task integration.
-- Stage 4: pending — frontend controllers, reducers, request ownership and resource presentation.
-- Stage 5: pending — remaining boundary extraction, CI and operational checks.
+- Stage 0: complete — ADR, regression contracts, three correctness regressions, and first behavior-preserving chat-runtime extraction.
+- Stage 1: in progress — resource request pipeline, scoped manifest, bounded reads, evidence gate, checkpoint persistence and citations are implemented. Tool execution and result normalization are extracted behind compatibility imports. Upload HTTP handler and service-level upload → search → provider guard → citation → answer-gate are covered. A chat completion route-function integration now runs the real middleware `process_chat_payload`, resource pipeline, provider payload guard and answer gate with search/provider transport mocked. The route test exposed and fixed `add_file_context` being defined in the old middleware module after message processing moved to `chat_runtime.messages`; the old middleware import remains compatible.
+- Stage 2: implementation complete, PostgreSQL verification pending — versioned structured chunks, parser strategies, PostgreSQL FTS/trigram search, weighted lexical fallback, bounded range reads, per-revision indexing jobs, retry leases, and bounded legacy backfill exist. Upload and revision commit queue indexing; search reports pending instead of parsing in-request. The `MH_RESOURCE_INDEX_WORKER_ENABLED` flag restores synchronous behavior for rollback. SQLite tests cover the flow; the PostgreSQL `SKIP LOCKED` concurrency path cannot be exercised locally.
+- Stage 3: in progress — PostgreSQL resource tasks, worker checkpoints, progress/cancel/resume endpoints, and evidence IDs exist. Tests reload a checkpoint across DB sessions, resume to completion with evidence intact, reject changed revisions, reject resume after chat-resource access is revoked, and reclaim an expired worker lease after restart on SQLite. PostgreSQL `SKIP LOCKED` concurrency remains unverified.
+- Stage 4: in progress — chat-load abort/stale-request ownership, chat-scoped task state, simple message event reduction, tool interaction queue, pending ask-user and tool-approval selection/mode persistence, bounded composer file processing, attachment collection, suggestion attachment normalization, file-navigation request scope/history, per-directory request tickets, file-browser path/tree modeling, selection reduction and upload lifecycle are extracted behind controllers/helpers. Task and file responses carry generation/scope tickets so stale results cannot overwrite another chat or current tool events. Editor/submit coordination and remaining FileNav workflows are still coupled to large components.
+- Stage 5: in progress — AST-based CI tests now forbid Mini-Hermes imports of the chat entrypoint/middleware and detect cycles across the full local import graph. Chat document tools are extracted into `open_webui/tools/document_resources.py`; `builtin.py` preserves the old import path and tool objects. Chat task lifecycle HTTP endpoints have moved from `main.py` into `open_webui/routers/chat_tasks.py`, preserving paths, methods and auth dependencies; `main.py` registers the router. Pending-approval finalization is a separately tested operation. Additional API/domain boundary extraction and operational checks remain.
 
 ## Rulings
 
@@ -25,7 +25,79 @@ Plan: Mini-Hermes production: refactor full stack và hoàn thiện agent execut
 - Use SQLAlchemy and existing worker for task persistence; no external memory framework.
 - Characterize native wire contracts before extraction. A change is not complete merely because a helper passes tests.
 - Baseline DB tests use a disposable file-backed SQLite URL locally; PostgreSQL-specific tests must report availability separately.
+- Resource inventory requests use bounded metadata only; they must not cause a document content read.
+- Tool-less full-document work that exceeds the foreground evidence budget remains explicitly partial until the hierarchical worker is integrated.
+- GitNexus MCP/CLI is not available in this checkout; caller and dependency impact was checked with targeted `rg` searches before extraction.
 
 ## Verification
 
-Pending baseline.
+- Baseline backend suite on disposable SQLite: `106 passed, 1 skipped`.
+- Current full backend suite on disposable SQLite: `195 passed, 1 skipped`; PostgreSQL-specific coverage remains unavailable in this environment.
+- Focused tool execution tests: `4 passed`; extracted executor and its legacy middleware import preserve argument filtering and resource greeting guards. New module Ruff checks pass.
+- Frontend lifecycle/reducer Vitest: `64 passed` across 16 files, including chat request/task, tool interaction, ask-user and tool-approval selection/mode persistence, composer file processing, attachment collection and suggestion attachment normalization, file input, simple message event, FileNav request-scope/history, browser model and selection modules. The latest Svelte check reports 519 errors and 2 warnings in 134 files versus the recorded baseline of 521 errors and 2 warnings in 135 files; no diagnostics reference changed `Chat.svelte`, `FileNav.svelte`, `MessageInput.svelte` or extracted helpers. Direct Vitest execution works; `pnpm vitest` attempted dependency relinking and failed on Windows symlink permissions without changing tracked package files. ESLint config resolution is unavailable in this forked frontend package.
+- Task persistence and access regressions: `4 passed`; chat completion route-function integration: `1 passed` with real middleware preparation, resource pipeline and answer gate, while search and provider transport are mocked. Source-context tests verify bounded evidence IDs and provenance reach the model without private metadata. Ruff's undefined-name check and `git diff --check` pass; full middleware lint still reports complexity/import/line-length findings.
+- Resource-task lease recovery: `1 passed` on SQLite; it verifies an expired `processing` task is reclaimable and receives a fresh lease. This does not validate PostgreSQL multi-worker locking.
+- Resource API boundary regressions: architecture guard and upload adapter/provider tests pass (`21 passed` across the focused set); the import graph is acyclic after the extracted upload adapter and shared provider error types. Ruff and formatter pass for new architecture/upload modules.
+- Chat task route extraction: route contract and chat completion route integration tests pass (`5 passed`); Ruff and formatting pass on the new router/tests, `F821` passes for `main.py`, and `git diff --check` passes. The route test imports the production app and confirms all five existing `/api/tasks` endpoints are owned by the new router with their original HTTP methods and auth dependencies.
+- Full backend verification after resource-gate refactoring: `195 passed, 1 skipped` on SQLite. Focused review fixes passed dedicated tests for stale approval-mode changes, FileNav invalidation epochs, per-resource coverage and blocked-checkpoint resume; the latest reviewer re-run passed 40 pipeline/execution-state tests. Ruff check and format check pass on the extracted backend modules and focused tests.
+- `py_compile` passed for the changed backend modules.
+- Full-stack UI characterization and PostgreSQL integration are still pending.
+
+## Completed in current working set
+
+- Added pure `ResourceRequestPipeline` for scope resolution, safe initial reads, evidence recording, coverage and completion decisions.
+- Added a feature-flagged `ResourceAnswerGate` that filters intermediate/final stream events, non-stream answers, tool-resume persistence and raw SSE fallback.
+- Tool observations are recorded only after serialization and output-budget validation; oversized results become blocked observations and cannot supply evidence.
+- Initial reads and tool reads share a 24-read / five-minute execution budget. Main model call and continuation paths consume the eight-call budget.
+- Fixed backend search being misrecorded as a read, which caused verified search results to fail the completion gate.
+- Fixed pending-task greeting detection and scope filtering in `list_editable_documents`.
+- Added resource discovery as a distinct task action; tool-less requests receive a bounded metadata-only manifest, and discovery does not trigger content retrieval.
+- Verified the supplied `M.xlsx` extracts to one sheet and approximately 136,666 characters, exceeding the provider's 100,000-character request cap if sent as full context.
+- Added chat request lifecycle controller and tests while preserving abort and stale-response behavior.
+- Extracted chat task IDs and task summaries into `chatTaskLifecycle.ts`; asynchronous task updates carry generation tickets so a late load or reconnect response cannot overwrite a different chat's state.
+- Extracted simple message/status/files/tasks/embed socket updates into the pure `chatMessageEventReducer.ts`; completion, approval, error and UI side effects remain in `Chat.svelte`.
+- Extracted FIFO interaction ownership, per-message cancellation and exactly-once callback resolution into `chatInteractionQueue.ts`; Chat retains transport and approval UI behavior.
+- Extracted FileNav request generation and terminal/chat scope validation into `fileNavRequestLifecycle.ts`; directory and preview responses share the controller, and unmount/terminal changes invalidate in-flight work.
+- Extracted FileNav path normalization, sorting, hidden-file filtering, visible tree construction and row indexing into `fileBrowserModel.ts`; extracted multi-select/range selection decisions into `fileSelectionModel.ts`. Unit tests cover path normalization, ordering, tree visibility and selection behavior.
+- Fixed the composer upload race: file batches now await normalization, image reads/compression and uploads; a shared pending-operation lifecycle also covers direct upload entry points such as pasted text and cloud pickers, and submit paths wait until all operations settle. Failed file work is surfaced instead of silently detached; image read errors and aborts release the pending state.
+- Fixed Google Drive chat-file upload failing before fetch because its startup log referenced an undefined token; removed authorization data from that log.
+- Added a chat completion route-function integration test that runs the real resource pipeline and completion gate, validates the prepared provider payload, and preserves citation evidence through the response. Added task checkpoint reload/resume and revoked-chat-scope regressions.
+- Fixed citation prompt construction to preserve a bounded whitelist of resource evidence IDs, version, offsets and structural location independently of Open WebUI's configurable source metadata allowlist; arbitrary private metadata remains excluded. Moved `add_file_context` with message processing while retaining the legacy middleware import. Fixed the streaming response closure to import task metadata in the scope that emits completion/cancel events.
+- Extracted the saved tool-call executor from middleware into `utils/chat_runtime/tool_execution.py`; middleware keeps the legacy symbol as an imported alias. Split parsing, resource policy, target resolution, approval and invocation into focused helpers.
+- Extracted tool-result normalization, MCP/HTML embed handling and image attachment processing from middleware into `utils/chat_runtime/tool_results.py`; `actions.py` now depends on that adapter directly, while middleware re-exports the old callable. Split the adapter into focused conversion helpers.
+- Split task-scope restoration and metadata-only manifest construction out of `ResourceRequestPipeline.resolve`; pending checkpoints with no tool steps now retain their saved goal and resource scope.
+- Fixed a pre-existing missing module logger in `middleware.py`; runtime exception paths now log instead of raising `NameError` while handling another error.
+- Added versioned span provenance to Knowledge Base file reads so citations retain the exact revision, offsets and evidence ID, including line-numbered reads.
+- Added a worker-restart regression for expired resource-task leases; SQLite confirms reclaim and lease renewal through the production claim function.
+- Moved chat attachment adoption from `library.py` to `resource_uploads.py`, removing its deferred dependency on document service and keeping upload storage as an adapter.
+- Moved provider exceptions to `provider_errors.py`, removing the deferred provider-guard/context-budget import cycle while preserving provider_guard compatibility exports.
+- Added AST-based dependency checks that reject Resource modules importing the chat middleware/entrypoint and fail CI on cycles, including function-local imports.
+- Extracted attached-chat file discovery, exact search, semantic search and shared file-read access checks into `open_webui/tools/document_resources.py`; legacy imports from `open_webui.tools.builtin` remain object-identical. Split scope validation, bounded retrieval, result formatting and provenance into focused helpers.
+- Extracted pending ask-user parsing and active-branch selection from `Chat.svelte` into `chatPendingInteraction.ts`; tests cover nested argument decoding, newest pending call, ownership, resolved calls and message-level pending state.
+- Extracted saved tool-approval candidate selection into `chatToolApproval.ts`; the selector keeps the current newest-first rule, skips foreign-user messages, `ask_user` and calls that already have results, and is covered by Vitest.
+- Extracted per-file composer processing into `MessageInput/fileProcessing.ts`; it owns size validation, image/HEIC routing, vision capability checks, bounded image compression, temporary-image handling and the upload adapter. The component retains toast/log presentation and async batch lifecycle.
+- Routed all attachment list adds, deduplication, removal and reactive updates through `MessageInput/attachmentCollection.ts`; the controller immutably updates the existing bound `files` array and preserves insertion/removal semantics.
+- Extracted the repeated `@`, `/` and `#` suggestion upload callbacks into `suggestionAttachmentHandler.ts`; filesystem references remain enabled only for `@`, while file deduplication, processed state and existing upload fallback behavior are shared and tested.
+- Extracted FileNav path/file history into `fileNavigationHistory.ts`; back/forward entry selection and forward-history truncation are covered, and navigation always clears its busy state after a rejected load/preview operation.
+- Added per-directory FileNav request tickets so parallel expansion requests remain independent, while stale responses from repeated requests or a changed chat/terminal cannot repopulate the current tree cache. Expanded-directory loading state is cleared on rejected fetches.
+- Extracted tool approval mode persistence and follow-up approval actions from `Chat.svelte` into `chatToolApprovalMode.ts`; tests preserve mode normalization, settings failure behavior and the rule that only full mode approves a pending call.
+- Serialized approval-mode persistence and added latest-request checks so a pending `full` selection cannot approve a tool after a newer `ask` selection. Added an invalidation epoch to scoped FileNav tickets so clearing per-key counters cannot make old tickets valid again.
+- Extracted the five chat task lifecycle endpoints from the application entrypoint into `routers/chat_tasks.py`; added route/auth contract, app registration, admin not-found and pending-approval finalization tests. The path/method/permission contract is unchanged.
+- Guarded the direct Anthropic Messages passthrough with the shared validator; it serializes once and sends the exact validated body. OpenAI-compatible chat and Responses paths already validate after their payload transforms.
+- Corrected `view_file` evidence IDs to hash source text rather than display text with synthetic line numbers.
+- Fixed independent greetings so a pending background resource task does not cause `hi` to resume document reading; task continuation still uses saved scope for follow-up requests.
+- Expanded implicit resource-question detection so questions such as “Which program is related to Computer Science?” search attached resources without requiring the user to say “in this file”; independent greetings remain excluded.
+- Improved lexical ranking so frequent terms such as “program” cannot crowd out a rare matching phrase near the end of a spreadsheet; added an upload-service to answer-gate integration regression using a 301-row XLSX.
+- Fixed false completion from incomplete lexical search and summaries that covered only one resource in a multi-file task. Coverage is now scoped to each resource revision; changed scopes or versions invalidate prior steps/evidence. Blocked checkpoints remain resumable and receive the same revision reconciliation, so a metadata-only continuation cannot release an answer from stale evidence.
+- Moved format parsing into `mini_hermes/parsers.py` with per-format strategies while keeping chunking/provenance independent of Office/PDF parser branches.
+- Added `ResourceIndexJob` with a unique `(document_id, revision)` key, worker leases, bounded retries, exact-revision processing, and a periodic backfill for old revisions without chunks.
+- Removed synchronous chunk creation from normal upload and preview-commit paths. Search enqueues legacy indexing once and surfaces a typed pending state; the execution pipeline holds the answer until indexing supplies evidence.
+- Added rollback flag `MH_RESOURCE_INDEX_WORKER_ENABLED`; verified the existing `worker` service is deployed by `compose.yaml`.
+- Added upload-route, queue, duplicate-enqueue, worker-claim, idempotence, legacy-backfill, pending-state, and synchronous-rollback regression tests. SQLite Alembic upgrade reaches revision `d8e9f0a1b2c3`.
+- Preserved unrelated Windows asyncio edits; they remain unstaged and uncommitted.
+
+## Remaining high-risk gaps
+
+- PostgreSQL-specific claim locking, multi-worker backfill races, and DB transaction integration remain unverified because the local test environment lacks the PostgreSQL driver/service. The migration and queue behavior were verified on SQLite.
+- The new chat completion test invokes the route function directly, so FastAPI request binding is still not covered end to end. It now exercises actual middleware request preparation, but mocks resource search and provider HTTP transport. Anthropic passthrough, executor behavior, citations, and the upload HTTP handler have separate integration tests.
+- Frontend extraction now covers chat request/task lifecycle, message events, upload processing, attachment ownership, suggestion uploads, tool approval selection/mode persistence and FileNav request scope/history/tree/selection. Tool event orchestration, editor/submit coordination and FileNav preview/browse workflows remain coupled to large components.

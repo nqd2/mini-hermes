@@ -8,6 +8,7 @@ from open_webui.mini_hermes.resource_aware import (
     resource_aware_context_enabled,
     resource_aware_file_ids,
     resource_file_context_budget,
+    resolve_resource_scope,
 )
 
 
@@ -34,6 +35,9 @@ def test_resource_evidence_is_loaded_for_references_but_not_unrelated_messages()
     assert requires_resource_evidence('File này về cái gì?')
     assert requires_resource_evidence('Còn file thứ hai thì sao?')
     assert requires_resource_evidence('Summarize the attached document')
+    assert requires_resource_evidence(
+        'Trong những ngành thạc sĩ này có ngành nào liên quan đến compsci không? Chỉ ra cho tôi với.'
+    )
     assert not requires_resource_evidence('hi')
     assert not requires_resource_evidence('What is the weather today?')
     assert requires_resource_evidence('tóm tắt')
@@ -77,6 +81,16 @@ def test_greeting_skips_files_but_followup_uses_conversation_state():
     assert is_independent_greeting('hi', pending_task=False)
     assert not is_independent_greeting('hi', pending_task=True)
     assert not is_independent_greeting('Còn file thứ hai thì sao?', pending_task=False)
+
+
+def test_resource_scope_resolves_ordinals_and_flags_ambiguous_deictic_references():
+    files = [
+        {'type': 'file', 'id': 'f1', 'name': 'first.xlsx'},
+        {'type': 'file', 'id': 'f2', 'name': 'second.pdf'},
+    ]
+    assert resolve_resource_scope('Còn file thứ hai thì sao?', files) == (['f2'], False)
+    assert resolve_resource_scope('What is in this file?', files) == ([], True)
+    assert resolve_resource_scope('List all attached files', files) == (['f1', 'f2'], False)
 
 
 def test_toolless_sources_are_bounded_and_keep_offsets():

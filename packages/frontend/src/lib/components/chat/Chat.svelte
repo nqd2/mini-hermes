@@ -13,6 +13,7 @@
 	import { createChatRequestLifecycle } from './chatRequestLifecycle';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
+	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
 	import { findPendingAskUser, messageHasPendingAskUser } from './chatPendingInteraction';
 	import { findPendingToolApproval } from './chatToolApproval';
 	import { createToolApprovalModeHandler } from './chatToolApprovalMode';
@@ -1435,41 +1436,21 @@
 		if (!$chatId && event.chat_id && history.messages[event.message_id]) {
 			chatId.set(event.chat_id);
 		}
-		const interactionType = event?.data?.type;
-		const interactionData = event?.data?.data;
-		if (interactionType === 'request:interaction:done') {
-			if (eventInteractionId && eventInteractionId === interactionData?.interaction_id) {
-				showEventConfirmation = false;
-				eventInteractionId = null;
-			}
-			browserInteractionQueue.remove(interactionData?.interaction_id);
-			return;
-		}
 		if (
-			interactionType === 'request:user_input' ||
-			interactionType === 'request:elicitation' ||
-			(interactionType === 'confirmation' && interactionData?.tool_call)
+			handleChatToolInteractionEvent(event, cb, {
+				currentChatId: $chatId,
+				approvalMode: browserApprovalMode,
+				isTemporaryChat: isTemporaryChatId,
+				queue: browserInteractionQueue,
+				createId: uuidv4,
+				onInteractionDone: (interactionId) => {
+					if (eventInteractionId && eventInteractionId === interactionId) {
+						showEventConfirmation = false;
+						eventInteractionId = null;
+					}
+				}
+			})
 		) {
-			if (!cb) return;
-			if (event.chat_id !== $chatId) {
-				cb({ status: 'cancelled', answers: {} });
-				return;
-			}
-			if (
-				interactionData?.tool_call &&
-				isTemporaryChatId(event.chat_id) &&
-				browserApprovalMode === 'full'
-			) {
-				cb(true);
-				return;
-			}
-			browserInteractionQueue.enqueue({
-				id: interactionData?.interaction_id ?? uuidv4(),
-				messageId: event.message_id,
-				type: interactionType,
-				data: interactionData,
-				callback: cb
-			});
 			return;
 		}
 

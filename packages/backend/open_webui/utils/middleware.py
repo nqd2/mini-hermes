@@ -120,6 +120,10 @@ from open_webui.utils.chat_runtime.stream_state import (
     update_assistant_message_from_stream,
 )
 from open_webui.utils.chat_runtime.tool_execution import execute_tool_call
+from open_webui.utils.chat_runtime.tool_resumption import (
+    ToolResumptionAdapters,
+    resume_tool_calls as resume_tool_calls_service,
+)
 from open_webui.utils.chat_runtime.tool_results import (
     BASE64_IMAGE_DATA_URI_RE,
     _is_tool_result_error,
@@ -2271,173 +2275,22 @@ async def build_chat_response_context(request, form_data, user, model, metadata,
 
 
 async def resume_tool_calls(request, form_data, user, model, metadata, message) -> bool:
-    """Execute approved calls in the supplied response without rebuilding prepared history."""
-    chat_id = metadata.get('chat_id')
-    message_id = metadata.get('message_id') or metadata.get('assistant_message_id')
-    output = message.get('output')
-    if not isinstance(output, list):
-        return False
-
-    event_emitter, event_caller = await get_event_emitter_and_caller(metadata)
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
-
-    answer_gate = ResourceAnswerGate(metadata)
-
-    # Request filters must be able to reject the complete request before tool side effects.
-    # Give tools their filtered view without letting it overwrite the prepared history.
-    assistant_message = dict(message)
-    if assistant_message.get('model') != model['id']:
-        assistant_message['output'] = strip_reasoning_details(output)
-    form_data = {
-        **form_data,
-        'messages': copy.deepcopy(
-            [
-                *form_data['messages'],
-                *process_messages_with_output([assistant_message], reasoning_format=get_reasoning_format(model)),
-            ]
-        ),
-    }
-    await convert_url_images_to_base64(form_data, user=user)
-    if ENABLE_FUNCTIONS:
-        filter_functions = await get_filter_functions(request, model, metadata.get('filter_ids', []))
-        if filter_functions:
-            form_data, _ = await process_filter_functions(
-                request=request,
-                filter_context=get_filter_context(request),
-                filter_functions=filter_functions,
-                filter_type='request',
-                form_data=form_data,
-                extra_params={
-                    '__event_emitter__': event_emitter,
-                    '__event_call__': event_caller,
-                    '__user__': user.model_dump() if isinstance(user, UserModel) else {},
-                    '__metadata__': metadata,
-                    '__oauth_token__': await get_system_oauth_token(request, user),
-                    '__request__': request,
-                    '__model__': model,
-                    '__chat_id__': metadata.get('chat_id'),
-                    '__message_id__': metadata.get('message_id'),
-                },
-            )
-    normalize_messages_for_model(form_data)
-
-    while True:
-        async with Chats.edit_message_output(chat_id, message_id) as saved:
-            if not saved:
-                raise HTTPException(status_code=404, detail='Message not found.')
-            output = saved.get('output') or []
-            pending = pending_tool_calls(output)
-            if any(entry.get('status') == 'in_progress' for entry in pending):
-                return True
-            item = next(
-                (
-                    entry
-                    for entry in pending
-                    if entry.get('name') != 'ask_user'
-                    and (
-                        entry.get('approved') is True or metadata.get('params', {}).get('tool_approval_mode') == 'full'
-                    )
-                ),
-                None,
-            )
-            if item is None:
-                if pending:
-                    pending[0]['status'] = 'pending'
-                # A stale continuation must not start another model response.
-                return True
-            item['call_id'] = item.get('call_id') or item['id']
-            item['status'] = 'in_progress'
-            saved['done'] = False
-            item = copy.deepcopy(item)
-
-        try:
-            params, result, tool, tool_type, direct_tool = await execute_tool_call(
-                form_data, metadata, event_caller, item
-            )
-            files, embeds = [], []
-            if result is None and tool is None:
-                result = (
-                    'Error: Tool call arguments could not be parsed. The model generated malformed or incomplete JSON.'
-                )
-            elif tool:
-                name = item.get('name', '')
-                terminal_file_result = build_terminal_file_tool_result(name, params, result, tool, metadata)
-                if terminal_file_result:
-                    result = terminal_file_result
-                result, files, embeds = await process_tool_result(
-                    request, name, result, tool_type, direct_tool, metadata, user
-                )
-                await terminal_event_handler(name, params, result, event_emitter)
-            name = item.get('name', '')
-            from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
-
-            content, result_supplied = prepare_resource_tool_result(metadata, name, result)
-            citations_enabled = (model.get('info', {}).get('meta', {}).get('capabilities') or {}).get(
-                'citations', True
-            )
-            if tool and event_emitter and citations_enabled and name in CITATION_TOOL_NAMES and result and result_supplied:
-                for source in get_citation_source_from_tool_result(
-                    tool_name=name, tool_params=params, tool_result=result, tool_id=tool.get('tool_id', '')
-                ):
-                    await event_emitter({'type': 'source', 'data': source})
-            output_parts = [{'type': 'input_text', 'text': content}]
-            item['status'] = 'failed' if _is_tool_result_error(content) else 'completed'
-            display_files = []
-            for file_item in files:
-                if file_item.get('type') == 'image' and file_item.get('url', '').startswith('data:'):
-                    image_url = await store_tool_result_image(request, file_item['url'], metadata, user)
-                    output_parts.append({'type': 'input_image', 'image_url': image_url})
-                else:
-                    display_files.append(file_item)
-                    if file_item.get('type') == 'image' and file_item.get('url'):
-                        output_parts.append({'type': 'input_image', 'image_url': file_item['url']})
-
-            result_item = {
-                'type': 'function_call_output',
-                'id': output_id('fco'),
-                'call_id': item['call_id'],
-                'output': output_parts,
-                'status': item['status'],
-                **({'files': display_files} if display_files else {}),
-                **({'embeds': embeds} if embeds else {}),
-            }
-            output = await complete_tool_call(
-                chat_id, message_id, item, result_item, output_filter=answer_gate.present,
-            )
-        except BaseException:
-            item['status'] = 'incomplete'
-            await asyncio.shield(
-                complete_tool_call(
-                    chat_id,
-                    message_id,
-                    item,
-                    {
-                        'type': 'function_call_output',
-                        'id': output_id('fco'),
-                        'call_id': item['call_id'],
-                        'status': 'incomplete',
-                        'output': [
-                            {
-                                'type': 'input_text',
-                                'text': 'Error: tool execution was interrupted; its outcome is unknown.',
-                            }
-                        ],
-                    },
-                    output_filter=answer_gate.present,
-                )
-            )
-            raise
-        if event_emitter:
-            await event_emitter({'type': 'chat:completion', 'data': {'done': False, 'output': output}})
-        pending = pending_tool_calls(output)
-        if not pending:
-            message['output'] = output
-            return False
-        if metadata.get('params', {}).get('tool_approval_mode') != 'full' and not any(
-            entry.get('approved') is True for entry in pending
-        ):
-            return True
-
+    """Compatibility entrypoint for resuming an approved tool loop."""
+    adapters = ToolResumptionAdapters(
+        get_event_emitter_and_caller=get_event_emitter_and_caller,
+        convert_url_images_to_base64=convert_url_images_to_base64,
+        terminal_event_handler=terminal_event_handler,
+        store_tool_result_image=store_tool_result_image,
+    )
+    return await resume_tool_calls_service(
+        request,
+        form_data,
+        user,
+        model,
+        metadata,
+        message,
+        adapters=adapters,
+    )
 
 async def outlet_filter_handler(ctx):
     """Run outlet filters inline after chat completion.

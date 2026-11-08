@@ -94,6 +94,7 @@ from open_webui.utils.chat_runtime.citations import (
     get_source_context,
 )
 from open_webui.utils.chat_runtime.context_preparation import ContextPreparationAdapters, prepare_chat_context
+from open_webui.utils.chat_runtime.features import ChatFeatureAdapters, process_chat_features
 from open_webui.utils.chat_runtime.file_retrieval import chat_completion_files_handler
 from open_webui.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS, load_messages_from_db
 from open_webui.utils.chat_runtime.image_generation import run_chat_image_generation
@@ -812,81 +813,27 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         except Exception as e:
             raise Exception(f'{e}')
 
-    features = form_data.pop('features', None) or {}
-    extra_params['__features__'] = features
-    if features:
-        if 'voice' in features and features['voice']:
-            if await Config.get('task.voice.prompt.enable'):
-                template = await Config.get('task.voice.prompt_template')
-                if not template:
-                    template = DEFAULT_VOICE_MODE_PROMPT_TEMPLATE
-
-                form_data['messages'] = add_or_update_system_message(
-                    template,
-                    form_data['messages'],
-                )
-
-        if (
-            'memory' in features
-            and features['memory']
-            and await Config.get('memories.enable')
-            and await Config.get('memories.system_context.enable')
-        ):
-            # features is client-supplied; re-check the permission the native FC path enforces.
-            if getattr(user, 'role', None) == 'admin' or await has_permission(
-                getattr(user, 'id', ''),
-                'features.memories',
-                await Config.get('user.permissions'),
-            ):
-                form_data = await add_memory_context(request, form_data, user, model)
-
-        if 'web_search' in features and features['web_search'] and await Config.get('web.search.enable'):
-            # features is client-supplied; re-check the permission the native FC path enforces.
-            if getattr(user, 'role', None) == 'admin' or await has_permission(
-                getattr(user, 'id', ''),
-                'features.web_search',
-                await Config.get('user.permissions'),
-            ):
-                # Skip forced RAG web search when native FC is enabled - model can use web_search tool
-                if metadata.get('params', {}).get('function_calling') == 'legacy':
-                    form_data = await chat_web_search_handler(request, form_data, extra_params, user)
-
-        if 'image_generation' in features and features['image_generation']:
-            # features is client-supplied; re-check the permission the direct /images routes enforce.
-            if getattr(user, 'role', None) == 'admin' or await has_permission(
-                getattr(user, 'id', ''),
-                'features.image_generation',
-                await Config.get('user.permissions'),
-            ):
-                # Skip forced image generation when native FC is enabled - model can use generate_image tool
-                if metadata.get('params', {}).get('function_calling') == 'legacy':
-                    form_data = await chat_image_generation_handler(request, form_data, extra_params, user)
-
-        if 'code_interpreter' in features and features['code_interpreter']:
-            engine = await Config.get('code_interpreter.engine', 'pyodide')
-
-            # Skip XML-tag prompt injection when native FC is enabled —
-            # execute_code will be injected as a builtin tool instead
-            if metadata.get('params', {}).get('function_calling') == 'legacy':
-                ci_prompt_template = await Config.get('code_interpreter.prompt_template')
-                prompt = ci_prompt_template if ci_prompt_template != '' else DEFAULT_CODE_INTERPRETER_PROMPT
-
-                # Append filesystem awareness only for pyodide engine
-                if engine != 'jupyter':
-                    prompt += CODE_INTERPRETER_PYODIDE_PROMPT
-
-                form_data['messages'] = add_or_update_user_message(
-                    prompt,
-                    form_data['messages'],
-                )
-            else:
-                # Put dynamic Pyodide filesystem context in the system prompt to preserve prefix caching.
-                if engine != 'jupyter':
-                    form_data['messages'] = add_or_update_system_message(
-                        CODE_INTERPRETER_PYODIDE_PROMPT,
-                        form_data['messages'],
-                        append=True,
-                    )
+    form_data = await process_chat_features(
+        request,
+        form_data,
+        user,
+        model,
+        metadata,
+        extra_params,
+        ChatFeatureAdapters(
+            config_get=Config.get,
+            has_permission=has_permission,
+            add_memory_context=add_memory_context,
+            web_search_handler=chat_web_search_handler,
+            image_generation_handler=chat_image_generation_handler,
+            add_or_update_system_message=add_or_update_system_message,
+            add_or_update_user_message=add_or_update_user_message,
+            default_voice_prompt=DEFAULT_VOICE_MODE_PROMPT_TEMPLATE,
+            default_code_interpreter_prompt=DEFAULT_CODE_INTERPRETER_PROMPT,
+            code_interpreter_pyodide_prompt=CODE_INTERPRETER_PYODIDE_PROMPT,
+        ),
+    )
+    features = extra_params['__features__']
 
     tool_ids = form_data.pop('tool_ids', None)
     terminal_id = form_data.pop('terminal_id', None)

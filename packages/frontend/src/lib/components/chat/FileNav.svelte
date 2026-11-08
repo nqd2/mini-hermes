@@ -7,6 +7,7 @@
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import { createFileMutationController } from './FileNav/fileMutationController';
 	import { createFileUploadController, type FileUploadEntry } from './FileNav/fileUploadController';
+	import { createFileBufferProtection } from './FileNav/fileBufferProtection';
 	import {
 		createFileNavigationHistory,
 		navigateFileHistoryEntry
@@ -180,29 +181,26 @@
 		sending: boolean;
 		resolve: (choice: 'save' | 'discard' | 'cancel') => void;
 	} | null = null;
-	const protectBuffer = async (sending = false) => {
-		if (!dirty && !saving) return true;
-		if (saving || dirtyChoice) return false;
-		const choice = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
-			dirtyChoice = { sending, resolve };
-		});
-		dirtyChoice = null;
-		if (choice === 'cancel') return false;
-		if (choice === 'save') {
-			try {
-				await filePreviewRef.save();
-			} catch (error) {
-				toast.error(String(error));
-				return false;
-			}
-			if (dirty) return false;
-		}
-		if (choice === 'discard') {
+	const fileBufferProtection = createFileBufferProtection({
+		hasUnsavedChanges: () => dirty || saving,
+		isSaving: () => saving,
+		hasPendingChoice: () => dirtyChoice !== null,
+		requestChoice: async (sending) => {
+			const choice = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
+				dirtyChoice = { sending, resolve };
+			});
+			dirtyChoice = null;
+			return choice;
+		},
+		save: () => filePreviewRef.save(),
+		isDirty: () => dirty,
+		discard: () => {
 			filePreviewRef?.discard();
 			dirty = false;
-		}
-		return true;
-	};
+		},
+		onSaveError: (error) => toast.error(String(error))
+	});
+	const protectBuffer = (sending = false) => fileBufferProtection.protect(sending);
 	export const requestClose = () => protectBuffer();
 	export const hasUnsavedChanges = () => dirty || saving;
 	export const browseDirectory = (path: string) => loadDir(path);

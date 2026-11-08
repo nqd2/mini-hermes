@@ -5,6 +5,7 @@
 	import FileGitDiff from './FileNav/FileGitDiff.svelte';
 	import { createFileNavRequestLifecycle } from './FileNav/fileNavRequestLifecycle';
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
+	import { createFileMutationController } from './FileNav/fileMutationController';
 	import {
 		createFileNavigationHistory,
 		navigateFileHistoryEntry
@@ -1360,6 +1361,14 @@
 	};
 
 	// Move (drag-and-drop)
+	const fileMutationController = createFileMutationController({
+		getTerminal: () => selectedTerminal,
+		getSessionId: () => chatId ?? undefined,
+		getCurrentPath: () => currentPath,
+		canWrite: () => currentWritable,
+		moveEntry
+	});
+
 	const sourceParentPath = (source: string) => {
 		const cleanSource = normalizePath(source).replace(/\/$/, '');
 		const index = cleanSource.lastIndexOf('/');
@@ -1367,33 +1376,15 @@
 	};
 
 	const moveOne = async (source: string, destFolder: string) => {
-		const terminal = selectedTerminal;
-		if (!terminal || !currentWritable) return false;
-
-		const cleanSource = normalizePath(source).replace(/\/$/, '');
-		const fileName = cleanSource.split('/').pop() ?? '';
-		const destination = joinPath(destFolder, fileName);
-
-		if (!fileName || cleanSource === destination) return false;
-
-		// Prevent moving a folder into itself or its own subtree
-		const sourceDir = asDirectoryPath(cleanSource);
-		if (asDirectoryPath(destFolder).startsWith(sourceDir)) return false;
-
-		const result = await moveEntry(
-			terminal.url,
-			terminal.key,
-			cleanSource,
-			destination,
-			chatId ?? undefined
-		);
-		if ('error' in result) {
+		const result = await fileMutationController.move(source, destFolder);
+		if (result.status === 'failed') {
 			toast.error(result.error);
 			return false;
-		} else {
-			toast.success($i18n.t('Moved {{name}}', { name: fileName }));
-			return true;
 		}
+		if (result.status !== 'moved') return false;
+
+		toast.success($i18n.t('Moved {{name}}', { name: result.name }));
+		return true;
 	};
 
 	const refreshAfterMove = async (sources: string[], destFolder: string) => {
@@ -1414,25 +1405,12 @@
 
 	// Rename
 	const handleRename = async (oldPath: string, newName: string) => {
-		const terminal = selectedTerminal;
-		if (!terminal || !newName || !currentWritable) return;
-
-		const dir = oldPath.substring(0, oldPath.lastIndexOf('/') + 1) || currentPath;
-		const destination = `${dir}${newName}`;
-
-		if (oldPath === destination) return;
-
-		const result = await moveEntry(
-			terminal.url,
-			terminal.key,
-			oldPath,
-			destination,
-			chatId ?? undefined
-		);
-		if ('error' in result) {
+		const result = await fileMutationController.rename(oldPath, newName);
+		if (result.status === 'blocked' || result.status === 'invalid') return;
+		if (result.status === 'failed') {
 			toast.error(result.error);
 		} else {
-			toast.success($i18n.t('Renamed to {{name}}', { name: newName }));
+			toast.success($i18n.t('Renamed to {{name}}', { name: result.name }));
 		}
 		invalidateTreeCache(currentPath, oldPath);
 		await refreshBrowser();

@@ -71,7 +71,15 @@ export const createFileDirectoryController = ({
 			initialFile: boolean;
 		}
 	): Promise<FileDirectoryLoadOutcome> => {
-		const result = await listFiles(terminal.url, terminal.key, path, sessionId);
+		let result: TerminalFileList | null;
+		try {
+			result = await listFiles(terminal.url, terminal.key, path, sessionId);
+		} catch {
+			const scope = getScope();
+			return lifecycle.isCurrent(ticket, scope.terminalId, scope.chatId)
+				? { status: 'failed' }
+				: { status: 'stale' };
+		}
 		const scope = getScope();
 		if (!lifecycle.isCurrent(ticket, scope.terminalId, scope.chatId)) return { status: 'stale' };
 

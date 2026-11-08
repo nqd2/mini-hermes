@@ -11,8 +11,12 @@ const directory = {
 
 const deferred = <T>() => {
 	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((done) => (resolve = done));
-	return { promise, resolve };
+	let reject!: (reason?: unknown) => void;
+	const promise = new Promise<T>((done, fail) => {
+		resolve = done;
+		reject = fail;
+	});
+	return { promise, resolve, reject };
 };
 
 type Dependencies = Parameters<typeof createFileDirectoryController>[0];
@@ -83,6 +87,46 @@ describe('file directory controller', () => {
 		});
 
 		expect(result).toEqual({ status: 'loaded', result: directory });
+		expect(setCwd).not.toHaveBeenCalled();
+	});
+
+	it('returns a failed outcome when the current directory request rejects', async () => {
+		const pending = deferred<typeof directory | null>();
+		const { controller, setCwd } = createController({
+			listFiles: vi.fn(() => pending.promise)
+		});
+		const request = controller.beginCurrentRequest();
+		const result = controller.loadCurrent(request, {
+			terminal,
+			path: '/workspace/',
+			sessionId: 'chat-1',
+			initialFile: false
+		});
+
+		pending.reject(new Error('terminal unavailable'));
+
+		await expect(result).resolves.toEqual({ status: 'failed' });
+		expect(setCwd).not.toHaveBeenCalled();
+	});
+
+	it('ignores a rejected current directory request after its scope changes', async () => {
+		const pending = deferred<typeof directory | null>();
+		const { controller, setScope, setCwd } = createController({
+			listFiles: vi.fn(() => pending.promise)
+		});
+		const request = controller.beginCurrentRequest();
+		const result = controller.loadCurrent(request, {
+			terminal,
+			path: '/workspace/',
+			sessionId: 'chat-1',
+			initialFile: false
+		});
+
+		setScope({ terminalId: 'terminal-2', chatId: 'chat-2' });
+		controller.beginCurrentRequest();
+		pending.reject(new Error('terminal unavailable'));
+
+		await expect(result).resolves.toEqual({ status: 'stale' });
 		expect(setCwd).not.toHaveBeenCalled();
 	});
 

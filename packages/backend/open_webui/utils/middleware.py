@@ -118,6 +118,10 @@ from open_webui.utils.chat_runtime.non_streaming_response import (
 )
 from open_webui.utils.chat_runtime.outlet_filters import OutletFilterAdapters, run_outlet_filters
 from open_webui.utils.chat_runtime.resource_context import resolve_chat_resource_context
+from open_webui.utils.chat_runtime.resource_context_preparation import (
+    ResourceContextAdapters,
+    prepare_resource_context,
+)
 from open_webui.utils.chat_runtime.resource_prompts import build_resource_instructions
 from open_webui.utils.chat_runtime.response_context import (
     ResponseContextAdapters,
@@ -433,6 +437,26 @@ async def chat_web_search_handler(request: Request, form_data: dict, extra_param
 
 async def chat_image_generation_handler(request: Request, form_data: dict, extra_params: dict, user):
     return await run_chat_image_generation(request, form_data, extra_params, user)
+
+
+def _resource_aware_file_ids(files):
+    from open_webui.mini_hermes.resource_aware import resource_aware_file_ids
+
+    return resource_aware_file_ids(files)
+
+
+def _has_resource_file_tools(tools):
+    from open_webui.mini_hermes.resource_aware import has_resource_file_tools
+
+    return has_resource_file_tools(tools)
+
+
+async def _read_resource_evidence(owner_id, metadata, query):
+    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from open_webui.mini_hermes.resource_service import search_chat_files
+
+    return await ResourceRequestPipeline(search_chat_files).read(owner_id, metadata, query)
+
 
 async def process_chat_payload(request, form_data, user, metadata, model):
     # Ensure chat_id is always a string — external API clients may omit it.
@@ -1374,61 +1398,22 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 except Exception as e:
                     log.exception(e)
 
-    # Check if file context extraction is enabled for this model (default True)
-    file_context_enabled = (
-        not metadata.get('resource_aware_files')
-        and (model.get('info', {}).get('meta', {}).get('capabilities') or {}).get('file_context', True)
+    form_data, metadata, sources = await prepare_resource_context(
+        request,
+        form_data,
+        extra_params,
+        user,
+        model,
+        metadata,
+        prompt,
+        sources,
+        ResourceContextAdapters(
+            chat_completion_files_handler=chat_completion_files_handler,
+            resource_aware_file_ids=_resource_aware_file_ids,
+            has_resource_file_tools=_has_resource_file_tools,
+            read_resource_evidence=_read_resource_evidence,
+        ),
     )
-
-    if file_context_enabled:
-        try:
-            form_data, flags = await chat_completion_files_handler(request, form_data, extra_params, user)
-            sources.extend(flags.get('sources', []))
-        except Exception as e:
-            log.exception(e)
-    elif metadata.get('resource_aware_files'):
-        # Preserve model-attached knowledge retrieval while excluding uploaded chat
-        # files from Open WebUI's legacy automatic context injection path.
-        from open_webui.mini_hermes.resource_aware import resource_aware_file_ids
-
-        resource_ids = set(resource_aware_file_ids(metadata.get('resource_files')))
-        knowledge_files = [
-            item for item in metadata.get('files') or []
-            if not (
-                isinstance(item, dict) and item.get('type', 'file') == 'file'
-                and str(item.get('id') or '') in resource_ids
-            )
-        ]
-        if knowledge_files:
-            knowledge_form = dict(form_data)
-            knowledge_metadata = dict(metadata)
-            knowledge_metadata['files'] = knowledge_files
-            knowledge_form['metadata'] = knowledge_metadata
-            try:
-                knowledge_form, flags = await chat_completion_files_handler(
-                    request, knowledge_form, extra_params, user
-                )
-                sources.extend(flags.get('sources', []))
-            except Exception as e:
-                log.exception('Attached knowledge retrieval failed: %s', e)
-
-    resource_file_tools_available = False
-    if metadata.get('resource_aware_files'):
-        from open_webui.mini_hermes.resource_aware import has_resource_file_tools
-
-        resource_file_tools_available = bool(
-            metadata.get('resource_model_tools') and has_resource_file_tools(metadata.get('tools'))
-        )
-        metadata['resource_file_tools_available'] = resource_file_tools_available
-
-    if metadata.get('resource_aware_files'):
-        from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
-        from open_webui.mini_hermes.resource_service import search_chat_files
-
-        sources.extend(await ResourceRequestPipeline(search_chat_files).read(user.id, metadata, prompt or ''))
-        if not metadata.get('resource_model_tools'):
-            form_data.pop('tools', None)
-            form_data.pop('tool_choice', None)
 
     form_data, metadata, events = await prepare_chat_context(
         request,

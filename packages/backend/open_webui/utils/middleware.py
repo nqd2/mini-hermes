@@ -1,3 +1,36 @@
+from open_webui.utils.chat_runtime.tool_results import (
+    _is_tool_result_error,
+    tool_result_content,
+    parse_terminal_tool_result,
+    build_terminal_file_tool_result,
+)
+from open_webui.utils.chat_runtime.stream_state import (
+    _start_tag_pattern,
+    output_id,
+    append_to_text_field,
+    merge_streamed_reasoning_details,
+    _split_tool_calls,
+    get_response_completion_event_data,
+    get_response_data,
+    merge_events_into_response,
+    build_response_object,
+    update_assistant_message_from_stream,
+)
+from open_webui.utils.chat_runtime.messages import (
+    normalize_messages_for_model,
+    get_reasoning_format,
+    strip_reasoning_details,
+    strip_tool_images,
+    process_messages_with_output,
+    sanitize_tool_pairs,
+)
+from open_webui.utils.chat_runtime.citations import (
+    get_citation_source_from_tool_result,
+    get_source_context,
+    apply_source_context_to_messages,
+    CITATION_TOOL_NAMES,
+)
+
 import ast
 import asyncio
 import base64
@@ -168,55 +201,10 @@ from open_webui.utils.tools import (
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
-log = logging.getLogger(__name__)
 
 
-def _is_tool_result_error(value: Any) -> bool:
-    if isinstance(value, str):
-        text = value.strip().lower()
-        if (
-            text.startswith('error:')
-            or text.startswith('exception:')
-            or text.startswith('traceback')
-            or text.startswith('http error!')
-        ):
-            return True
-
-    parsed = value
-    while isinstance(parsed, str):
-        try:
-            parsed = JSONCodec.loads(parsed)
-        except (JSONCodec.JSONDecodeError, TypeError, ValueError):
-            break
-
-    if not isinstance(parsed, dict):
-        return False
-
-    error = parsed.get('error')
-    if isinstance(error, str):
-        has_error = bool(error.strip())
-    else:
-        has_error = isinstance(error, (dict, list)) and bool(error)
-    if has_error:
-        return True
-
-    status = parsed.get('status')
-    if isinstance(status, str) and status.strip().lower() in {'error', 'failed'}:
-        return True
-
-    if parsed.get('success') is False or parsed.get('ok') is False:
-        message = parsed.get('message')
-        return has_error or (
-            bool(message.strip()) if isinstance(message, str) else isinstance(message, (dict, list)) and bool(message)
-        )
-
-    return False
 
 
-def normalize_messages_for_model(form_data: dict) -> dict:
-    form_data['messages'] = strip_empty_content_blocks(form_data.get('messages', []))
-    form_data['messages'] = merge_system_messages(form_data.get('messages', []))
-    return form_data
 
 
 async def publish_chat_finished_event(
@@ -292,454 +280,30 @@ DEFAULT_SOLUTION_TAGS = [('<|begin_of_solution|>', '<|end_of_solution|>')]
 DEFAULT_CODE_INTERPRETER_TAGS = [('<code_interpreter>', '</code_interpreter>')]
 
 
-def _start_tag_pattern(start_tag: str) -> str:
-    if start_tag.startswith('<') and start_tag.endswith('>'):
-        return rf'<{re.escape(start_tag[1:-1])}(\s.*?)?>'
-    return re.escape(start_tag)
-
-
-def output_id(prefix: str) -> str:
-    """Generate OR-style ID: prefix + 24-char hex UUID."""
-    return f'{prefix}_{uuid4().hex[:24]}'
-
-
-def build_terminal_file_tool_result(
-    tool_function_name: str,
-    tool_function_params: dict,
-    tool_result: Any,
-    tool: dict | None,
-    metadata: dict | None,
-) -> dict | None:
-    if isinstance(tool_result, (list, tuple)) and tool_result and isinstance(tool_result[0], dict):
-        tool_result = tool_result[0]
-
-    if tool_function_name != 'display_file' or not isinstance(tool_result, dict) or tool_result.get('exists') is False:
-        return None
-
-    tool_id = (tool or {}).get('tool_id', '')
-    terminal_id = metadata.get('terminal_id') if metadata else None
-    if isinstance(tool_id, str) and tool_id.startswith('terminal:'):
-        terminal_id = tool_id.split(':', 1)[1]
-
-    server_url = ((tool or {}).get('server') or {}).get('url')
-    terminal_selector = terminal_id or server_url
-    path = tool_result.get('path') or tool_function_params.get('path')
-    if not terminal_selector or not path:
-        return None
-    mime_type, _ = mimetypes.guess_type(path)
-    mime_type = mime_type or 'application/octet-stream'
-    page = tool_result.get('page') or tool_function_params.get('page')
-
-    return {
-        **tool_result,
-        'type': 'file',
-        'source': 'open_terminal',
-        'exists': True,
-        'displayed': tool_function_params.get('inline') is True,
-        'terminal_selector': terminal_selector,
-        **({'terminal_id': terminal_id} if terminal_id else {}),
-        **({'terminal_url': server_url} if server_url and not terminal_id else {}),
-        'session_id': metadata.get('chat_id') if metadata else None,
-        'path': path,
-        'full_path': tool_result.get('full_path') or path,
-        'name': tool_result.get('name') or os.path.basename(path),
-        'mime_type': tool_result.get('mime_type') or tool_result.get('content_type') or mime_type,
-        'content_type': tool_result.get('content_type') or tool_result.get('mime_type') or mime_type,
-        **({'page': page} if page else {}),
-    }
-
-
-def tool_result_content(tool_result: Any) -> str:
-    if not tool_result:
-        return ''
-    if isinstance(tool_result, (dict, list)):
-        return JSONCodec.dumps(tool_result, ensure_ascii=False)
-    return str(tool_result)
-
-
-def append_to_text_field(item: dict, key: str, value: str) -> None:
-    # Default: keep the existing field intact until concatenation succeeds.
-    # Non-string values and str subclasses also use this path to preserve errors.
-    if not ENABLE_CHAT_RESPONSE_STREAM_INPLACE_APPEND or type(item[key]) is not str or type(value) is not str:
-        item[key] += value
-        return
-
-    # Opt-in: dropping the dict's reference lets CPython extend an unshared str
-    # in place. Only a host that is already out of memory can leave the field empty.
-    text = item[key]
-    item[key] = ''
-    text += value
-    item[key] = text
-
-
-def merge_streamed_reasoning_details(target: list, details) -> None:
-    items = details if isinstance(details, list) else [details]
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-
-        index = item.get('index')
-        existing = (
-            next((detail for detail in target if detail.get('index') == index), None)
-            if isinstance(index, int)
-            else None
-        )
-        if existing is None:
-            target.append(dict(item))
-            continue
-
-        for key, value in item.items():
-            if key in ('text', 'summary') and isinstance(value, str) and isinstance(existing.get(key), str):
-                append_to_text_field(existing, key, value)
-            else:
-                existing[key] = value
-
-
-def _split_tool_calls(
-    tool_calls: list[dict],
-) -> list[dict]:
-    """Expand tool calls whose arguments contain multiple back-to-back JSON objects.
-
-    Some models (e.g. GPT-5.4) send multiple complete JSON argument objects
-    under the same tool call index, producing concatenated invalid JSON like:
-        '{"query":"A","count":5}{"query":"B","count":5}'
-
-    Each such tool call is split into separate entries so each gets executed
-    independently. Single-object arguments pass through unchanged.
-    """
-
-    def split_json_objects(raw: str) -> list[str]:
-        if not isinstance(raw, str):
-            raw = '' if raw is None else JSONCodec.dumps(raw)
-
-        decoder = json.JSONDecoder()
-        results = []
-        position = 0
-
-        while position < len(raw):
-            while position < len(raw) and raw[position].isspace():
-                position += 1
-            if position >= len(raw):
-                break
-            try:
-                _, end = decoder.raw_decode(raw, position)
-                results.append(raw[position:end].strip())
-                position = end
-            except JSONCodec.JSONDecodeError:
-                return [raw]
-
-        return results or [raw]
-
-    expanded = []
-    for tool_call in tool_calls:
-        function = tool_call.setdefault('function', {})
-        arguments = function.get('arguments')
-        if not isinstance(arguments, str):
-            arguments = '' if arguments is None else JSONCodec.dumps(arguments)
-            function['arguments'] = arguments
-        split_arguments = split_json_objects(arguments)
-
-        if len(split_arguments) <= 1:
-            expanded.append(tool_call)
-        else:
-            for argument in split_arguments:
-                cloned = copy.deepcopy(tool_call)
-                cloned['id'] = f'call_{uuid4().hex[:24]}'
-                cloned['function']['arguments'] = argument
-                expanded.append(cloned)
-
-    return expanded
-
-
-CITATION_TOOL_NAMES = (
-    'fetch_url', 'view_file', 'view_knowledge_file', 'query_knowledge_files', 'query_chat_files',
-    'read_editable_document', 'search_editable_document', 'get_document_task',
-)
-
-
-def get_citation_source_from_tool_result(
-    tool_name: str, tool_params: dict, tool_result: str, tool_id: str = ''
-) -> list[dict]:
-    """
-    Parse a tool's result and convert it to source dicts for citation display.
-
-    Follows the source format conventions from get_sources_from_items:
-    - source: file/item info object with id, name, type
-    - document: list of document contents
-    - metadata: list of metadata objects with source, file_id, name fields
-
-    Returns a list of sources (usually one, but query_knowledge_files/query_chat_files may return multiple).
-    """
-    try:
-        try:
-            tool_result = JSONCodec.loads(tool_result)
-        except (JSONCodec.JSONDecodeError, TypeError):
-            pass  # keep tool_result as-is (e.g. fetch_url returns plain text)
-        if isinstance(tool_result, dict) and 'error' in tool_result:
-            return []
-
-        if tool_name in ('read_editable_document', 'search_editable_document'):
-            if not isinstance(tool_result, dict):
-                return []
-            evidence = []
-            if tool_name == 'read_editable_document':
-                evidence = [{
-                    'evidence_id': tool_result.get('evidence_id'),
-                    'text': tool_result.get('text', ''),
-                    'start_offset': tool_result.get('offset'),
-                    'end_offset': tool_result.get('next_offset') or tool_result.get('total_characters'),
-                }]
-            else:
-                evidence = tool_result.get('results') or []
-            return [
-                {
-                    'source': {
-                        'id': tool_result.get('document_id', ''),
-                        'name': tool_result.get('filename', 'Document'),
-                        'type': 'file',
-                    },
-                    'document': [item.get('text', '')],
-                    'metadata': [{
-                        'file_id': tool_result.get('document_id', ''),
-                        'name': tool_result.get('filename', 'Document'),
-                        'source': tool_result.get('filename', 'Document'),
-                        'revision': tool_result.get('revision'),
-                        'evidence_id': item.get('evidence_id'),
-                        'section': item.get('section'),
-                        'page': item.get('page'),
-                        'start_offset': item.get('start_offset'),
-                        'end_offset': item.get('end_offset'),
-                        **(item.get('metadata') or {}),
-                    }],
-                }
-                for item in evidence if item.get('evidence_id') and item.get('text')
-            ]
-
-        if tool_name == 'get_document_task' and isinstance(tool_result, dict):
-            summary = tool_result.get('result')
-            if not summary:
-                return []
-            return [{
-                'source': {'id': tool_result.get('document_id', ''),
-                           'name': tool_result.get('filename', 'Document'), 'type': 'file'},
-                'document': [summary],
-                'metadata': [{
-                    'file_id': tool_result.get('document_id', ''),
-                    'name': tool_result.get('filename', 'Document'),
-                    'source': tool_result.get('filename', 'Document'),
-                    'revision': tool_result.get('revision'),
-                    'evidence_ids': tool_result.get('evidence_ids', []),
-                    'coverage': 'hierarchical summary',
-                }],
-            }]
-
-        if tool_name in ('view_knowledge_file', 'view_file'):
-            if not isinstance(tool_result, dict):
-                return []
-
-            file_data = tool_result
-            filename = file_data.get('filename', 'Unknown File')
-            file_id = file_data.get('id', '')
-            knowledge_name = file_data.get('knowledge_name', '')
-
-            return [
-                {
-                    'source': {
-                        'id': file_id,
-                        'name': filename,
-                        'type': 'file',
-                    },
-                    'document': [file_data.get('content', '')],
-                    'metadata': [
-                        {
-                            'file_id': file_id,
-                            'name': filename,
-                            'source': filename,
-                            **({'knowledge_name': knowledge_name} if knowledge_name else {}),
-                        }
-                    ],
-                }
-            ]
-
-        elif tool_name == 'fetch_url':
-            url = tool_params.get('url', '')
-            content = tool_result if isinstance(tool_result, str) else str(tool_result)
-            snippet = content[:500] + ('...' if len(content) > 500 else '')
-
-            return [
-                {
-                    'source': {'name': url or 'fetch_url', 'id': url or 'fetch_url'},
-                    'document': [snippet],
-                    'metadata': [
-                        {
-                            'source': url,
-                            'name': url,
-                            'url': url,
-                        }
-                    ],
-                }
-            ]
-
-        elif tool_name in ('query_knowledge_files', 'query_chat_files'):
-            if not isinstance(tool_result, list):
-                return []
-
-            chunks = tool_result
-
-            # Group chunks by source for better citation display
-            # Each unique source becomes a separate source entry
-            sources_by_file = {}
-
-            for chunk in chunks:
-                source_name = chunk.get('source', 'Unknown')
-                file_id = chunk.get('file_id', '')
-                note_id = chunk.get('note_id', '')
-                chunk_type = chunk.get('type', 'file')
-                content = chunk.get('content', '')
-
-                # Use file_id or note_id as the key
-                key = file_id or note_id or source_name
-
-                if key not in sources_by_file:
-                    sources_by_file[key] = {
-                        'source': {
-                            'id': file_id or note_id,
-                            'name': source_name,
-                            'type': chunk_type,
-                        },
-                        'document': [],
-                        'metadata': [],
-                        'distances': [],
-                    }
-
-                sources_by_file[key]['document'].append(content)
-                sources_by_file[key]['metadata'].append(
-                    {
-                        'file_id': file_id,
-                        'name': source_name,
-                        'source': source_name,
-                        **({'note_id': note_id} if note_id else {}),
-                    }
-                )
-                if 'distance' in chunk:
-                    sources_by_file[key]['distances'].append(chunk['distance'])
-
-            # Return all grouped sources as a list
-            if sources_by_file:
-                return list(sources_by_file.values())
-
-            # Empty result fallback
-            return []
-
-        else:
-            # Fallback for other tools
-            return [
-                {
-                    'source': {
-                        'name': tool_name,
-                        'type': 'tool',
-                        'id': tool_id or tool_name,
-                    },
-                    'document': [str(tool_result)],
-                    'metadata': [{'source': tool_name, 'name': tool_name}],
-                }
-            ]
-    except Exception as e:
-        log.exception(f'Error parsing tool result for {tool_name}: {e}')
-        return [
-            {
-                'source': {'name': tool_name, 'type': 'tool'},
-                'document': [str(tool_result)],
-                'metadata': [{'source': tool_name}],
-            }
-        ]
-
-
-RESPONSE_COMPLETION_RESPONSE_FIELDS = ('error', 'id', 'output', 'usage')
-
-
-def get_response_completion_event_data(event: dict) -> dict:
-    """Build the data payload for response:completion events."""
-    response = event.get('response')
-    if not isinstance(response, dict):
-        return event
-
-    response_data = {key: response[key] for key in RESPONSE_COMPLETION_RESPONSE_FIELDS if key in response}
-
-    return {
-        **event,
-        'response': response_data,
-    }
-
-
-def get_source_context(sources: list, source_ids: dict = None, include_content: bool = True) -> str:
-    """
-    Build <source> tag context string from citation sources.
-    """
-    context_string = ''
-    if source_ids is None:
-        source_ids = {}
-    for source in sources:
-        for doc, meta in zip(source.get('document', []), source.get('metadata', [])):
-            source_id = meta.get('source') or source.get('source', {}).get('id') or 'N/A'
-            if source_id not in source_ids:
-                source_ids[source_id] = len(source_ids) + 1
-            src_name = source.get('source', {}).get('name')
-            src_type = source.get('source', {}).get('type')
-            src_rid = source.get('source', {}).get('id') if src_type != 'text' else None
-            body = doc if include_content else ''
-            extra_attrs = ''
-            for key, value in filter_source_metadata(meta).items():
-                if key in ('id', 'name', 'resource-type', 'resource-id'):
-                    continue
-                extra_attrs += f' {key}="{html.escape(str(value))}"'
-            context_string += (
-                f'<source id="{source_ids[source_id]}"'
-                + (f' name="{src_name}"' if src_name else '')
-                + (f' resource-type="{src_type}"' if src_type else '')
-                + (f' resource-id="{src_rid}"' if src_rid else '')
-                + extra_attrs
-                + f'>{body}</source>\n'
-            )
-    return context_string
-
-
-async def apply_source_context_to_messages(
-    request: Request,
-    messages: list,
-    sources: list,
-    user_message: str,
-    include_content: bool = True,
-) -> list:
-    """
-    Build source context from citation sources and apply to messages.
-    Uses RAG template to format context for model consumption.
-
-    When include_content is False, emit <source> tags with id/name but no
-    document body — useful when the content is already present elsewhere
-    (e.g. in a tool result message) and only citation markers are needed.
-    """
-    if not sources or not user_message:
-        return messages
-
-    context = get_source_context(sources, include_content=include_content)
-
-    context = context.strip()
-    if not context:
-        return messages
-
-    if RAG_SYSTEM_CONTEXT:
-        return add_or_update_system_message(
-            await rag_template(await Config.get('rag.template'), context, user_message),
-            messages,
-            append=True,
-        )
-    else:
-        return add_or_update_user_message(
-            await rag_template(await Config.get('rag.template'), context, user_message),
-            messages,
-            append=False,
-        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 BASE64_IMAGE_DATA_URI_RE = re.compile(r'data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}', re.IGNORECASE)
@@ -1003,12 +567,6 @@ async def process_tool_result(
     return tool_result, tool_result_files, tool_result_embeds
 
 
-def parse_terminal_tool_result(tool_result: Any) -> dict:
-    try:
-        result = JSONCodec.loads(tool_result)
-    except (JSONCodec.JSONDecodeError, TypeError):
-        return {}
-    return result if isinstance(result, dict) else {}
 
 
 async def terminal_event_handler(
@@ -1976,136 +1534,14 @@ async def load_messages_from_db(chat_id: str, message_id: str) -> Optional[list[
     ]
 
 
-def get_reasoning_format(model: dict) -> str | None:
-    """
-    Determine how reasoning should be included in reconstructed messages.
-
-    Returns:
-        'thinking': Ollama expects reasoning in the native thinking field.
-        'think_tags': wrap reasoning in <think> tags inside content.
-        'reasoning_content': llama.cpp supports reasoning_content as a top-level field.
-        None: skip reasoning (safe default for strict providers).
-    """
-    provider = model.get('provider', '')
-    if model.get('owned_by') == 'ollama':
-        return 'thinking'
-    if provider == 'llama.cpp':
-        return 'reasoning_content'
-    return None
 
 
-def strip_reasoning_details(output: list) -> list:
-    return [
-        {key: value for key, value in item.items() if key != 'reasoning_details'} if isinstance(item, dict) else item
-        for item in output
-    ]
 
 
-def strip_tool_images(output: list, model: dict) -> list:
-    """Replace tool result images with a text note when the model has Vision turned off."""
-    if (model.get('info', {}).get('meta', {}).get('capabilities') or {}).get('vision', True):
-        return output
-    stripped_output = []
-    for item in output:
-        if isinstance(item, dict) and item.get('type') == 'function_call_output':
-            parts = [
-                {'type': 'input_text', 'text': '\n[image]'} if part.get('type') == 'input_image' else part
-                for part in item.get('output', [])
-            ]
-            item = {**item, 'output': parts}
-        stripped_output.append(item)
-    return stripped_output
 
 
-def process_messages_with_output(
-    messages: list[dict],
-    reasoning_format: str | None = None,
-    include_file_context: bool = False,
-) -> list[dict]:
-    """
-    Process messages with OR-aligned output items for LLM consumption.
-
-    For assistant messages with 'output' field, produces properly formatted
-    OpenAI-style messages (tool_calls + tool results). Strips 'output' before LLM.
-    """
-    processed = []
-
-    for message in messages:
-        meta = message.get('meta')
-        voice = meta.get('voice') if isinstance(meta, dict) else None
-        voice = voice if isinstance(voice, dict) else {}
-        spoken = (
-            message.get('role') == 'assistant'
-            and voice
-            and message.get('model') == voice.get('model')
-            and not message.get('output')
-        )
-        # Keep voice speech available for follow-ups without attributing its status claims
-        # to the reasoning model. A completed chat answer can predate a stale spoken reply.
-        transcripts = []
-        if message.get('role') == 'assistant':
-            transcripts = voice.get('speech') or []
-        if spoken:
-            transcripts = [{'transcript': message.get('content', '')}]
-        speech = [
-            {
-                'role': 'assistant',
-                'content': '[Historical voice assistant transcript; not current task status]\n' + item['transcript'],
-            }
-            for item in transcripts
-            if isinstance(item, dict) and isinstance(item.get('transcript'), str) and item['transcript']
-        ]
-        if spoken:
-            processed.extend(speech)
-            continue
-        if message.get('role') == 'assistant' and message.get('output'):
-            # Use output items for clean OpenAI-format messages
-            output_messages = convert_output_to_messages(
-                message['output'],
-                raw=True,
-                reasoning_format=reasoning_format,
-                flatten_tool_images=True,
-            )
-            if output_messages:
-                processed.extend(output_messages)
-                processed.extend(speech)
-                continue
-            if not message.get('content'):
-                continue
-
-        clean_message = dict(message)
-        for key in ('id', 'output', 'model', 'contextSummary', 'context_summary', 'usage', 'meta'):
-            clean_message.pop(key, None)
-        processed.append(clean_message)
-        processed.extend(speech)
-
-    if include_file_context:
-        add_file_context(processed)
-    for message in processed:
-        message.pop('files', None)
-
-    return processed
 
 
-def sanitize_tool_pairs(messages: list[dict]) -> list[dict]:
-    paired_ids_by_message = get_paired_tool_call_ids(messages)
-
-    sanitized = []
-    for message, paired_ids in zip(messages, paired_ids_by_message):
-        if message.get('role') == 'assistant' and message.get('tool_calls'):
-            kept = [tool_call for tool_call in message.get('tool_calls') or [] if tool_call.get('id') in paired_ids]
-            if kept:
-                sanitized.append({**message, 'tool_calls': kept})
-            else:
-                clean = dict(message)
-                clean.pop('tool_calls', None)
-                clean.pop('reasoning_items', None)
-                if clean.get('content'):
-                    sanitized.append(clean)
-        elif message.get('role') != 'tool' or message.get('tool_call_id') in paired_ids:
-            sanitized.append(message)
-
-    return sanitized
 
 
 async def process_chat_payload(request, form_data, user, metadata, model):
@@ -3733,151 +3169,12 @@ async def pause_for_tool_approval(chat_id: str, message_id: str, output: list[di
         await event_emitter({'type': 'chat:active', 'data': {'active': True}})
 
 
-def get_response_data(response):
-    if isinstance(response, list) and len(response) == 1:
-        # If the response is a single-item list, unwrap it #17213
-        response = response[0]
-
-    if isinstance(response, JSONResponse):
-        if isinstance(response.body, bytes):
-            try:
-                response_data = JSONCodec.loads(response.body.decode('utf-8', 'replace'))
-            except JSONCodec.JSONDecodeError:
-                response_data = {'error': {'detail': 'Invalid JSON response'}}
-        else:
-            response_data = response
-    elif isinstance(response, dict):
-        response_data = response
-    else:
-        response_data = None
-
-    return response, response_data
 
 
-def merge_events_into_response(response_data, events):
-    if events and isinstance(events, list):
-        extra_response = {}
-        for event in events:
-            if isinstance(event, dict):
-                extra_response.update(event)
-            else:
-                extra_response[event] = True
-
-        return {
-            **extra_response,
-            **response_data,
-        }
-    return response_data
 
 
-def build_response_object(response, response_data):
-    if isinstance(response, dict):
-        return response_data
-    if isinstance(response, JSONResponse):
-        return JSONResponse(
-            content=response_data,
-            headers=response.headers,
-            status_code=response.status_code,
-        )
-    return response
 
 
-def update_assistant_message_from_stream(assistant_message, raw) -> bool:
-    """Accumulate the message and report whether the chunk contains [DONE]."""
-    line = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else raw
-    if not isinstance(line, str):
-        return False
-
-    def append_output_text(item, text):
-        parts = item.setdefault('content', [])
-        if parts and parts[-1].get('type') == 'output_text':
-            append_to_text_field(parts[-1], 'text', text)
-        else:
-            parts.append({'type': 'output_text', 'text': text})
-
-    done = False
-    for raw_part in line.splitlines():
-        part = raw_part.removeprefix('data:').strip()
-        if part == '[DONE]':
-            done = True
-            continue
-        if not part:
-            continue
-
-        try:
-            data = JSONCodec.loads(part)
-        except Exception:
-            continue
-
-        if not isinstance(data, dict):
-            continue
-
-        if data.get('type', '').startswith('response.'):
-            output, meta = handle_responses_streaming_event(data, assistant_message.get('output', []))
-            if output:
-                assistant_message['output'] = output
-            if meta and meta.get('usage'):
-                assistant_message['usage'] = update_usage_snapshot(assistant_message.get('usage'), meta['usage'])
-            continue
-
-        raw_usage = data.get('usage', {}) or {}
-        raw_usage.update(data.get('timings', {}))
-        if raw_usage:
-            assistant_message['usage'] = update_usage_snapshot(assistant_message.get('usage'), raw_usage)
-
-        for choice in data.get('choices', []):
-            if choice.get('finish_reason'):
-                assistant_message['finish_reason'] = choice['finish_reason']
-            delta = choice.get('delta', {}) or {}
-            content = delta.get('content')
-            reasoning_content = delta.get('reasoning_content') or delta.get('reasoning') or delta.get('thinking')
-
-            if reasoning_content:
-                output = assistant_message.setdefault('output', [])
-                if not output or output[-1].get('type') != 'reasoning':
-                    output.append(
-                        {
-                            'type': 'reasoning',
-                            'id': output_id('r'),
-                            'status': 'in_progress',
-                            'start_tag': '<think>',
-                            'end_tag': '</think>',
-                            'attributes': {'type': 'reasoning_content'},
-                            'content': [],
-                            'summary': None,
-                            'started_at': time.time(),
-                        }
-                    )
-
-                append_output_text(output[-1], reasoning_content)
-
-            if content:
-                output = assistant_message.get('output')
-                if output:
-                    if output[-1].get('type') == 'reasoning':
-                        output[-1]['status'] = 'completed'
-                        output[-1]['ended_at'] = time.time()
-                        output[-1]['duration'] = int(output[-1]['ended_at'] - output[-1]['started_at'])
-
-                    if not output or output[-1].get('type') != 'message':
-                        output.append(
-                            {
-                                'type': 'message',
-                                'id': output_id('msg'),
-                                'status': 'in_progress',
-                                'role': 'assistant',
-                                'content': [],
-                            }
-                        )
-
-                    append_output_text(output[-1], content)
-
-                if 'content' in assistant_message:
-                    append_to_text_field(assistant_message, 'content', content)
-                else:
-                    assistant_message['content'] = '' + content
-
-    return done
 
 
 async def background_tasks_handler(ctx):

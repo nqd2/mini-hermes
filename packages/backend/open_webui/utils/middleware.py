@@ -93,7 +93,6 @@ from open_webui.utils.chat_runtime.citations import (
     get_citation_source_from_tool_result,
     get_source_context,
 )
-from open_webui.utils.chat_runtime.completion_output import build_non_streaming_output, merge_continuing_output
 from open_webui.utils.chat_runtime.file_retrieval import chat_completion_files_handler
 from open_webui.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS, load_messages_from_db
 from open_webui.utils.chat_runtime.messages import (
@@ -104,6 +103,10 @@ from open_webui.utils.chat_runtime.messages import (
     sanitize_tool_pairs,
     strip_reasoning_details,
     strip_tool_images,
+)
+from open_webui.utils.chat_runtime.non_streaming_response import (
+    NonStreamingResponseAdapters,
+    handle_non_streaming_response,
 )
 from open_webui.utils.chat_runtime.outlet_filters import OutletFilterAdapters, run_outlet_filters
 from open_webui.utils.chat_runtime.resource_context import resolve_chat_resource_context
@@ -118,10 +121,7 @@ from open_webui.utils.chat_runtime.response_context import (
 from open_webui.utils.chat_runtime.stream_state import (
     _split_tool_calls,
     append_to_text_field,
-    build_response_object,
     get_response_completion_event_data,
-    get_response_data,
-    merge_events_into_response,
     merge_streamed_reasoning_details,
     output_id,
     update_assistant_message_from_stream,
@@ -2301,211 +2301,18 @@ async def outlet_filter_handler(ctx):
 
 
 async def non_streaming_chat_response_handler(response, ctx):
-    from open_webui.utils.chat_runtime.resource_execution import resource_task_state_metadata
-
-    request = ctx['request']
-
-    user = ctx['user']
-    metadata = ctx['metadata']
-    events = ctx['events']
-
-    event_emitter = ctx['event_emitter']
-    answer_gate = ctx.get('resource_answer_gate')
-
-    response, response_data = get_response_data(response)
-    if response_data is None:
-        return response
-
-    usage = response_data.get('usage') or {}
-    timings = response_data.get('timings') or {}
-    if isinstance(usage, dict) and isinstance(timings, dict):
-        log_model_usage(
-            request,
-            user,
-            response_data.get('selected_model_id') or ctx['form_data']['model'],
-            {**usage, **timings},
-        )
-
-    chat_id = metadata.get('chat_id') or ''
-    save_to_chat = is_saved_chat_id(chat_id)
-    continuing = bool(metadata.get('assistant_message_id'))
-
-    if event_emitter:
-        try:
-            if 'error' in response_data:
-                error = response_data.get('error')
-
-                if isinstance(error, dict):
-                    error = error.get('detail', error)
-                else:
-                    error = str(error)
-
-                log.error('Provider returned error (non-streaming): %s', error)
-
-                if save_to_chat:
-                    await Chats.upsert_message_to_chat_by_id_and_message_id(
-                        metadata['chat_id'],
-                        metadata['message_id'],
-                        {
-                            'error': {'content': error},
-                            'done': True,
-                            'meta': {
-                                'response_ended_at': time.time(),
-                                **resource_task_state_metadata(metadata),
-                            },
-                        },
-                    )
-                if isinstance(error, str) or isinstance(error, dict):
-                    await event_emitter(
-                        {
-                            'type': 'chat:message:error',
-                            'data': {'error': {'content': error}, 'done': True},
-                        }
-                    )
-
-            if 'selected_model_id' in response_data and save_to_chat:
-                await Chats.upsert_message_to_chat_by_id_and_message_id(
-                    metadata['chat_id'],
-                    metadata['message_id'],
-                    {
-                        'selectedModelId': response_data['selected_model_id'],
-                    },
-                    touch=False,
-                )
-
-            choices = response_data.get('choices', [])
-            response_output = response_data.get('output')
-            content = (choices[0].get('message', {}).get('content') or '') if choices else ''
-            # Native tools only run on the streaming path; still finish the turn.
-            tool_calls = choices[0].get('message', {}).get('tool_calls') if choices else None
-
-            if (continuing and 'error' not in response_data) or (
-                not continuing and choices and (content or response_output or tool_calls)
-            ):
-                if content or response_output or tool_calls or continuing:
-                    if not continuing:
-                        await event_emitter(
-                            {
-                                'type': 'chat:completion',
-                                'data': response_data,
-                            }
-                        )
-
-                    title = await Chats.get_chat_title_by_id(metadata['chat_id']) if save_to_chat else ''
-
-                    # Use output from backend when available; otherwise convert chat content.
-                    response_output = build_non_streaming_output(response_output, choices, content)
-
-                    if continuing:
-                        response_output = merge_continuing_output(ctx.get('assistant_message') or {}, response_output)
-                        content = get_output_text(response_output)
-
-                    if answer_gate:
-                        response_output = answer_gate.present(response_output, final=True)
-                        if answer_gate.active:
-                            content = get_output_text(response_output)
-                            response_data['output'] = response_output
-                            response_data['choices'] = copy.deepcopy(choices)
-                            if response_data['choices']:
-                                choice_message = response_data['choices'][0].setdefault('message', {})
-                                choice_message['content'] = content
-                                choice_message.pop('reasoning_content', None)
-                                choice_message.pop('reasoning', None)
-
-                    await event_emitter(
-                        {
-                            'type': 'chat:completion',
-                            'data': {
-                                **(response_data if continuing else {}),
-                                'done': True,
-                                'output': response_output,
-                                'title': title,
-                            },
-                        }
-                    )
-
-                    # Save message in the database
-                    usage = normalize_usage(response_data.get('usage', {}) or {})
-                    if continuing:
-                        usage = merge_usage(
-                            (ctx.get('assistant_message') or {}).get('usage'), usage or {'incomplete': True}
-                        )
-                    finish_reason = choices[0].get('finish_reason') if choices else None
-
-                    if save_to_chat:
-                        await Chats.upsert_message_to_chat_by_id_and_message_id(
-                            metadata['chat_id'],
-                            metadata['message_id'],
-                            {
-                                'done': True,
-                                'meta': {
-                                    'response_ended_at': time.time(),
-                                    **resource_task_state_metadata(metadata),
-                                },
-                                'role': 'assistant',
-                                'output': response_output,
-                                **({'usage': usage} if usage else {}),
-                            },
-                        )
-
-                    await publish_chat_finished_event(request, user, metadata, title, content, response_output)
-
-                    ctx['assistant_message'] = {
-                        'content': content,
-                        'output': response_output,
-                        **({'usage': usage} if usage else {}),
-                        **({'finish_reason': finish_reason} if finish_reason else {}),
-                    }
-                    await outlet_filter_handler(ctx)
-                    await background_tasks_handler(ctx)
-
-            response = build_response_object(response, merge_events_into_response(response_data, events))
-        except Exception as e:
-            log.debug('Error occurred while processing request: %s', e)
-            await publish_chat_failed_event(request, user, metadata, str(e))
-            pass
-
-        return response
-
-    if answer_gate and answer_gate.active:
-        choices = response_data.get('choices', [])
-        output = response_data.get('output')
-        if not isinstance(output, list):
-            message = choices[0].get('message', {}) if choices else {}
-            output = [{
-                'type': 'message',
-                'id': output_id('msg'),
-                'status': 'completed',
-                'role': 'assistant',
-                'content': [{'type': 'output_text', 'text': message.get('content') or ''}],
-            }]
-        output = answer_gate.present(output, final=True)
-        content = get_output_text(output)
-        response_data['output'] = output
-        response_data['choices'] = copy.deepcopy(choices)
-        if response_data['choices']:
-            response_data['choices'][0].setdefault('message', {})['content'] = content
-            response_data['choices'][0]['message'].pop('reasoning_content', None)
-            response_data['choices'][0]['message'].pop('reasoning', None)
-
-    choices = response_data.get('choices', [])
-    output = response_data.get('output')
-    content = choices[0].get('message', {}).get('content') if choices else ''
-    if ENABLE_API_OUTLET_FILTERS and (content or output):
-        usage = normalize_usage(response_data.get('usage', {}) or {})
-        finish_reason = choices[0].get('finish_reason') if choices else None
-        ctx['assistant_message'] = {
-            **({'content': content} if content else {}),
-            **({'output': output} if output else {}),
-            **({'usage': usage} if usage else {}),
-            **({'finish_reason': finish_reason} if finish_reason else {}),
-        }
-        await outlet_filter_handler(ctx)
-
-    if isinstance(response, dict):
-        response = merge_events_into_response(response_data, events)
-
-    return response
+    adapters = NonStreamingResponseAdapters(
+        log_model_usage=log_model_usage,
+        is_saved_chat_id=is_saved_chat_id,
+        upsert_message=Chats.upsert_message_to_chat_by_id_and_message_id,
+        get_chat_title=Chats.get_chat_title_by_id,
+        publish_finished_event=publish_chat_finished_event,
+        publish_failed_event=publish_chat_failed_event,
+        outlet_filter_handler=outlet_filter_handler,
+        background_tasks_handler=background_tasks_handler,
+        api_outlet_filters_enabled=ENABLE_API_OUTLET_FILTERS,
+    )
+    return await handle_non_streaming_response(response, ctx, adapters)
 
 
 async def streaming_chat_response_handler(response, ctx):

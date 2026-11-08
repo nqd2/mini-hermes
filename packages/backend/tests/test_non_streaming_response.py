@@ -85,3 +85,30 @@ async def test_non_streaming_continuation_merges_message_content_and_keeps_origi
         {'type': 'output_text', 'text': ' more'},
     ]
     assert ctx['assistant_message']['content'] == 'Previously. more'
+
+
+@pytest.mark.asyncio
+async def test_non_streaming_provider_error_is_persisted_and_emitted(monkeypatch):
+    event_emitter = AsyncMock()
+    _disable_post_turn_work(monkeypatch)
+    ctx = _context(event_emitter)
+    ctx['metadata'].update({'chat_id': 'saved-chat', 'message_id': 'assistant-1'})
+    save_message = AsyncMock()
+    monkeypatch.setattr(middleware.Chats, 'upsert_message_to_chat_by_id_and_message_id', save_message)
+
+    await middleware.non_streaming_chat_response_handler(
+        {'error': {'detail': 'Provider request rejected'}},
+        ctx,
+    )
+
+    save_message.assert_awaited_once()
+    saved_error = save_message.await_args.args[2]
+    assert saved_error['error'] == {'content': 'Provider request rejected'}
+    assert saved_error['done'] is True
+    assert 'response_ended_at' in saved_error['meta']
+    event_emitter.assert_awaited_once_with(
+        {
+            'type': 'chat:message:error',
+            'data': {'error': {'content': 'Provider request rejected'}, 'done': True},
+        }
+    )

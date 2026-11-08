@@ -11,6 +11,12 @@
 
 	import { getContext, setContext, onDestroy, onMount, tick } from 'svelte';
 	import { createChatRequestLifecycle } from './chatRequestLifecycle';
+	import { reduceChatMessageEvent } from './chatMessageEventReducer';
+	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
+	import { findPendingAskUser, messageHasPendingAskUser } from './chatPendingInteraction';
+	import { findPendingToolApproval } from './chatToolApproval';
+	import { createToolApprovalModeHandler } from './chatToolApprovalMode';
+	import { createChatTaskLifecycle } from './chatTaskLifecycle';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -202,28 +208,21 @@
 	let eventConfirmationInputOptions: ({ label?: string; value: string } | string)[] = [];
 	let eventCallback: (value: any) => void = () => {};
 	let eventInteractionId: string | null = null;
-	type BrowserInteraction = {
-		id: string;
-		messageId: string;
-		type: string;
-		data: any;
-		callback: (value: any) => void;
-	};
+	type BrowserInteraction = ChatInteraction;
 	let browserInteractions: BrowserInteraction[] = [];
+	const browserInteractionQueue = createChatInteractionQueue<BrowserInteraction>((interactions) => {
+		browserInteractions = interactions;
+	});
 	let browserApprovalMode: string | null = null;
 	$: browserInteraction = browserInteractions[0];
 
 	const resolveBrowserInteraction = (interaction: BrowserInteraction, value: any) => {
-		if (!browserInteractions.includes(interaction)) return;
-		browserInteractions = browserInteractions.filter((item) => item !== interaction);
-		interaction.callback(value);
+		browserInteractionQueue.resolve(interaction, value);
 	};
 
 	const cancelBrowserInteractions = () => {
 		browserApprovalMode = null;
-		for (const interaction of browserInteractions) {
-			resolveBrowserInteraction(interaction, { status: 'cancelled', answers: {} });
-		}
+		browserInteractionQueue.resolveAll({ status: 'cancelled', answers: {} });
 	};
 
 	let selectedModels = [''];
@@ -359,8 +358,12 @@
 	let selectedToolIds: string[] = [];
 	let selectedSkillIds: string[] = [];
 	let selectedFilterIds: string[] = [];
-	let pendingOAuthTools: { id: string; name: string; serverId: string; authType: string | null }[] =
-		[];
+	let pendingOAuthTools: {
+		id: string;
+		name: string;
+		serverId: string;
+		authType: string | null;
+	}[] = [];
 
 	let imageGenerationEnabled = false;
 	let webSearchEnabled = false;
@@ -485,14 +488,22 @@
 		chatOwner = null;
 	}
 
-	let chatTasks = [];
+	const chatTaskLifecycle = createChatTaskLifecycle<any>();
+	let chatTaskState = chatTaskLifecycle.state;
+	let chatTasks = chatTaskState.tasks;
+	$: chatTasks = chatTaskState.tasks;
+	const unsubscribeChatTaskLifecycle = chatTaskLifecycle.subscribe((state) => {
+		chatTaskState = state;
+	});
+	onDestroy(unsubscribeChatTaskLifecycle);
 
 	let history: { currentId: string | null; messages: Record<string, any> } = {
 		messages: {},
 		currentId: null
 	};
 
-	let taskIds = null;
+	let taskIds = chatTaskState.taskIds;
+	$: taskIds = chatTaskState.taskIds;
 	let liveStatus = '';
 
 	$: if (loading || !history.currentId) {
@@ -538,130 +549,54 @@
 			? 'ask'
 			: 'full';
 
-	const handleToolApprovalModeChange = async (mode: string) => {
-		const tool_approval_mode = mode === 'ask' ? 'ask' : 'full';
-		browserApprovalMode = tool_approval_mode;
-		params = {
-			...params,
-			tool_approval_mode
-		};
-
-		settings.set({
-			...$settings,
-			params: {
-				...($settings?.params ?? {}),
+	const handleToolApprovalModeChange = createToolApprovalModeHandler({
+		setMode: (tool_approval_mode) => {
+			browserApprovalMode = tool_approval_mode;
+			params = {
+				...params,
 				tool_approval_mode
-			}
-		});
-		await saveParam('tool_approval_mode', tool_approval_mode);
-		await updateUserSettings(localStorage.token, { ui: { params: $settings.params } }).catch(
-			(err) => {
-				console.error('[tool permissions settings]', err);
-			}
-		);
-
-		if (tool_approval_mode === 'full') {
+			};
+			settings.set({
+				...$settings,
+				params: {
+					...($settings?.params ?? {}),
+					tool_approval_mode
+				}
+			});
+		},
+		persistChatMode: (tool_approval_mode) => saveParam('tool_approval_mode', tool_approval_mode),
+		persistUserSettings: () =>
+			updateUserSettings(localStorage.token, {
+				ui: { params: $settings.params }
+			}),
+		onSettingsError: (err) => console.error('[tool permissions settings]', err),
+		onEnableFullMode: async () => {
 			if (isTemporaryChatId($chatId)) {
-				if (browserApprovalMode !== 'full') return;
 				for (const interaction of browserInteractions) {
 					if (interaction.data?.tool_call) resolveBrowserInteraction(interaction, true);
 				}
 				return;
 			}
-			const messages = [...Object.values(history?.messages ?? {})].reverse() as any[];
-			for (const message of messages) {
-				if ((message.user_id ?? chat?.user_id ?? $user?.id) !== $user?.id) continue;
-				const output = (Array.isArray(message?.output) ? message.output : []) as any[];
-				const resultCallIds = new Set(
-					output
-						.filter((item: any) => item?.type === 'function_call_output' && item?.call_id)
-						.map((item: any) => item.call_id)
-				);
-				const pendingCall = output.find((item: any) => {
-					const callId = item?.call_id ?? item?.id;
-					return (
-						item?.type === 'function_call' &&
-						item?.name !== 'ask_user' &&
-						(item?.status === 'pending' || item?.status === 'requires_approval') &&
-						callId &&
-						!resultCallIds.has(callId)
-					);
-				});
-				const callId = pendingCall?.call_id ?? pendingCall?.id;
-				if (!message?.id || !callId) {
-					continue;
-				}
-
-				const res = await resolveChatMessageToolCall(
-					localStorage.token,
-					$chatId,
-					message.id,
-					callId,
-					'approve'
-				).catch(async (error) => {
-					toast.error(`${error}`);
-					await loadChat();
-					return null;
-				});
-				if (res) onToolCallResolved(res);
-				break;
-			}
+			const pendingToolApproval = findPendingToolApproval(
+				[...Object.values(history?.messages ?? {})].reverse(),
+				$user?.id,
+				chat?.user_id
+			);
+			if (!pendingToolApproval) return;
+			const res = await resolveChatMessageToolCall(
+				localStorage.token,
+				$chatId,
+				pendingToolApproval.message.id,
+				pendingToolApproval.callId,
+				'approve'
+			).catch(async (error) => {
+				toast.error(`${error}`);
+				await loadChat();
+				return null;
+			});
+			if (res) onToolCallResolved(res);
 		}
-	};
-
-	const parseToolArguments = (args) => {
-		if (!args) {
-			return {};
-		}
-		let value = args;
-		while (typeof value === 'string') {
-			try {
-				value = JSON.parse(value);
-			} catch {
-				break;
-			}
-		}
-		return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : {};
-	};
-
-	const getPendingAskUserFromMessage = (message) => {
-		if (message?.role !== 'assistant' || !Array.isArray(message.output)) {
-			return null;
-		}
-
-		const call = message.output.find(
-			(item) =>
-				item?.type === 'function_call' &&
-				item?.name === 'ask_user' &&
-				item?.status === 'pending' &&
-				(item?.call_id || item?.id)
-		);
-
-		if (call) {
-			return { message, call, args: parseToolArguments(call.arguments) };
-		}
-
-		return null;
-	};
-
-	const findPendingAskUser = (chatHistory) => {
-		if (!chatHistory?.messages) {
-			return null;
-		}
-		const messages = chatHistory.currentId
-			? createMessagesList(chatHistory, chatHistory.currentId)
-			: Object.values(chatHistory.messages);
-		for (const message of [...messages].reverse()) {
-			if ((message.user_id ?? chat?.user_id ?? $user?.id) !== $user?.id) continue;
-			const pending = getPendingAskUserFromMessage(message);
-			if (pending) return pending;
-		}
-		return null;
-	};
-
-	const messageHasPendingAskUser = (message) => {
-		return !!getPendingAskUserFromMessage(message);
-	};
+	});
 
 	const answerPendingAskUser = async (messageId, callId, answers, timedOut = false) => {
 		if (!$chatId || !messageId || !callId) {
@@ -703,7 +638,15 @@
 		onToolCallResolved(res);
 	};
 
-	$: pendingAskUser = findPendingAskUser(history);
+	$: pendingAskUser = findPendingAskUser(
+		history?.messages
+			? history.currentId
+				? createMessagesList(history, history.currentId)
+				: Object.values(history.messages)
+			: null,
+		$user?.id,
+		chat?.user_id
+	);
 	$: savedAskUserPrompt = pendingAskUser
 		? {
 				show: true,
@@ -737,7 +680,11 @@
 		timeoutMs: interaction?.data?.timeout_ms ?? null,
 		onConfirm: (value: any) => interaction && resolveBrowserInteraction(interaction, value),
 		onCancel: () =>
-			interaction && resolveBrowserInteraction(interaction, { status: 'cancelled', answers: {} })
+			interaction &&
+			resolveBrowserInteraction(interaction, {
+				status: 'cancelled',
+				answers: {}
+			})
 	}))(browserInteraction);
 
 	const mergeChatVariableSchemas = (modelIds = [], availableModels = []) => {
@@ -833,7 +780,7 @@
 	const onToolCallResolved = (res) => {
 		const newTaskIds = res?.task_ids ?? (res?.task_id ? [res.task_id] : []);
 		if (newTaskIds.length > 0) {
-			taskIds = [...(taskIds ?? []), ...newTaskIds];
+			chatTaskLifecycle.appendTaskIds(newTaskIds);
 		}
 	};
 
@@ -967,8 +914,7 @@
 		loadedChatIdProp = '';
 		chat = null;
 		tags = [];
-		taskIds = null;
-		chatTasks = [];
+		chatTaskLifecycle.clear();
 		serverContextUsage = null;
 		history = {
 			messages: {},
@@ -1445,7 +1391,10 @@
 		clearTyping();
 		clearPresence();
 		if (joinedChatId && socket?.connected)
-			socket.emit('events:chat', { chat_id: joinedChatId, data: { type: 'leave' } });
+			socket.emit('events:chat', {
+				chat_id: joinedChatId,
+				data: { type: 'leave' }
+			});
 		joinedChatId = next;
 		const connectionId = socket?.id;
 		if (next && socket)
@@ -1493,9 +1442,7 @@
 				showEventConfirmation = false;
 				eventInteractionId = null;
 			}
-			browserInteractions = browserInteractions.filter(
-				(item) => item.id !== interactionData?.interaction_id
-			);
+			browserInteractionQueue.remove(interactionData?.interaction_id);
 			return;
 		}
 		if (
@@ -1516,16 +1463,13 @@
 				cb(true);
 				return;
 			}
-			browserInteractions = [
-				...browserInteractions,
-				{
-					id: interactionData?.interaction_id ?? uuidv4(),
-					messageId: event.message_id,
-					type: interactionType,
-					data: interactionData,
-					callback: cb
-				}
-			];
+			browserInteractionQueue.enqueue({
+				id: interactionData?.interaction_id ?? uuidv4(),
+				messageId: event.message_id,
+				type: interactionType,
+				data: interactionData,
+				callback: cb
+			});
 			return;
 		}
 
@@ -1578,11 +1522,21 @@
 				const data = event?.data?.data ?? null;
 
 				queueMicrotask(() => bridge?.update());
-				if (type === 'status') {
-					if (message?.statusHistory) {
-						message.statusHistory.push(data);
-					} else {
-						message.statusHistory = [data];
+				const reduced = reduceChatMessageEvent(message, type, data, {
+					temporaryChat: isTemporaryChatId(event.chat_id)
+				});
+				if (reduced.handled) {
+					message = reduced.message;
+					if (reduced.tasksUpdated) chatTaskLifecycle.setTasks(reduced.tasks);
+					if (reduced.scrollToEmbeds) {
+						// Auto-scroll to the embed once it's rendered in the DOM
+						await tick();
+						setTimeout(() => {
+							const embedEl = document.getElementById(`${event.message_id}-embeds-container`);
+							if (embedEl) {
+								embedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+							}
+						}, 100);
 					}
 				} else if (type === 'context_compaction') {
 					if (data?.checkpoint_message_id && history.messages[data.checkpoint_message_id]) {
@@ -1592,7 +1546,7 @@
 					autoScrollToBottom();
 				} else if (type === 'chat:active') {
 					if (!data?.active) {
-						taskIds = null;
+						chatTaskLifecycle.setTaskIds(null);
 						if (
 							$chatId &&
 							!$temporaryChatEnabled &&
@@ -1612,11 +1566,10 @@
 					}
 					autoScrollToBottom();
 				} else if (type === 'chat:tasks:cancel') {
-					for (const interaction of browserInteractions) {
-						if (interaction.messageId === event.message_id) {
-							resolveBrowserInteraction(interaction, { status: 'cancelled', answers: {} });
-						}
-					}
+					browserInteractionQueue.resolveForMessage(event.message_id, {
+						status: 'cancelled',
+						answers: {}
+					});
 					message.bridgeCancelled = true;
 					bridgeCancellations.get(event.message_id)?.();
 					clearContextCompaction(event.message_id);
@@ -1624,7 +1577,7 @@
 						message.output = data.output;
 					}
 					if (!event.shared && event.message_id === history.currentId) {
-						taskIds = null;
+						chatTaskLifecycle.setTaskIds(null);
 						// Set all response messages to done
 						for (const messageId of history.messages[message.parentId].childrenIds) {
 							history.messages[messageId].done = true;
@@ -1635,29 +1588,6 @@
 					} else {
 						message.done = true;
 					}
-				} else if (type === 'chat:message:delta' || type === 'message') {
-					message.content += data.content;
-				} else if (type === 'chat:message' || type === 'replace') {
-					message.content = data.content;
-				} else if (type === 'chat:message:voice') {
-					message.meta = { ...message.meta, voice: data.voice };
-				} else if (type === 'chat:message:files' || type === 'files') {
-					message.files = isTemporaryChatId(event.chat_id)
-						? [...(message.files ?? []), ...data.files]
-						: data.files;
-				} else if (type === 'chat:message:tasks') {
-					chatTasks = data.tasks;
-				} else if (type === 'chat:message:embeds' || type === 'embeds') {
-					message.embeds = data.embeds;
-
-					// Auto-scroll to the embed once it's rendered in the DOM
-					await tick();
-					setTimeout(() => {
-						const embedEl = document.getElementById(`${event.message_id}-embeds-container`);
-						if (embedEl) {
-							embedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-						}
-					}, 100);
 				} else if (type === 'chat:message:error') {
 					const responseCompleted = message.done;
 					if (event.shared) {
@@ -1798,7 +1728,12 @@
 	const onMessageHandler = async (event: {
 		origin: string;
 		source: unknown;
-		data: { type: string; text?: string; toolId?: string; error?: string | null };
+		data: {
+			type: string;
+			text?: string;
+			toolId?: string;
+			error?: string | null;
+		};
 	}) => {
 		const isSameOrigin = event.origin === window.origin;
 		const type = event.data?.type;
@@ -1896,10 +1831,11 @@
 		if (!$chatId || !$socket?.id) return;
 		if (isTemporaryChatId($chatId)) {
 			const id = $chatId;
+			const taskTicket = chatTaskLifecycle.begin(id);
 			try {
 				const result = await resumeTemporaryChat(localStorage.token, id, $socket.id);
-				if ($chatId !== id) return;
-				taskIds = result.task_ids.length ? result.task_ids : null;
+				if ($chatId !== id || !chatTaskLifecycle.isCurrent(taskTicket)) return;
+				chatTaskLifecycle.setTaskIds(result.task_ids, taskTicket);
 				for (const stream of result.streams) {
 					const message = history.messages[stream.message_id];
 					if (message && !message.done) message.output = stream.output;
@@ -1909,7 +1845,9 @@
 					for (const message of Object.values(history.messages) as any[]) {
 						if (message.role === 'assistant' && !message.done) {
 							message.done = true;
-							message.error = { content: $i18n.t('Connection lost. Please retry.') };
+							message.error = {
+								content: $i18n.t('Connection lost. Please retry.')
+							};
 						}
 					}
 				}
@@ -1922,9 +1860,10 @@
 		joinedChatId = '';
 		syncChatRoom($socket, $chatId, $temporaryChatEnabled);
 		const id = $chatId;
+		const taskTicket = chatTaskLifecycle.begin(id);
 		const tasks = await getTaskIdsByChatId(localStorage.token, id).catch(() => null);
-		if ($chatId !== id || !tasks) return;
-		taskIds = tasks.task_ids?.length ? tasks.task_ids : null;
+		if ($chatId !== id || !tasks || !chatTaskLifecycle.isCurrent(taskTicket)) return;
+		chatTaskLifecycle.setTaskIds(tasks.task_ids, taskTicket);
 		if (!taskIds && hasPendingAssistantLeaf()) {
 			// A server restart can leave unfinished messages without a completion event.
 			const loaded = await loadChat();
@@ -2024,7 +1963,10 @@
 				clearTyping();
 				clearPresence();
 				if (joinedChatId && $socket?.connected)
-					$socket.emit('events:chat', { chat_id: joinedChatId, data: { type: 'leave' } });
+					$socket.emit('events:chat', {
+						chat_id: joinedChatId,
+						data: { type: 'leave' }
+					});
 				joinedChatId = '';
 				chatId.set('');
 				chatTitle.set('');
@@ -2050,10 +1992,7 @@
 		console.log('Starting uploadGoogleDriveFile with:', {
 			id: fileData.id,
 			name: fileData.name,
-			url: fileData.url,
-			headers: {
-				Authorization: `Bearer ${token}`
-			}
+			url: fileData.url
 		});
 
 		// Validate input
@@ -2818,8 +2757,7 @@
 		chatFiles = [];
 		params = {};
 		chatVariables = {};
-		taskIds = null;
-		chatTasks = [];
+		chatTaskLifecycle.clear();
 
 		const youtube = $page.url.searchParams.get('youtube');
 		const loadUrl = $page.url.searchParams.get('load-url');
@@ -2936,6 +2874,7 @@
 		}
 
 		const id = $chatId;
+		const taskTicket = chatTaskLifecycle.begin(id);
 		const loadedChat = await getChatById(localStorage.token, id, signal).catch(async (error) => {
 			console.error('[note-chat] getChatById failed', {
 				chatIdProp,
@@ -2996,14 +2935,19 @@
 					(selectedModels.length === 1 && selectedModels[0] === '')
 				) {
 					selectedModels = normalizeSelectedModels(selectedModels);
-					noteChatDebug('normalized empty selected models after load', { selectedModels });
+					noteChatDebug('normalized empty selected models after load', {
+						selectedModels
+					});
 				}
 
 				chatContent.history ??= convertMessagesToHistory(chatContent.messages);
 				// Keep live updates received while the chat and tags were loading.
 				for (const [id, message] of Object.entries(history.messages)) {
 					if (initialHistory.messages[id] !== message)
-						chatContent.history.messages[id] = { ...chatContent.history.messages[id], ...message };
+						chatContent.history.messages[id] = {
+							...chatContent.history.messages[id],
+							...message
+						};
 				}
 				if (history.currentId !== initialHistory.currentId)
 					chat.current_message_id = history.currentId;
@@ -3023,7 +2967,7 @@
 				chatFiles = structuredClone(chatContent?.files ?? []);
 
 				// Load tasks from chat-level DB field
-				chatTasks = chat?.tasks ?? [];
+				chatTaskLifecycle.setTasks(chat?.tasks ?? [], taskTicket);
 				serverContextUsage = chat?.context_usage ?? null;
 
 				autoScroll = true;
@@ -3060,17 +3004,18 @@
 						return [];
 					});
 				if (signal.aborted) return;
+				const canReconcileTasks = chatTaskLifecycle.isCurrent(taskTicket);
 				noteChatDebug('task reconciliation completed', {
 					pendingTaskCount: pendingTaskIds.length,
 					hasCurrentMessage: !!currentMessage
 				});
 				const responseComplete = currentMessage?.role === 'assistant' && currentMessage?.done;
 
-				if (taskIds === activeTaskIds) {
+				if (canReconcileTasks && taskIds === activeTaskIds) {
 					if (pendingTaskIds.length > 0 && !responseComplete) {
-						taskIds = pendingTaskIds;
+						chatTaskLifecycle.setTaskIds(pendingTaskIds, taskTicket);
 					} else {
-						taskIds = null;
+						chatTaskLifecycle.setTaskIds(null, taskTicket);
 						// No active tasks and message incomplete → generation was interrupted
 						if (pendingTaskIds.length === 0) {
 							for (const message of Object.values(history.messages)) {
@@ -3224,7 +3169,10 @@
 			chatRequestQueues.update((q) => ({
 				...q,
 				[targetChatId]: [
-					...queuedMessages.map((entry) => ({ ...entry, error: String(error) })),
+					...queuedMessages.map((entry) => ({
+						...entry,
+						error: String(error)
+					})),
 					...(q[targetChatId] ?? [])
 				]
 			}));
@@ -3340,7 +3288,9 @@
 						? { originalContent: history.messages[message.id].content }
 						: {}),
 					...(typeof message.content === 'string' && history.messages[message.id].output?.length
-						? { output: setOutputText(history.messages[message.id].output, message.content) }
+						? {
+								output: setOutputText(history.messages[message.id].output, message.content)
+							}
 						: {}),
 					...message
 				};
@@ -3748,7 +3698,10 @@
 		const compactChatId = $chatId;
 		const compactMessageId = history.currentId;
 		if ($contextCompactions[compactMessageId] === 'in_progress') return;
-		$contextCompactions = { ...$contextCompactions, [compactMessageId]: 'in_progress' };
+		$contextCompactions = {
+			...$contextCompactions,
+			[compactMessageId]: 'in_progress'
+		};
 
 		try {
 			const result = await compactChatById(localStorage.token, compactChatId, model);
@@ -3920,7 +3873,10 @@
 		{
 			_raw = false,
 			bridge: bridgeRequest = null
-		}: { _raw?: boolean; bridge?: { userMessageId: string; modelId: string } | null } = {}
+		}: {
+			_raw?: boolean;
+			bridge?: { userMessageId: string; modelId: string } | null;
+		} = {}
 	): Promise<BridgeSubmission> => {
 		if (embedded && onBeforeNoteSubmit) {
 			try {
@@ -4164,7 +4120,11 @@
 		}
 
 		// Use a message_ids array with modelIdx to preserve separate columns for duplicate models.
-		const messageIdsList: Array<{ model_id: string; message_id: string; modelIdx: number }> = [];
+		const messageIdsList: Array<{
+			model_id: string;
+			message_id: string;
+			modelIdx: number;
+		}> = [];
 		for (const [_modelIdx, modelId] of selectedModelIds.entries()) {
 			const model = $models.filter((m) => m.id === modelId).at(0);
 
@@ -4390,7 +4350,10 @@
 		// Only temp chats need conversation messages (persisted chats load from DB).
 		let messages: any[] = [
 			params?.system || $settings.system
-				? { role: 'system', content: `${params?.system || $settings?.system || ''}` }
+				? {
+						role: 'system',
+						content: `${params?.system || $settings?.system || ''}`
+					}
 				: undefined
 		].filter(Boolean);
 
@@ -4704,7 +4667,7 @@
 				}
 			}
 
-			taskIds = null;
+			chatTaskLifecycle.setTaskIds(null);
 
 			// Set all response messages to done
 			if (responseMessage?.parentId && history.messages[responseMessage.parentId]) {
@@ -5124,7 +5087,9 @@
 	<Modal ariaLabel={$i18n.t('Chat Variables')} bind:show={showChatVariablesModal} size="md">
 		<div>
 			<div class="flex justify-between px-4 pt-3 pb-1 dark:text-gray-300">
-				<div class="self-center text-sm font-medium">{$i18n.t('Chat Variables')}</div>
+				<div class="self-center text-sm font-medium">
+					{$i18n.t('Chat Variables')}
+				</div>
 				<button
 					aria-label={$i18n.t('Close')}
 					class="self-center rounded-lg py-1 text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-0"
@@ -5143,7 +5108,9 @@
 				<div class="flex flex-col gap-1">
 					{#each getChatVariablesForm(selectedModelIds, chatVariables, $models).conflicts as conflict}
 						<div class="rounded-lg border border-red-200 px-3 py-2 text-xs dark:border-red-900/60">
-							<div class="font-medium text-red-600 dark:text-red-400">{conflict.key}</div>
+							<div class="font-medium text-red-600 dark:text-red-400">
+								{conflict.key}
+							</div>
 							<div class="mt-1 text-gray-500 dark:text-gray-400">
 								{conflict.modelIds.join(', ')}
 							</div>
@@ -5216,7 +5183,8 @@
 	}}
 >
 	<div class=" text-sm text-gray-500 flex-1 line-clamp-3">
-		{$i18n.t('This will delete')} <span class="  font-normal">{$chatTitle}</span>.
+		{$i18n.t('This will delete')}
+		<span class="  font-normal">{$chatTitle}</span>.
 	</div>
 </DeleteConfirmDialog>
 
@@ -5265,7 +5233,9 @@
 			on:cancel={() => resolveBrowserInteraction(interaction, false)}
 		>
 			<div class="text-sm text-gray-500">
-				<div class="font-medium break-all">{interaction.data.tool_call.name}</div>
+				<div class="font-medium break-all">
+					{interaction.data.tool_call.name}
+				</div>
 				<pre class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(
 						interaction.data.tool_call.arguments,
 						null,
@@ -5282,7 +5252,9 @@
 		: 'h-screen max-h-[100dvh]'} transition-width duration-200 ease-in-out {$showSidebar &&
 	!embedded
 		? '  md:max-w-[calc(100%-var(--sidebar-width))]'
-		: ' '} {$documentViewerOpen && !embedded ? 'md:pr-[50vw]' : ''} w-full max-w-full min-w-0 flex flex-col"
+		: ' '} {$documentViewerOpen && !embedded
+		? 'md:pr-[50vw]'
+		: ''} w-full max-w-full min-w-0 flex flex-col"
 	id={chatContainerId}
 >
 	<div in:fade={{ duration: 50 }} class="w-full h-full flex flex-col">
@@ -5411,7 +5383,9 @@
 						/>
 					{/if}
 					<div id="chat-pane" class="flex flex-col flex-auto z-10 w-full @container overflow-auto">
-						<div class="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
+						<div class="sr-only" aria-live="polite" aria-atomic="true">
+							{liveStatus}
+						</div>
 						{#if ($settings?.landingPageMode === 'chat' && !$selectedFolder) || createMessagesList(history, history.currentId).length > 0}
 							<div
 								class=" pb-2.5 flex flex-col justify-between w-full flex-auto overflow-auto h-0 max-w-full z-10 scrollbar-hidden"

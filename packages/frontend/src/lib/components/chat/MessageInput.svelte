@@ -80,6 +80,10 @@
 	import { getFolderById } from '$lib/apis/folders';
 	import { getNoteById } from '$lib/apis/notes';
 	import { getSessionUser } from '$lib/apis/auths';
+	import { createFileInputLifecycle } from './fileInputLifecycle';
+	import { processComposerFile } from './MessageInput/fileProcessing';
+	import { createAttachmentCollection } from './MessageInput/attachmentCollection';
+	import { createSuggestionAttachmentHandler } from './MessageInput/suggestionAttachmentHandler';
 
 	import { WEBUI_BASE_URL, WEBUI_API_BASE_URL, PASTED_TEXT_CHARACTER_LIMIT } from '$lib/constants';
 	import { matchKeybinding, Shortcut } from '$lib/shortcuts';
@@ -148,6 +152,24 @@
 	export let onUpload: Function = (e) => {};
 	export let onChange: Function = () => {};
 	export let typingUsers: { id: string; name: string }[] = [];
+	export let files: any[] = [];
+	const attachmentCollection = createAttachmentCollection<any>(
+		() => files,
+		(nextFiles) => {
+			files = nextFiles;
+		}
+	);
+	const handleSuggestionUpload = createSuggestionAttachmentHandler({
+		readFiles: () => files,
+		collection: attachmentCollection,
+		onUpload: (event) => onUpload(event)
+	});
+	const handleSuggestionUploadWithFilesystem = createSuggestionAttachmentHandler({
+		readFiles: () => files,
+		collection: attachmentCollection,
+		includeFilesystem: true,
+		onUpload: (event) => onUpload(event)
+	});
 
 	const handleTypingInput = (event: Event) => {
 		const input = event.target as HTMLElement;
@@ -245,7 +267,17 @@
 				!($_user?.permissions?.chat?.temporary_enforced ?? false)));
 
 	export let prompt = '';
-	export let files: any[] = [];
+	let pendingInputFileCount = 0;
+	$: isProcessingInputFiles = pendingInputFileCount > 0;
+	const fileInputLifecycle = createFileInputLifecycle((count) => {
+		pendingInputFileCount = count;
+	});
+
+	const submitPrompt = (message = prompt) => {
+		if (isProcessingInputFiles) return false;
+		dispatch('submit', message);
+		return true;
+	};
 
 	export let selectedToolIds: string[] = [];
 	export let selectedSkillIds: string[] = [];
@@ -635,7 +667,7 @@
 	const createSkillHandler = async () => {
 		prompt = '/skills:create';
 		await tick();
-		dispatch('submit', prompt);
+		submitPrompt(prompt);
 	};
 
 	const insertTextAtCursor = async (text: string) => {
@@ -770,7 +802,7 @@
 	let filesInputElement;
 	let commandsElement;
 
-	let inputFiles;
+	let inputFiles: FileList | null = null;
 
 	let showInputModal = false;
 	let showComparison = false;
@@ -1039,7 +1071,7 @@
 	const uploadTerminalFile = async (fileItem, sessionId: string | null) => {
 		fileItem.status = 'uploading';
 		fileItem.error = '';
-		files = files;
+		attachmentCollection.touch();
 		try {
 			const terminal = getFilesystemUploadTerminal(fileItem.terminal_id);
 			if (!terminal) throw new Error('The attached file’s terminal is unavailable.');
@@ -1077,7 +1109,7 @@
 			toast.error(fileItem.error);
 			return false;
 		} finally {
-			files = files;
+			attachmentCollection.touch();
 		}
 		return true;
 	};
@@ -1090,14 +1122,17 @@
 			if (chatId !== sessionId) return false;
 			if (!(await uploadTerminalFile(fileItem, sessionId))) {
 				fileItem.status = 'pending';
-				files = files;
+				attachmentCollection.touch();
 				return false;
 			}
 		}
 		return !files.some((item) => item.status === 'pending' && item.file instanceof File);
 	};
 
-	const uploadFileHandler = async (file, process = true, itemData = {}) => {
+	const uploadFileHandler = async (file, process = true, itemData = {}) =>
+		fileInputLifecycle.track(() => uploadFileHandlerImpl(file, process, itemData));
+
+	const uploadFileHandlerImpl = async (file, process = true, itemData = {}) => {
 		if ($_user?.role !== 'admin' && !($_user?.permissions?.chat?.file_upload ?? true)) {
 			toast.error($i18n.t('You do not have permission to upload files.'));
 			return null;
@@ -1133,7 +1168,7 @@
 			return null;
 		}
 
-		files = [...files, fileItem];
+		attachmentCollection.add(fileItem);
 
 		if (filesystemUploadTerminal) {
 			fileItem.type = 'filesystem';
@@ -1142,12 +1177,12 @@
 			fileItem.session_id = chatId || null;
 			if (!chatId && filesystemUploadTerminal.contexts?.chat?.context_id === 'chat_id') {
 				fileItem.status = 'pending';
-				files = files;
+				attachmentCollection.touch();
 				return;
 			}
 
 			if (!(await uploadTerminalFile(fileItem, fileItem.session_id))) {
-				files = files.filter((item) => item?.itemId !== tempItemId);
+				attachmentCollection.remove((item) => item?.itemId === tempItemId);
 			}
 			onUpdate({ file: fileItem });
 			return;
@@ -1192,17 +1227,17 @@
 					fileItem.content_type = uploadedFile.meta?.content_type || uploadedFile.content_type;
 					fileItem.url = `${uploadedFile.id}`;
 
-					files = files;
+					attachmentCollection.touch();
 				} else {
 					fileItem.status = 'error';
 					fileItem.error = $i18n.t('Failed to upload file.');
-					files = files.filter((item) => item?.itemId !== tempItemId);
+					attachmentCollection.remove((item) => item?.itemId === tempItemId);
 				}
 			} catch (e) {
 				fileItem.status = 'error';
 				fileItem.error = `${e}`;
 				toast.error(`${e}`);
-				files = files.filter((item) => item?.itemId !== tempItemId);
+				attachmentCollection.remove((item) => item?.itemId === tempItemId);
 			} finally {
 				onUpdate({ file: fileItem });
 			}
@@ -1220,7 +1255,7 @@
 				fileItem.status = 'error';
 				fileItem.error = $i18n.t('Failed to extract content from the file.');
 				toast.error($i18n.t('Failed to extract content from the file.'));
-				files = files.filter((item) => item?.itemId !== tempItemId);
+				attachmentCollection.remove((item) => item?.itemId === tempItemId);
 				onUpdate({ file: fileItem });
 				return null;
 			} else {
@@ -1235,13 +1270,13 @@
 				fileItem.content = content;
 				fileItem.id = uuidv4(); // Temporary ID for the file
 
-				files = files;
+				attachmentCollection.touch();
 				onUpdate({ file: fileItem });
 			}
 		}
 	};
 
-	const inputFilesHandler = async (inputFiles) => {
+	const inputFilesHandler = async (inputFiles: File[]) => {
 		console.log('Input files handler called with:', inputFiles);
 
 		if (
@@ -1256,103 +1291,62 @@
 			return;
 		}
 
-		inputFiles.forEach(async (file) => {
+		const results = await fileInputLifecycle.process(inputFiles, async (inputFile) => {
 			console.log('Processing file:', {
-				name: file.name,
-				type: file.type,
-				size: file.size,
-				extension: file.name.split('.').at(-1)
+				name: inputFile.name,
+				type: inputFile.type,
+				size: inputFile.size,
+				extension: inputFile.name.split('.').at(-1)
 			});
 
-			if (
-				($config?.file?.max_size ?? null) !== null &&
-				file.size > ($config?.file?.max_size ?? 0) * 1024 * 1024
-			) {
-				console.log('File exceeds max size limit:', {
-					fileSize: file.size,
-					maxSize: ($config?.file?.max_size ?? 0) * 1024 * 1024
-				});
-				toast.error(
-					$i18n.t(`File size should not exceed {{maxSize}} MB.`, {
-						maxSize: $config?.file?.max_size
-					})
-				);
-				return;
-			}
-
-			file = await normalizeImageFile(file);
-			if (isRasterImageContentType(file['type']) || isHeicImage(file)) {
-				if (visionCapableModels.length === 0) {
-					toast.error($i18n.t('Selected model(s) do not support image inputs'));
-					return;
-				}
-
-				const compressImageHandler = async (imageUrl, settings = {}, config = {}) => {
-					// Quick shortcut so we don’t do unnecessary work.
-					const settingsCompression = settings?.imageCompression ?? false;
-					const configWidth = config?.file?.image_compression?.width ?? null;
-					const configHeight = config?.file?.image_compression?.height ?? null;
-
-					// If neither settings nor config wants compression, return original URL.
-					if (!settingsCompression && !configWidth && !configHeight) {
-						return imageUrl;
-					}
-
-					// Default to null (no compression unless set)
-					let width = null;
-					let height = null;
-
-					// If user/settings want compression, pick their preferred size.
-					if (settingsCompression) {
-						width = settings?.imageCompressionSize?.width ?? null;
-						height = settings?.imageCompressionSize?.height ?? null;
-					}
-
-					// Apply config limits as an upper bound if any
-					if (configWidth && (width === null || width > configWidth)) {
-						width = configWidth;
-					}
-					if (configHeight && (height === null || height > configHeight)) {
-						height = configHeight;
-					}
-
-					// Do the compression if required
-					if (width || height) {
-						return await compressImage(imageUrl, width, height);
-					}
-					return imageUrl;
-				};
-
-				const imageFile = isHeicImage(file) ? await convertHeicToJpeg(file) : file;
-				let reader = new FileReader();
-
-				reader.onload = async (event) => {
-					let imageUrl = event.target.result;
-
-					// Compress the image if settings or config require it
-					imageUrl = await compressImageHandler(imageUrl, $settings, $config);
-
-					if (isTemporary) {
-						files = [
-							...files,
-							{
-								type: 'image',
-								url: imageUrl
-							}
-						];
-					} else {
-						const blob = await (await fetch(imageUrl)).blob();
-						const compressedFile = new File([blob], imageFile.name, { type: imageFile.type });
-
-						uploadFileHandler(compressedFile, false);
-					}
-				};
-
-				reader.readAsDataURL(imageFile);
-			} else {
-				uploadFileHandler(file);
-			}
+			await processComposerFile(inputFile, {
+				maximumFileSizeBytes:
+					$config?.file?.max_size == null ? null : $config.file.max_size * 1024 * 1024,
+				normalizeImageFile,
+				isImage: (file) => isRasterImageContentType(file.type),
+				isHeicImage,
+				convertHeicToJpeg,
+				compressImage: async (url, width, height) =>
+					(await compressImage(url, width, height)) as string,
+				settings: $settings,
+				fileConfig: $config?.file,
+				visionEnabled: visionCapableModels.length > 0,
+				temporary: isTemporary,
+				readImageAsDataUrl: (file) =>
+					new Promise<string>((resolve, reject) => {
+						const reader = new FileReader();
+						reader.onload = (event) => resolve(event.target.result as string);
+						reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file.'));
+						reader.onabort = () => reject(new Error('Reading the image file was aborted.'));
+						reader.readAsDataURL(file);
+					}),
+				fetchImageBlob: async (url) => (await fetch(url)).blob(),
+				createImageFile: (blob, name, type) => new File([blob], name, { type }),
+				appendTemporaryImage: (url) => {
+					attachmentCollection.add({ type: 'image', url });
+				},
+				uploadFile: (file, process) => uploadFileHandler(file, process),
+				onFileTooLarge: () => {
+					console.log('File exceeds max size limit:', {
+						fileSize: inputFile.size,
+						maxSize: $config?.file?.max_size * 1024 * 1024
+					});
+					toast.error(
+						$i18n.t(`File size should not exceed {{maxSize}} MB.`, {
+							maxSize: $config?.file?.max_size
+						})
+					);
+				},
+				onVisionUnsupported: () =>
+					toast.error($i18n.t('Selected model(s) do not support image inputs'))
+			});
 		});
+		for (const result of results) {
+			if (result.status === 'rejected') {
+				console.error('File input processing failed:', result.reason);
+				toast.error(`${result.reason}`);
+			}
+		}
 	};
 
 	const createNote = async () => {
@@ -1417,9 +1411,7 @@
 							collection_name: '',
 							status: 'processed'
 						};
-						if (!files.find((f) => f.id === chatItem.id)) {
-							files = [...files, chatItem];
-						}
+						attachmentCollection.addIfMissing(chatItem, (item) => item.id === chatItem.id);
 					}
 					dragged = false;
 					e.stopPropagation();
@@ -1434,9 +1426,7 @@
 							name: folder.name,
 							status: 'processed'
 						};
-						if (!files.find((f) => f.id === folderItem.id)) {
-							files = [...files, folderItem];
-						}
+						attachmentCollection.addIfMissing(folderItem, (item) => item.id === folderItem.id);
 					}
 					dragged = false;
 					e.stopPropagation();
@@ -1451,9 +1441,7 @@
 							name: note.title,
 							status: 'processed'
 						};
-						if (!files.find((f) => f.id === noteItem.id)) {
-							files = [...files, noteItem];
-						}
+						attachmentCollection.addIfMissing(noteItem, (item) => item.id === noteItem.id);
 					}
 					dragged = false;
 					e.stopPropagation();
@@ -1553,48 +1541,7 @@
 					},
 
 					insertTextHandler: insertTextAtCursor,
-					onUpload: (e) => {
-						const { type, data } = e;
-
-						if (type === 'file') {
-							if (files.find((f) => f.id === data.id)) {
-								return;
-							}
-							files = [
-								...files,
-								{
-									...data,
-									status: 'processed'
-								}
-							];
-						} else if (type === 'filesystem') {
-							const path = data.path ?? data.url ?? data.id;
-							if (
-								!path ||
-								files.find((f) => f.type === 'filesystem' && (f.path ?? f.url ?? f.id) === path)
-							) {
-								return;
-							}
-							files = [
-								...files,
-								{
-									...data,
-									type: 'filesystem',
-									id: path,
-									path,
-									url: path,
-									name: data.name,
-									size: data.size,
-									status: 'processed'
-								}
-							];
-						} else {
-							if (files.find((f) => f.url === data || f.name === data)) {
-								return;
-							}
-							onUpload(e);
-						}
-					}
+					onUpload: handleSuggestionUploadWithFilesystem
 				})
 			},
 			{
@@ -1679,27 +1626,7 @@
 					},
 
 					insertTextHandler: insertTextAtCursor,
-					onUpload: (e) => {
-						const { type, data } = e;
-
-						if (type === 'file') {
-							if (files.find((f) => f.id === data.id)) {
-								return;
-							}
-							files = [
-								...files,
-								{
-									...data,
-									status: 'processed'
-								}
-							];
-						} else {
-							if (files.find((f) => f.url === data || f.name === data)) {
-								return;
-							}
-							onUpload(e);
-						}
-					}
+					onUpload: handleSuggestionUpload
 				})
 			},
 			{
@@ -1718,27 +1645,7 @@
 					},
 
 					insertTextHandler: insertTextAtCursor,
-					onUpload: (e) => {
-						const { type, data } = e;
-
-						if (type === 'file') {
-							if (files.find((f) => f.id === data.id)) {
-								return;
-							}
-							files = [
-								...files,
-								{
-									...data,
-									status: 'processed'
-								}
-							];
-						} else {
-							if (files.find((f) => f.url === data || f.name === data)) {
-								return;
-							}
-							onUpload(e);
-						}
-					}
+					onUpload: handleSuggestionUpload
 				})
 			},
 			{
@@ -1984,7 +1891,7 @@
 								focus({ preventScroll: true });
 
 								if ($settings?.speechAutoSend ?? false) {
-									dispatch('submit', prompt);
+									submitPrompt(prompt);
 								}
 							}}
 						/>
@@ -1992,7 +1899,7 @@
 					<form
 						class="w-full flex flex-col gap-1.5 {recording ? 'hidden' : ''}"
 						on:submit|preventDefault={() => {
-							dispatch('submit', prompt);
+							submitPrompt(prompt);
 						}}
 					>
 						<button
@@ -2002,7 +1909,7 @@
 							type="button"
 							aria-label={$i18n.t('Generate message pair')}
 							class="hidden"
-							on:click={() => createMessagePair(prompt)}
+							on:click={() => !isProcessingInputFiles && createMessagePair(prompt)}
 						></button>
 
 						{#if askUser?.show}
@@ -2219,8 +2126,7 @@
 														type="button"
 														aria-label={$i18n.t('Remove file')}
 														on:click={() => {
-															files.splice(fileIdx, 1);
-															files = files;
+															attachmentCollection.removeAt(fileIdx);
 														}}
 													>
 														<svg
@@ -2250,8 +2156,7 @@
 												modal={['file', 'collection'].includes(file?.type)}
 												on:dismiss={async () => {
 													// Remove from UI state
-													files.splice(fileIdx, 1);
-													files = files;
+													attachmentCollection.removeAt(fileIdx);
 												}}
 												on:click={() => {
 													console.log(file);
@@ -2407,8 +2312,11 @@
 
 																if (enterPressed) {
 																	e.preventDefault();
-																	if (prompt !== '' || files.length > 0) {
-																		dispatch('submit', prompt);
+																	if (
+																		!isProcessingInputFiles &&
+																		(prompt !== '' || files.length > 0)
+																	) {
+																		submitPrompt(prompt);
 																	}
 																}
 															}
@@ -2474,9 +2382,9 @@
 							<div class=" flex justify-between mt-0.5 mb-2 mx-0.5 max-w-full" dir="ltr">
 								<div class="ml-1 self-end flex items-center">
 									<InputMenu
-						bind:this={inputMenuComponent}
+										bind:this={inputMenuComponent}
 										onCompare={openComparison}
-						{chatId}
+										{chatId}
 										bind:files
 										selectedModels={selectedModelIds}
 										fileUploadCapableModels={getFilesystemUploadTerminal(
@@ -3012,18 +2920,23 @@
 											</div>
 										{:else}
 											<div class=" flex items-center">
-												<!-- Preserve the former upload label for i18n extraction: $i18n.t('Waiting for upload...') -->
-												<Tooltip content={$i18n.t('Send message')}>
+												<Tooltip
+													content={isProcessingInputFiles
+														? $i18n.t('Waiting for upload...')
+														: $i18n.t('Send message')}
+												>
 													<button
 														id={inputId === 'chat-input'
 															? 'send-message-button'
 															: `${inputId}-send-message-button`}
 														aria-label={$i18n.t('Send message')}
-														class="{!(prompt === '' && files.length === 0)
+														class="{!(prompt === '' && files.length === 0) &&
+														!isProcessingInputFiles
 															? 'bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 '
 															: 'text-white bg-gray-200 dark:text-gray-900 dark:bg-gray-700 disabled'} transition rounded-full p-[0.3125rem] self-center"
 														type="submit"
-														disabled={prompt === '' && files.length === 0}
+														disabled={isProcessingInputFiles ||
+															(prompt === '' && files.length === 0)}
 													>
 														<svg
 															xmlns="http://www.w3.org/2000/svg"

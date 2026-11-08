@@ -3,6 +3,26 @@
 	import type { TerminalConnection } from '$lib/apis/terminal';
 	import type { GitStatus } from '$lib/apis/terminal/git';
 	import FileGitDiff from './FileNav/FileGitDiff.svelte';
+	import { createFileNavRequestLifecycle } from './FileNav/fileNavRequestLifecycle';
+	import {
+		createFileNavigationHistory,
+		navigateFileHistoryEntry
+	} from './FileNav/fileNavigationHistory';
+	import { selectAllFilePaths, toggleFileSelection } from './FileNav/fileSelectionModel';
+	import {
+		asDirectoryPath,
+		buildVisibleRows,
+		cleanEntryName,
+		entryPath,
+		filterEntries,
+		joinPath,
+		normalizeEntries,
+		normalizePath,
+		sortEntries,
+		withRowIndexes,
+		type BrowserRow,
+		type SortMode
+	} from './FileNav/fileBrowserModel';
 	import { filesystemFile, type FilesystemFile } from '$lib/apis/terminal';
 	import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 	import ArrowRight from '$lib/components/icons/ArrowRight.svelte';
@@ -147,6 +167,7 @@
 	let openedFile: FilesystemFile | null = null;
 	let pendingFile: FilesystemFile | null = null;
 	let viewerLabel = '';
+	const fileNavRequestLifecycle = createFileNavRequestLifecycle();
 	let loadGeneration = 0;
 	export let dirty = false;
 	let diskChanged = false;
@@ -339,13 +360,6 @@
 	let error: string | null = null;
 
 	// Browser view state
-	type SortMode = 'name' | 'size' | 'date' | 'created';
-	type BrowserRow = FileEntry & {
-		fullPath: string;
-		parentPath: string;
-		depth: number;
-		rowIndex: number;
-	};
 	type FileSearchTarget = {
 		line: number;
 		column: number;
@@ -388,58 +402,6 @@
 	$: filenameMatches = matchResults?.filter((match) => match.name_match) ?? [];
 	$: contentOnlyMatches = matchResults?.filter((match) => !match.name_match) ?? [];
 
-	/** Normalize Windows backslashes and collapse duplicate separators. */
-	const normalizePath = (path: string) => path.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
-
-	const cleanEntryName = (name: string) =>
-		normalizePath(name).split('/').filter(Boolean).at(-1) ?? name.replace(/\/+$/, '');
-
-	const normalizeEntries = (items: FileEntry[]) =>
-		items.map((entry) => ({ ...entry, name: cleanEntryName(entry.name) }));
-
-	const asDirectoryPath = (path: string) => {
-		const normalized = normalizePath(path || '/');
-		if (normalized === '/') return '/';
-		return normalized.endsWith('/') ? normalized : `${normalized}/`;
-	};
-
-	const joinPath = (parentPath: string, name: string) => {
-		const parent = asDirectoryPath(parentPath);
-		const child = cleanEntryName(name);
-		if (!child) return parent;
-		return normalizePath(`${parent}${child}`);
-	};
-
-	const sortEntries = (items: FileEntry[], mode: SortMode, asc: boolean): FileEntry[] => {
-		return [...items].sort((a, b) => {
-			// Directories always first
-			if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-			if (mode === 'created') {
-				// Older servers and some filesystems do not expose creation time.
-				if (a.created == null && b.created != null) return 1;
-				if (a.created != null && b.created == null) return -1;
-				const cmp = (a.created ?? 0) - (b.created ?? 0) || a.name.localeCompare(b.name);
-				return asc ? cmp : -cmp;
-			}
-			if (mode === 'date') {
-				if (a.modified !== undefined && b.modified !== undefined) {
-					return asc ? a.modified - b.modified : b.modified - a.modified;
-				}
-				const cmp = a.name.localeCompare(b.name);
-				return asc ? cmp : -cmp;
-			}
-			if (mode === 'size') {
-				if (a.size !== undefined && b.size !== undefined) {
-					return asc ? a.size - b.size : b.size - a.size;
-				}
-				const cmp = a.name.localeCompare(b.name);
-				return asc ? cmp : -cmp;
-			}
-			const cmp = a.name.localeCompare(b.name);
-			return asc ? cmp : -cmp;
-		});
-	};
-
 	const toggleSort = (mode: SortMode) => {
 		if (sortBy === mode) {
 			sortAsc = !sortAsc;
@@ -449,46 +411,6 @@
 		}
 		void refreshBrowser();
 	};
-
-	const filterEntries = (items: FileEntry[], hiddenVisible: boolean) =>
-		hiddenVisible ? items : items.filter((entry) => !entry.name.startsWith('.'));
-
-	const entryPath = (parentPath: string, entry: FileEntry) =>
-		entry.type === 'directory'
-			? asDirectoryPath(joinPath(parentPath, entry.name))
-			: joinPath(parentPath, entry.name);
-
-	const withRowIndexes = (rows: Omit<BrowserRow, 'rowIndex'>[]): BrowserRow[] =>
-		rows.map((row, rowIndex) => ({ ...row, rowIndex }));
-
-	const buildVisibleRows = (
-		items: FileEntry[],
-		parentPath: string,
-		expanded: Set<string>,
-		cache: Map<string, FileEntry[]>,
-		hiddenVisible: boolean,
-		mode: SortMode,
-		asc: boolean,
-		depth = 0
-	): Omit<BrowserRow, 'rowIndex'>[] =>
-		sortEntries(filterEntries(items, hiddenVisible), mode, asc).flatMap((entry) => {
-			const fullPath = entryPath(parentPath, entry);
-			const row = { ...entry, fullPath, parentPath, depth };
-			const children =
-				entry.type === 'directory' && expanded.has(fullPath)
-					? buildVisibleRows(
-							cache.get(fullPath) ?? [],
-							fullPath,
-							expanded,
-							cache,
-							hiddenVisible,
-							mode,
-							asc,
-							depth + 1
-						)
-					: [];
-			return [row, ...children];
-		});
 
 	$: visibleEntries = withRowIndexes(
 		buildVisibleRows(
@@ -513,47 +435,37 @@
 	let navHistory: NavEntry[] = [];
 	let navIndex = -1;
 	let navigatingHistory = false;
+	const navigationHistory = createFileNavigationHistory((state) => {
+		navHistory = state.entries;
+		navIndex = state.index;
+	});
 
 	$: canGoBack = navIndex > 0;
 	$: canGoForward = navIndex < navHistory.length - 1;
 
 	const pushNavHistory = (path: string, file: string | null = null) => {
-		if (navigatingHistory) return;
-		// Skip if this is the same as the current entry
-		const current = navHistory[navIndex];
-		if (current && current.path === path && current.file === file) return;
-		// Truncate forward history when navigating to a new location
-		if (navIndex < navHistory.length - 1) {
-			navHistory = navHistory.slice(0, navIndex + 1);
-		}
-		navHistory = [...navHistory, { path, file }];
-		navIndex = navHistory.length - 1;
+		navigationHistory.push(path, file, navigatingHistory);
 	};
+	const navigateHistoryEntry = (entry: NavEntry) =>
+		navigateFileHistoryEntry(entry, {
+			setBusy: (busy) => (navigatingHistory = busy),
+			loadDirectory: loadDir,
+			openFile: async (filePath) => {
+				const fileName = filePath.split('/').pop() ?? '';
+				await openEntry({ name: fileName, type: 'file', size: 0 });
+			}
+		});
 
 	const goBack = async () => {
-		if (!canGoBack) return;
-		navigatingHistory = true;
-		navIndex -= 1;
-		const entry = navHistory[navIndex];
-		await loadDir(entry.path);
-		if (entry.file) {
-			const fileName = entry.file.split('/').pop() ?? '';
-			await openEntry({ name: fileName, type: 'file', size: 0 });
-		}
-		navigatingHistory = false;
+		const entry = navigationHistory.back();
+		if (!entry) return;
+		await navigateHistoryEntry(entry);
 	};
 
 	const goForward = async () => {
-		if (!canGoForward) return;
-		navigatingHistory = true;
-		navIndex += 1;
-		const entry = navHistory[navIndex];
-		await loadDir(entry.path);
-		if (entry.file) {
-			const fileName = entry.file.split('/').pop() ?? '';
-			await openEntry({ name: fileName, type: 'file', size: 0 });
-		}
-		navigatingHistory = false;
+		const entry = navigationHistory.forward();
+		if (!entry) return;
+		await navigateHistoryEntry(entry);
 	};
 
 	// File preview state
@@ -708,7 +620,7 @@
 				// browsed path as the new session's cwd — don't re-fetch.
 				setCwd(terminal.url, terminal.key, savedPath, chatId);
 			} else if (terminalChanged || chatChanged) {
-				++loadGeneration;
+				loadGeneration = fileNavRequestLifecycle.invalidate();
 				openedFile = null;
 				if (terminalContext) terminalContext = { ...terminalContext, file: null };
 				// Terminal switched, new chat started, or switched between
@@ -1006,9 +918,8 @@
 	) => {
 		if (disposed) return;
 		if (!(await protectBuffer())) return;
-		const generation = ++loadGeneration;
-		const selector = effectiveTerminalId,
-			session = chatId;
+		const request = fileNavRequestLifecycle.begin(effectiveTerminalId, chatId);
+		loadGeneration = request.generation;
 		const terminal = selectedTerminal;
 		if (!terminal) return;
 		const directory = clampToFileRoot(path);
@@ -1035,8 +946,7 @@
 		pushNavHistory(directory);
 
 		const result = await listFiles(terminal.url, terminal.key, directory, chatId ?? undefined);
-		if (generation !== loadGeneration || selector !== effectiveTerminalId || session !== chatId)
-			return;
+		if (!fileNavRequestLifecycle.isCurrent(request, effectiveTerminalId, chatId)) return;
 		loading = false;
 
 		// Set working directory on the terminal server (fire-and-forget)
@@ -1059,11 +969,25 @@
 		const terminal = selectedTerminal;
 		if (!terminal) return null;
 		const directory = asDirectoryPath(path);
+		const request = fileNavRequestLifecycle.beginScoped(
+			`directory:${directory}`,
+			effectiveTerminalId,
+			chatId
+		);
 		loadingDirs = new Set(loadingDirs).add(directory);
-		const result = await listFiles(terminal.url, terminal.key, directory, chatId ?? undefined);
-		const nextLoading = new Set(loadingDirs);
-		nextLoading.delete(directory);
-		loadingDirs = nextLoading;
+		const isCurrent = () =>
+			fileNavRequestLifecycle.isScopedCurrent(request, effectiveTerminalId, chatId);
+		let result: Awaited<ReturnType<typeof listFiles>>;
+		try {
+			result = await listFiles(terminal.url, terminal.key, directory, chatId ?? undefined);
+		} finally {
+			if (isCurrent()) {
+				const nextLoading = new Set(loadingDirs);
+				nextLoading.delete(directory);
+				loadingDirs = nextLoading;
+			}
+		}
+		if (!isCurrent()) return null;
 		if (result === null) return null;
 		const normalizedEntries = normalizeEntries(result.entries);
 		treeCache = new Map(treeCache).set(directory, normalizedEntries);
@@ -1109,13 +1033,12 @@
 	};
 
 	const openEntry = async (
-		entry: FileEntry,
+		entry: FileEntry & Partial<Pick<BrowserRow, 'fullPath' | 'parentPath' | 'depth' | 'rowIndex'>>,
 		options: { page?: unknown; refresh?: boolean } = {}
 	) => {
 		if (disposed) return;
-		const fullPath =
-			'fullPath' in entry ? (entry as BrowserRow).fullPath : entryPath(currentPath, entry);
-		const parentPath = 'parentPath' in entry ? (entry as BrowserRow).parentPath : currentPath;
+		const fullPath = entry.fullPath ?? entryPath(currentPath, entry);
+		const parentPath = entry.parentPath ?? currentPath;
 		if (entry.type === 'directory') {
 			await loadDir(fullPath);
 			return;
@@ -1141,15 +1064,15 @@
 		const terminal = selectedTerminal;
 		if (!terminal) return;
 
-		const generation = ++loadGeneration;
 		const selector = effectiveTerminalId!,
 			session = chatId;
+		const request = fileNavRequestLifecycle.begin(selector, session);
+		loadGeneration = request.generation;
 		const previousView =
 			openedFile?.path === filePath
 				? { showRaw, currentSlide, selectedExcelSheet, scroll: viewerRoot?.scrollTop ?? 0 }
 				: null;
-		const current = () =>
-			generation === loadGeneration && selector === effectiveTerminalId && session === chatId;
+		const current = () => fileNavRequestLifecycle.isCurrent(request, effectiveTerminalId, chatId);
 		openedFile = null;
 		if (terminalContext) terminalContext = { ...terminalContext, file: null };
 		dirty = false;
@@ -1740,27 +1663,22 @@
 	};
 
 	const selectAll = () => {
-		selectedEntries = new Set(visibleEntries.map((entry) => entry.fullPath));
+		selectedEntries = selectAllFilePaths(visibleEntries.map((entry) => entry.fullPath));
 		selectedEntries = selectedEntries; // trigger reactivity
 	};
 
 	const handleSelect = (entry: FileEntry, event: MouseEvent, path?: string, index?: number) => {
 		const selectedPath = path ?? entryPath(currentPath, entry);
-		const idx = index ?? visibleEntries.findIndex((row) => row.fullPath === selectedPath);
-		if (idx < 0) return;
-		const next = new Set(selectedEntries);
-		const remove = next.has(selectedPath);
-		const range = event.shiftKey && !remove && lastClickedIndex !== null;
-		const from = range ? Math.min(lastClickedIndex!, idx) : idx;
-		const to = range ? Math.max(lastClickedIndex!, idx) : idx;
-		for (let i = from; i <= to; i++) {
-			const row = visibleEntries[i];
-			if (!row) continue;
-			if (remove) next.delete(row.fullPath);
-			else next.add(row.fullPath);
-		}
-		selectedEntries = next;
-		if (!event.shiftKey || lastClickedIndex === null) lastClickedIndex = idx;
+		const result = toggleFileSelection(
+			selectedEntries,
+			visibleEntries,
+			selectedPath,
+			event.shiftKey,
+			lastClickedIndex,
+			index
+		);
+		selectedEntries = result.selectedPaths;
+		lastClickedIndex = result.lastClickedIndex;
 	};
 
 	const enterSelectionMode = () => {
@@ -1995,7 +1913,7 @@
 
 	onDestroy(() => {
 		disposed = true;
-		++loadGeneration;
+		loadGeneration = fileNavRequestLifecycle.invalidate();
 		dirtyChoice?.resolve('cancel');
 		clearMatchRequest();
 		if (fileImageUrl) URL.revokeObjectURL(fileImageUrl);

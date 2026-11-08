@@ -23,6 +23,8 @@
 		type BrowserRow,
 		type SortMode
 	} from './FileNav/fileBrowserModel';
+	import { getFileExt, loadFilePreviewData, OFFICE_EXTS } from './FileNav/filePreviewLoader';
+	import { createFileMatchSearchController } from './FileNav/fileMatchSearchController';
 	import { filesystemFile, type FilesystemFile } from '$lib/apis/terminal';
 	import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 	import ArrowRight from '$lib/components/icons/ArrowRight.svelte';
@@ -41,9 +43,7 @@
 		getCwd,
 		getFileMatches,
 		listFiles,
-		readFile,
 		downloadFileBlob,
-		downloadFilePreview,
 		archiveFromTerminal,
 		uploadToTerminal,
 		createDirectory,
@@ -392,10 +392,29 @@
 	let matchError: string | null = null;
 	let matchLoadMoreError = false;
 	let nextMatchOffset: number | null = null;
-	let matchTimer: ReturnType<typeof setTimeout> | null = null;
-	let matchController: AbortController | null = null;
-	let matchRequestId = 0;
 	let searchTargetRequestId = 0;
+	const fileMatchSearchController = createFileMatchSearchController({
+		search: (request, offset, signal) =>
+			getFileMatches(
+				request.baseUrl,
+				request.apiKey,
+				request.query,
+				request.path,
+				request.showHidden,
+				offset,
+				request.sessionId,
+				signal
+			),
+		onState: (state) => {
+			matchResults = state.results;
+			matchLoading = state.loading;
+			matchLoadingMore = state.loadingMore;
+			matchError = state.error;
+			matchLoadMoreError = state.loadMoreError;
+			nextMatchOffset = state.nextOffset;
+		},
+		errorMessage: () => $i18n.t('Failed to search files')
+	});
 
 	$: searchText = searchQuery.trim();
 	$: isSearching = Boolean(searchText);
@@ -514,8 +533,6 @@
 	const MD_EXTS = new Set(['md', 'markdown', 'mdx']);
 	const CSV_EXTS = new Set(['csv', 'tsv']);
 	const HTML_EXTS = new Set(['html', 'htm']);
-	const OFFICE_EXTS = new Set(['docx', 'xlsx', 'xls', 'pptx']);
-	const getFileExt = (path: string | null) => path?.split('.').pop()?.toLowerCase() ?? '';
 
 	$: isMarkdown = MD_EXTS.has(getFileExt(selectedFile));
 	$: isCsv = CSV_EXTS.has(getFileExt(selectedFile));
@@ -638,17 +655,6 @@
 	}
 
 	// Helpers
-	const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'avif']);
-	const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'ogv', 'avi', 'mkv']);
-	const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'oga', 'flac', 'm4a', 'aac', 'wma', 'opus']);
-	const SQLITE_EXTS = new Set(['db', 'sqlite', 'sqlite3', 'db3']);
-	const isImage = (path: string) => IMAGE_EXTS.has(path.split('.').pop()?.toLowerCase() ?? '');
-	const isVideo = (path: string) => VIDEO_EXTS.has(path.split('.').pop()?.toLowerCase() ?? '');
-	const isAudio = (path: string) => AUDIO_EXTS.has(path.split('.').pop()?.toLowerCase() ?? '');
-	const isSqlite = (path: string) => SQLITE_EXTS.has(path.split('.').pop()?.toLowerCase() ?? '');
-	const isPdf = (path: string) => path.split('.').pop()?.toLowerCase() === 'pdf';
-	const isOffice = (path: string) => OFFICE_EXTS.has(path.split('.').pop()?.toLowerCase() ?? '');
-
 	const resetTreeState = () => {
 		expandedDirs = new Set();
 		treeCache = new Map();
@@ -699,24 +705,6 @@
 		return slash === -1 ? '' : path.slice(0, slash);
 	};
 
-	const clearMatchRequest = () => {
-		if (matchTimer) {
-			clearTimeout(matchTimer);
-			matchTimer = null;
-		}
-		matchController?.abort();
-		matchController = null;
-	};
-
-	const resetMatches = () => {
-		matchResults = null;
-		matchLoading = false;
-		matchLoadingMore = false;
-		matchError = null;
-		matchLoadMoreError = false;
-		nextMatchOffset = null;
-	};
-
 	const queueFileSearch = (
 		query: string,
 		terminal: { url: string; key: string } | null,
@@ -724,11 +712,8 @@
 		hiddenVisible: boolean,
 		activeFile: string | null
 	) => {
-		clearMatchRequest();
-		matchRequestId += 1;
-		const requestId = matchRequestId;
 		if (!query || !terminal || activeFile) {
-			resetMatches();
+			fileMatchSearchController.queue(null);
 			return;
 		}
 
@@ -736,70 +721,22 @@
 		closeDirectoryMenu();
 		creatingFolder = false;
 		creatingFile = false;
-		matchLoading = true;
-		matchLoadingMore = false;
-		matchError = null;
-		matchLoadMoreError = false;
-		nextMatchOffset = null;
-		matchResults = null;
-		const controller = new AbortController();
-		matchController = controller;
-		matchTimer = setTimeout(async () => {
-			const data = await getFileMatches(
-				terminal.url,
-				terminal.key,
-				query,
-				path,
-				hiddenVisible,
-				0,
-				chatId ?? undefined,
-				controller.signal
-			);
-			if (requestId !== matchRequestId) return;
-			if (data) {
-				matchResults = data.results;
-				nextMatchOffset = data.next_offset;
-			} else if (!controller.signal.aborted) {
-				matchError = $i18n.t('Failed to search files');
-				matchResults = [];
-			}
-			matchLoading = false;
-		}, 200);
+		fileMatchSearchController.queue({
+			baseUrl: terminal.url,
+			apiKey: terminal.key,
+			query,
+			path,
+			showHidden: hiddenVisible,
+			sessionId: chatId ?? undefined
+		});
 	};
 
 	$: queueFileSearch(searchText, selectedTerminal, currentPath, showHidden, selectedFile);
 
 	const loadMoreMatches = async () => {
-		const offset = nextMatchOffset;
-		if (offset === null || !isSearching || matchLoading || matchLoadingMore || matchLoadMoreError) {
-			return;
-		}
-		const terminal = selectedTerminal;
-		if (!terminal) return;
-
-		const requestId = matchRequestId;
-		matchLoadingMore = true;
-		const controller = new AbortController();
-		matchController = controller;
-		const data = await getFileMatches(
-			terminal.url,
-			terminal.key,
-			searchText,
-			currentPath,
-			showHidden,
-			offset,
-			chatId ?? undefined,
-			controller.signal
+		await fileMatchSearchController.loadMore(
+			Boolean(isSearching && !matchLoading && !matchLoadingMore && !matchLoadMoreError)
 		);
-		if (requestId === matchRequestId) {
-			if (data) {
-				matchResults = [...(matchResults ?? []), ...data.results];
-				nextMatchOffset = data.next_offset;
-			} else if (!controller.signal.aborted) {
-				matchLoadMoreError = true;
-			}
-			matchLoadingMore = false;
-		}
 	};
 
 	const loadMoreOnVisible = (node: HTMLElement) => {
@@ -1098,147 +1035,9 @@
 			return;
 		}
 
-		const next = {
-			fileImageUrl: null,
-			fileVideoUrl: null,
-			fileAudioUrl: null,
-			filePdfData: null,
-			fileSqliteData: null,
-			fileModelData: null,
-			fileDocxData: null,
-			fileOfficeHtml: null,
-			fileOfficeSlides: null,
-			excelWorkbook: null,
-			excelSheetNames: [],
-			selectedExcelSheet: '',
-			currentSlide: 0,
-			fileContent: null
-		} as any;
-		if (isImage(filePath)) {
-			const result = await downloadFileBlob(
-				terminal.url,
-				terminal.key,
-				filePath,
-				chatId ?? undefined
-			);
-			if (result) next.fileImageUrl = URL.createObjectURL(result.blob);
-		} else if (isVideo(filePath)) {
-			const result = await downloadFileBlob(
-				terminal.url,
-				terminal.key,
-				filePath,
-				chatId ?? undefined
-			);
-			if (result) next.fileVideoUrl = URL.createObjectURL(result.blob);
-		} else if (isAudio(filePath)) {
-			const result = await downloadFileBlob(
-				terminal.url,
-				terminal.key,
-				filePath,
-				chatId ?? undefined
-			);
-			if (result) next.fileAudioUrl = URL.createObjectURL(result.blob);
-		} else if (isPdf(filePath)) {
-			const result = await downloadFileBlob(
-				terminal.url,
-				terminal.key,
-				filePath,
-				chatId ?? undefined
-			);
-			if (result) next.filePdfData = await result.blob.arrayBuffer();
-		} else if (
-			isSqlite(filePath) ||
-			['glb', 'gltf', 'stl', 'obj', 'ply'].includes(getFileExt(filePath))
-		) {
-			const result = await downloadFileBlob(
-				terminal.url,
-				terminal.key,
-				filePath,
-				chatId ?? undefined
-			);
-			if (result) {
-				const data = await result.blob.arrayBuffer();
-				if (['glb', 'gltf', 'stl', 'obj', 'ply'].includes(getFileExt(filePath)))
-					next.fileModelData = data;
-				else next.fileSqliteData = data;
-			}
-		} else if (isOffice(filePath)) {
-			const ext = getFileExt(filePath);
-			try {
-				if (ext === 'docx') {
-					const preview = await downloadFilePreview(
-						terminal.url,
-						terminal.key,
-						filePath,
-						chatId ?? undefined
-					);
-					if (preview) {
-						next.filePdfData = await preview.blob.arrayBuffer();
-					} else {
-						const result = await downloadFileBlob(
-							terminal.url,
-							terminal.key,
-							filePath,
-							chatId ?? undefined
-						);
-						if (!result) throw new Error('Preview failed');
-						const arrayBuffer = await result.blob.arrayBuffer();
-						next.fileDocxData = arrayBuffer;
-					}
-				} else if (ext === 'xlsx') {
-					const result = await downloadFileBlob(
-						terminal.url,
-						terminal.key,
-						filePath,
-						chatId ?? undefined
-					);
-					if (result) {
-						const arrayBuffer = await result.blob.arrayBuffer();
-						const XLSX = await import('xlsx');
-						const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
-						next.excelWorkbook = wb;
-						next.excelSheetNames = wb.SheetNames;
-						if (next.excelSheetNames.length > 0) {
-							next.selectedExcelSheet = next.excelSheetNames[0];
-							const { excelToTable } = await import('$lib/utils/excelToTable');
-							const result = await excelToTable(wb.Sheets[next.selectedExcelSheet]);
-							const DOMPurify = (await import('dompurify')).default;
-							next.fileOfficeHtml = DOMPurify.sanitize(result.html);
-						}
-					}
-				} else if (ext === 'pptx') {
-					const preview = await downloadFilePreview(
-						terminal.url,
-						terminal.key,
-						filePath,
-						chatId ?? undefined
-					);
-					if (preview) {
-						next.filePdfData = await preview.blob.arrayBuffer();
-					} else {
-						const result = await downloadFileBlob(
-							terminal.url,
-							terminal.key,
-							filePath,
-							chatId ?? undefined
-						);
-						if (!result) throw new Error('Preview failed');
-						const arrayBuffer = await result.blob.arrayBuffer();
-						const { pptxToImages } = await import('$lib/utils/pptxToHtml');
-						const fallback = await pptxToImages(arrayBuffer);
-						next.fileOfficeSlides = fallback.images;
-						next.currentSlide = 0;
-					}
-				}
-			} catch (e) {
-				console.error('Failed to render Office file:', e);
-				next.fileContent = $i18n.t('Error previewing file: {{error}}', {
-					error: e instanceof Error ? e.message : $i18n.t('Unknown error')
-				});
-			}
-		} else {
-			next.fileContent = await readFile(terminal.url, terminal.key, filePath, chatId ?? undefined);
-		}
+		const next = await loadFilePreviewData(filePath, terminal, session, (key, options) =>
+			$i18n.t(key, options)
+		);
 		if (!current()) {
 			[next.fileImageUrl, next.fileVideoUrl, next.fileAudioUrl]
 				.filter(Boolean)
@@ -1915,7 +1714,7 @@
 		disposed = true;
 		loadGeneration = fileNavRequestLifecycle.invalidate();
 		dirtyChoice?.resolve('cancel');
-		clearMatchRequest();
+		fileMatchSearchController.clearRequest();
 		if (fileImageUrl) URL.revokeObjectURL(fileImageUrl);
 		if (fileVideoUrl) URL.revokeObjectURL(fileVideoUrl);
 		if (fileAudioUrl) URL.revokeObjectURL(fileAudioUrl);

@@ -10,6 +10,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { getContext, setContext, onDestroy, onMount, tick } from 'svelte';
+	import { createChatRequestLifecycle } from './chatRequestLifecycle';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -910,13 +911,9 @@
 		saveControlsTimer = setTimeout(saveControls, 400);
 	}
 
-	let chatLoadController = new AbortController();
-	const startChatLoad = () => {
-		chatLoadController.abort();
-		chatLoadController = new AbortController();
-		return chatLoadController.signal;
-	};
-	onDestroy(() => chatLoadController.abort());
+	const chatLoadLifecycle = createChatRequestLifecycle();
+	const startChatLoad = () => chatLoadLifecycle.start();
+	onDestroy(() => chatLoadLifecycle.abort());
 	const navigateHandler = async () => {
 		const signal = startChatLoad();
 		modelDefaults = null;
@@ -1420,7 +1417,7 @@
 		if (!id || $temporaryChatEnabled) return Promise.resolve();
 		if (chatRefresh?.id === id) return chatRefresh.promise;
 		const baseline = { ...history.messages };
-		const signal = chatLoadController.signal;
+		const signal = chatLoadLifecycle.signal;
 		const promise = (async () => {
 			try {
 				const fresh = await getChatById(localStorage.token, id, signal);

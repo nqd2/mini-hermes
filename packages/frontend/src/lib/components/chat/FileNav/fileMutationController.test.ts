@@ -13,6 +13,12 @@ describe('createFileMutationController', () => {
 			() => '/working/',
 		);
 		const canWrite: Dependencies['canWrite'] = vi.fn(() => true);
+		const createDirectory = vi.fn(async () => ({ path: '/workspace/folder' }));
+		const uploadFile = vi.fn(async () => ({ path: '/workspace/file.txt' }));
+		const deleteEntry = vi.fn(async () => ({
+			path: '/workspace/file.txt',
+			type: 'file',
+		}));
 		const moveEntry: Dependencies['moveEntry'] = vi.fn(
 			async (_url, _key, source, destination, _sessionId) => ({
 				source,
@@ -26,6 +32,9 @@ describe('createFileMutationController', () => {
 				getSessionId,
 				getCurrentPath,
 				canWrite,
+				createDirectory,
+				uploadFile,
+				deleteEntry,
 				moveEntry,
 				...overrides,
 			}),
@@ -33,6 +42,9 @@ describe('createFileMutationController', () => {
 			getSessionId,
 			getCurrentPath,
 			canWrite,
+			createDirectory,
+			uploadFile,
+			deleteEntry,
 			moveEntry,
 		};
 	};
@@ -149,6 +161,54 @@ describe('createFileMutationController', () => {
 			'report.csv',
 			'/working/summary.csv',
 			'chat-1',
+		);
+	});
+
+	it('creates a folder at the requested path with the current chat scope', async () => {
+		const { controller, createDirectory } = createController();
+		const terminal = { url: 'https://terminal.test', key: 'token' };
+
+		await expect(
+			controller.createFolder(terminal, '/workspace/new-folder', 'chat-1'),
+		).resolves.toBe(true);
+		expect(createDirectory).toHaveBeenCalledWith(
+			'https://terminal.test',
+			'token',
+			'/workspace/new-folder',
+			'chat-1',
+		);
+	});
+
+	it('creates an empty file through the terminal upload adapter', async () => {
+		const { controller, uploadFile } = createController();
+		const terminal = { url: 'https://terminal.test', key: 'token' };
+		const file = { name: 'notes.txt' } as File;
+
+		await expect(
+			controller.createFile(terminal, '/workspace', file, 'chat-2'),
+		).resolves.toBe(true);
+		expect(uploadFile).toHaveBeenCalledWith(
+			'https://terminal.test',
+			'token',
+			'/workspace',
+			file,
+			'chat-2',
+		);
+	});
+
+	it('deletes a terminal path and returns whether the adapter confirmed success', async () => {
+		const deleteEntry = vi.fn(async () => null);
+		const { controller } = createController({ deleteEntry });
+		const terminal = { url: 'https://terminal.test', key: 'token' };
+
+		await expect(
+			controller.deletePath(terminal, '/workspace/old.txt', 'chat-3'),
+		).resolves.toBe(false);
+		expect(deleteEntry).toHaveBeenCalledWith(
+			'https://terminal.test',
+			'token',
+			'/workspace/old.txt',
+			'chat-3',
 		);
 	});
 });

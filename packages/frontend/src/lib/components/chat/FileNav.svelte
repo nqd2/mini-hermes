@@ -1276,9 +1276,8 @@
 		const terminal = selectedTerminal;
 		if (!terminal) return;
 
-		const result = await createDirectory(
-			terminal.url,
-			terminal.key,
+		const result = await fileMutationController.createFolder(
+			terminal,
 			`${currentPath}${name}`,
 			chatId ?? undefined
 		);
@@ -1312,9 +1311,8 @@
 		if (!terminal || !currentWritable) return;
 
 		const emptyFile = new File([''], name, { type: 'application/octet-stream' });
-		const result = await uploadToTerminal(
-			terminal.url,
-			terminal.key,
+		const result = await fileMutationController.createFile(
+			terminal,
 			currentPath,
 			emptyFile,
 			chatId ?? undefined
@@ -1331,7 +1329,11 @@
 		const terminal = selectedTerminal;
 		if (!terminal || !currentWritable) return;
 
-		const result = await deleteEntry(terminal.url, terminal.key, path, chatId ?? undefined);
+		const result = await fileMutationController.deletePath(
+			terminal,
+			path,
+			chatId ?? undefined
+		);
 		toast[result ? 'success' : 'error'](
 			result
 				? $i18n.t('{{name}} deleted', { name })
@@ -1353,6 +1355,9 @@
 		getSessionId: () => chatId ?? undefined,
 		getCurrentPath: () => currentPath,
 		canWrite: () => currentWritable,
+		createDirectory,
+		uploadFile: uploadToTerminal,
+		deleteEntry,
 		moveEntry
 	});
 
@@ -1459,9 +1464,8 @@
 		const paths = [...selectedEntries];
 		let ok = 0;
 		for (const p of paths) {
-			const result = await deleteEntry(
-				terminal.url,
-				terminal.key,
+			const result = await fileMutationController.deletePath(
+				terminal,
 				p.replace(/\/$/, ''),
 				chatId ?? undefined
 			);

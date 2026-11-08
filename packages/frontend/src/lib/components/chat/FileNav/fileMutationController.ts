@@ -11,12 +11,28 @@ export type FileMutationResult =
 
 type MoveEntryResult =
 	{ source: string; destination: string } | { error: string };
+type PathAdapter = (
+	url: string,
+	key: string,
+	path: string,
+	sessionId?: string,
+) => Promise<unknown>;
+type FileUploadAdapter = (
+	url: string,
+	key: string,
+	path: string,
+	file: File,
+	sessionId?: string,
+) => Promise<unknown>;
 
 type Dependencies = {
 	getTerminal: () => FileMutationTerminal | null;
 	getSessionId: () => string | undefined;
 	getCurrentPath: () => string;
 	canWrite: () => boolean;
+	createDirectory: PathAdapter;
+	uploadFile: FileUploadAdapter;
+	deleteEntry: PathAdapter;
 	moveEntry: (
 		url: string,
 		key: string,
@@ -31,6 +47,9 @@ export const createFileMutationController = ({
 	getSessionId,
 	getCurrentPath,
 	canWrite,
+	createDirectory,
+	uploadFile,
+	deleteEntry,
 	moveEntry,
 }: Dependencies) => {
 	const executeMove = async (source: string, destination: string) => {
@@ -84,5 +103,28 @@ export const createFileMutationController = ({
 		return { status: 'renamed', destination, name: newName };
 	};
 
-	return { move, rename };
+	const createFolder = async (
+		terminal: FileMutationTerminal,
+		path: string,
+		sessionId?: string,
+	) =>
+		Boolean(await createDirectory(terminal.url, terminal.key, path, sessionId));
+
+	const createFile = async (
+		terminal: FileMutationTerminal,
+		path: string,
+		file: File,
+		sessionId?: string,
+	) =>
+		Boolean(
+			await uploadFile(terminal.url, terminal.key, path, file, sessionId),
+		);
+
+	const deletePath = async (
+		terminal: FileMutationTerminal,
+		path: string,
+		sessionId?: string,
+	) => Boolean(await deleteEntry(terminal.url, terminal.key, path, sessionId));
+
+	return { move, rename, createFolder, createFile, deletePath };
 };

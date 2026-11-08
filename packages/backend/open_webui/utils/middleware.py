@@ -95,6 +95,7 @@ from open_webui.utils.chat_runtime.citations import (
     get_citation_source_from_tool_result,
     get_source_context,
 )
+from open_webui.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS, load_messages_from_db
 from open_webui.utils.chat_runtime.messages import (
     add_file_context,
     get_reasoning_format,
@@ -1221,45 +1222,6 @@ async def convert_url_images_to_base64(form_data, user=None):
         message['content'] = new_content
 
     return form_data
-
-
-MESSAGE_REPLAY_KEYS = ('id', 'role', 'content', 'output', 'files', 'contextSummary', 'usage', 'model', 'meta')
-
-
-async def load_messages_from_db(chat_id: str, message_id: str) -> Optional[list[dict]]:
-    """
-    Load the message chain from DB up to message_id,
-    keeping only fields needed to rebuild the LLM payload.
-    """
-    messages_map = await Chats.get_messages_map_by_chat_id(chat_id)
-    if not messages_map:
-        return None
-
-    db_messages = get_message_list(messages_map, message_id)
-    if not db_messages:
-        return None
-
-    for msg in db_messages:
-        skills_create = (msg.get('meta') or {}).get('skills_create')
-        # Replay the saved expansion unless the user edited the message.
-        if skills_create and skills_create.get('original_text') == get_content_from_message(msg):
-            set_last_user_message_content(skills_create['expanded_text'], [msg])
-
-    return [
-        {k: v for k, v in msg.items() if k in MESSAGE_REPLAY_KEYS}
-        for msg in db_messages
-        if not (msg.get('role') == 'assistant' and not msg.get('content') and not msg.get('output'))
-    ]
-
-
-
-
-
-
-
-
-
-
 
 
 async def process_chat_payload(request, form_data, user, metadata, model):

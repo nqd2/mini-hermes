@@ -104,6 +104,7 @@ from open_webui.utils.chat_runtime.messages import (
     strip_reasoning_details,
     strip_tool_images,
 )
+from open_webui.utils.chat_runtime.resource_context import resolve_chat_resource_context
 from open_webui.utils.chat_runtime.stream_state import (
     _split_tool_calls,
     _start_tag_pattern,
@@ -1395,57 +1396,22 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
     # Decide from the un-compacted user history so /tool and /stop-tool remain
     # effective even when older turns are summarized for the model.
-    from open_webui.mini_hermes.agent_mode import document_agent_mode
-
     resource_manifest = []
     if chat and chat.user_id == user.id:
         from open_webui.mini_hermes.resource_service import list_chat_resource_manifest
 
         resource_manifest = await list_chat_resource_manifest(chat_id, user.id)
-    has_scoped_documents = bool(resource_manifest)
-
-    from open_webui.mini_hermes.resource_aware import resource_aware_context_enabled
-
-    resource_file_refs = {}
-    candidate_file_lists = [
-        metadata.get('files'), form_data.get('files'), (metadata.get('user_message') or {}).get('files'),
-    ]
-    candidate_file_lists.extend(
-        message.get('files') for message in form_data.get('messages', []) if message.get('role') == 'user'
+    resource_context = resolve_chat_resource_context(
+        messages=form_data.get('messages', []),
+        request_metadata=metadata,
+        request_files=form_data.get('files'),
+        resource_manifest=resource_manifest,
+        base_include_file_context=metadata['include_file_context'],
     )
-    for attachments in candidate_file_lists:
-        if isinstance(attachments, dict):
-            attachments = [attachments]
-        for item in attachments or []:
-            if (
-                isinstance(item, dict) and item.get('id') and item.get('type', 'file') == 'file'
-                and not item.get('legacy')
-            ):
-                resource_file_refs[str(item['id'])] = item
-    for item in resource_manifest:
-        file_id = str(item['id'])
-        resource_file_refs[file_id] = {
-            **resource_file_refs.get(file_id, {}),
-            **item,
-        }
-    metadata['resource_chat_has_files'] = bool(resource_file_refs) or has_scoped_documents
-    metadata['resource_history_files'] = list(resource_file_refs.values())
-    if resource_aware_context_enabled(
-        metadata['resource_history_files'], has_chat_resources=has_scoped_documents
-    ):
-        # Keep attachment references in model messages. The legacy content
-        # handler remains disabled below, so this adds metadata only.
-        metadata['include_file_context'] = True
-
-    metadata['mh_agent_enabled'] = document_agent_mode(
-        form_data.get('messages', []),
-        has_files=bool(
-            has_scoped_documents
-            or form_data.get('files')
-            or (metadata.get('user_message') or {}).get('files')
-            or any(message.get('files') for message in form_data.get('messages', []) if message.get('role') == 'user')
-        ),
-    )
+    metadata['resource_chat_has_files'] = resource_context.has_chat_files
+    metadata['resource_history_files'] = resource_context.history_files
+    metadata['include_file_context'] = resource_context.include_file_context
+    metadata['mh_agent_enabled'] = resource_context.agent_enabled
 
     filter_functions = (
         await get_filter_functions(request, model, metadata.get('filter_ids', [])) if ENABLE_FUNCTIONS else []

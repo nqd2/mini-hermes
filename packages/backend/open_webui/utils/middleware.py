@@ -71,11 +71,8 @@ from open_webui.routers.retrieval import (
     process_web_search,
 )
 from open_webui.routers.tasks import (
-    generate_chat_tags,
-    generate_follow_ups,
     generate_image_prompt,
     generate_queries,
-    generate_title,
 )
 from open_webui.socket.main import (
     get_event_call,
@@ -89,6 +86,7 @@ from open_webui.utils.ask_user import stage_ask_user_tool_calls
 from open_webui.utils.audit import log_model_usage
 from open_webui.utils.chat import generate_chat_completion
 from open_webui.utils.chat_id import is_saved_chat_id, is_temporary_chat_id
+from open_webui.utils.chat_runtime.background_tasks import background_tasks_handler
 from open_webui.utils.chat_runtime.citations import (
     CITATION_TOOL_NAMES,
     apply_source_context_to_messages,
@@ -145,7 +143,7 @@ from open_webui.utils.filter import (
     process_filter_functions,
 )
 from open_webui.utils.json_codec import JSONCodec, dumps_bytes
-from open_webui.utils.memory import add_memory_context, review_memory_after_turn
+from open_webui.utils.memory import add_memory_context
 from open_webui.utils.misc import (
     add_or_update_system_message,
     add_or_update_user_message,
@@ -184,12 +182,10 @@ from open_webui.utils.skills import (
     apply_skills_create_prompt,
     extract_skill_ids_from_messages,
     has_prior_user_message,
-    replace_skill_mentions_with_labels,
     strip_skill_mentions,
 )
 from open_webui.utils.task import (
     get_task_model_id,
-    parse_follow_ups,
     rag_template,
     tools_function_calling_generation_template,
 )
@@ -2502,232 +2498,6 @@ async def pause_for_tool_approval(chat_id: str, message_id: str, output: list[di
 
 
 
-
-
-async def background_tasks_handler(ctx):
-    request = ctx['request']
-    form_data = ctx['form_data']
-    user = ctx['user']
-    metadata = ctx['metadata']
-    tasks = ctx['tasks']
-    event_emitter = ctx['event_emitter']
-
-    message = None
-    messages = []
-
-    if is_saved_chat_id(metadata.get('chat_id')):
-        messages_map = await Chats.get_messages_map_by_chat_id(metadata['chat_id'])
-        if not messages_map:
-            # Chat was deleted while the response was streaming — skip background tasks
-            return
-        message = messages_map.get(metadata['message_id'])
-
-        message_list = get_message_list(messages_map, metadata['message_id'])
-
-        # Remove details tags and files from the messages.
-        # as get_message_list creates a new list, it does not affect
-        # the original messages outside of this handler
-
-        messages = []
-        for message in message_list:
-            content = message.get('content', '')
-            if isinstance(content, list):
-                content = '\n'.join(
-                    item['text']
-                    for item in content
-                    if isinstance(item, dict) and item.get('type') == 'text' and isinstance(item.get('text'), str)
-                )
-
-            if isinstance(content, str):
-                content = re.sub(
-                    r'<details\b[^<>]*>(?:(?!<details\b).)*?<\/details>|!\[[^\[\]]*\]\([^()]*\)',
-                    '',
-                    content,
-                    flags=re.S | re.I,
-                ).strip()
-
-            messages.append(
-                {
-                    **message,
-                    'role': message.get('role', 'assistant'),  # Safe fallback for missing role
-                    'content': content,
-                }
-            )
-    else:
-        # Local temp chat, get the model and message from the form_data
-        message = get_last_user_message_item(form_data.get('messages', []))
-        messages = form_data.get('messages', [])
-        if message:
-            message = {**message, 'model': form_data.get('model')}
-
-    if message and 'model' in message:
-        if tasks and messages:
-            if TASKS.FOLLOW_UP_GENERATION in tasks and tasks[TASKS.FOLLOW_UP_GENERATION]:
-                follow_up_messages = list(messages)
-                assistant_message = ctx.get('assistant_message')
-                if not is_saved_chat_id(metadata.get('chat_id')) and assistant_message:
-                    if follow_up_messages[-1].get('role') == 'assistant' and (
-                        follow_up_messages[-1].get('id') == metadata['message_id']
-                        or get_content_from_message(follow_up_messages[-1])
-                        == get_content_from_message(assistant_message)
-                    ):
-                        follow_up_messages.pop()
-                    follow_up_messages.append({**assistant_message, 'role': 'assistant', 'id': metadata['message_id']})
-
-                res = await generate_follow_ups(
-                    request,
-                    {
-                        'model': message['model'],
-                        'messages': follow_up_messages,
-                        'message_id': metadata['message_id'],
-                        'chat_id': metadata['chat_id'],
-                    },
-                    user,
-                )
-
-                if res and isinstance(res, dict):
-                    if len(res.get('choices', [])) == 1:
-                        response_message = res.get('choices', [])[0].get('message', {})
-
-                        follow_ups_string = response_message.get('content') or response_message.get(
-                            'reasoning_content', ''
-                        )
-                    else:
-                        follow_ups_string = ''
-
-                    try:
-                        follow_ups = parse_follow_ups(follow_ups_string)
-                        await event_emitter(
-                            {
-                                'type': 'chat:message:follow_ups',
-                                'data': {
-                                    'follow_ups': follow_ups,
-                                },
-                            }
-                        )
-
-                        if is_saved_chat_id(metadata.get('chat_id')):
-                            await Chats.upsert_message_to_chat_by_id_and_message_id(
-                                metadata['chat_id'],
-                                metadata['message_id'],
-                                {
-                                    'followUps': follow_ups,
-                                },
-                                touch=False,
-                            )
-
-                    except Exception as e:
-                        pass
-
-            if is_saved_chat_id(metadata.get('chat_id')):  # Only update titles and tags for saved chats
-                if TASKS.TITLE_GENERATION in tasks:
-                    user_message = get_last_user_message(messages)
-                    if user_message and len(user_message) > 100:
-                        user_message = user_message[:100] + '...'
-
-                    title = None
-                    if tasks[TASKS.TITLE_GENERATION]:
-                        res = await generate_title(
-                            request,
-                            {
-                                'model': message['model'],
-                                'messages': messages,
-                                'chat_id': metadata['chat_id'],
-                            },
-                            user,
-                        )
-
-                        if res and isinstance(res, dict):
-                            if len(res.get('choices', [])) == 1:
-                                response_message = res.get('choices', [])[0].get('message', {})
-
-                                title_string = (
-                                    response_message.get('content')
-                                    or response_message.get(
-                                        'reasoning_content',
-                                    )
-                                    or message.get('content', user_message)
-                                )
-                            else:
-                                title_string = ''
-
-                            title_string = title_string[title_string.find('{') : title_string.rfind('}') + 1]
-
-                            try:
-                                title = JSONCodec.loads(title_string).get('title', user_message)
-                            except Exception as e:
-                                title = ''
-
-                            if not title:
-                                title = replace_skill_mentions_with_labels(messages[0].get('content', user_message))
-
-                            await Chats.update_chat_title_by_id(metadata['chat_id'], title)
-
-                            await event_emitter(
-                                {
-                                    'type': 'chat:title',
-                                    'data': title,
-                                }
-                            )
-
-                    if title == None and len(messages) == 2 and (not messages_map or len(messages_map) <= 2):
-                        title = replace_skill_mentions_with_labels(messages[0].get('content', user_message))
-
-                        await Chats.update_chat_title_by_id(metadata['chat_id'], title)
-
-                        await event_emitter(
-                            {
-                                'type': 'chat:title',
-                                'data': title,
-                            }
-                        )
-
-                if TASKS.TAGS_GENERATION in tasks and tasks[TASKS.TAGS_GENERATION]:
-                    res = await generate_chat_tags(
-                        request,
-                        {
-                            'model': message['model'],
-                            'messages': messages,
-                            'chat_id': metadata['chat_id'],
-                        },
-                        user,
-                    )
-
-                    if res and isinstance(res, dict):
-                        if len(res.get('choices', [])) == 1:
-                            response_message = res.get('choices', [])[0].get('message', {})
-
-                            tags_string = response_message.get('content') or response_message.get(
-                                'reasoning_content', ''
-                            )
-                        else:
-                            tags_string = ''
-
-                        tags_string = tags_string[tags_string.find('{') : tags_string.rfind('}') + 1]
-
-                        try:
-                            tags = JSONCodec.loads(tags_string).get('tags', [])
-                            await Chats.update_chat_tags_by_id(metadata['chat_id'], tags, user)
-
-                            await event_emitter(
-                                {
-                                    'type': 'chat:tags',
-                                    'data': tags,
-                                }
-                            )
-                        except Exception as e:
-                            pass
-
-        if messages:
-            await review_memory_after_turn(
-                request=request,
-                user=user,
-                model=ctx.get('model'),
-                metadata=metadata,
-                form_data=form_data,
-                assistant_message=ctx.get('assistant_message') or {},
-                messages=messages,
-            )
 
 
 async def outlet_filter_handler(ctx):

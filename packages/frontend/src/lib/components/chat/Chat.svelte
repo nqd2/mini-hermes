@@ -12,6 +12,7 @@
 	import { applyChatCompletionEvent } from './chatCompletionEventReducer';
 	import { evaluateChatSubmission } from './chatSubmissionGate';
 	import { executeChatSubmission } from './chatSubmissionExecutor';
+	import { createChatRequestQueueController } from './chatRequestQueueController';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -2977,119 +2978,25 @@
 		}
 	};
 
-	let processingQueueChats = new Set<string>();
+	const requestQueueController = createChatRequestQueueController({
+		getQueue: (targetChatId) => $chatRequestQueues[targetChatId] ?? [],
+		getCurrentChatId: () => $chatId,
+		getLastMessage: () => (history.currentId ? history.messages[history.currentId] : null),
+		isEmbedded: () => embedded,
+		updateQueues: (update) => chatRequestQueues.update(update),
+		submit: (queuedPrompt, queuedFiles) => submitPrompt(queuedPrompt, queuedFiles),
+		stopResponse: (processQueue) => stopResponse(processQueue),
+		waitForRender: () => tick(),
+		setInputFiles: (queuedFiles) => (files = queuedFiles),
+		setInputText: (queuedPrompt) => messageInput?.setText(queuedPrompt),
+		showSendError: (error) => toast.error(String(error)),
+		logProcessingError: (error) => console.error(error)
+	});
 
-	const processNextInQueue = async (targetChatId: string) => {
-		if (processingQueueChats.has(targetChatId) || targetChatId !== $chatId) return;
-
-		const queue = $chatRequestQueues[targetChatId];
-		if (!queue || queue.length === 0 || queue[0].error) return;
-		const lastMessage = history.currentId ? history.messages[history.currentId] : null;
-		if (
-			(lastMessage && lastMessage.role === 'assistant' && !lastMessage.done) ||
-			queue.some((m) =>
-				(m.files ?? []).some((file) => ['uploading', 'error'].includes(file.status))
-			)
-		) {
-			return;
-		}
-
-		processingQueueChats.add(targetChatId);
-		const boundary = queue.findIndex((entry) =>
-			entry.files.some((file: any) => file.type === 'filesystem')
-		);
-		const queuedMessages =
-			embedded || boundary === 0
-				? queue.slice(0, 1)
-				: boundary < 0
-					? [...queue]
-					: queue.slice(0, boundary);
-		const queuedMessageIds = new Set(queuedMessages.map((m) => m.id));
-		try {
-			const combinedPrompt = queuedMessages.map((m) => m.prompt).join('\n\n');
-			const combinedFiles = queuedMessages.flatMap((m) => m.files);
-
-			chatRequestQueues.update((q) => ({
-				...q,
-				[targetChatId]: (q[targetChatId] ?? []).filter((m) => !queuedMessageIds.has(m.id))
-			}));
-
-			await submitPrompt(combinedPrompt, combinedFiles);
-		} catch (error) {
-			console.error(error);
-			chatRequestQueues.update((q) => ({
-				...q,
-				[targetChatId]: [
-					...queuedMessages.map((entry) => ({
-						...entry,
-						error: String(error)
-					})),
-					...(q[targetChatId] ?? [])
-				]
-			}));
-		} finally {
-			processingQueueChats.delete(targetChatId);
-		}
-	};
-
-	const sendQueuedMessageNow = async (id) => {
-		if (processingQueueChats.has($chatId)) return;
-
-		const queue = $chatRequestQueues[$chatId] ?? [];
-		const item = queue.find((m) => m.id === id);
-		if (!item || (item.files ?? []).some((file) => ['uploading', 'error'].includes(file.status))) {
-			return;
-		}
-
-		const targetChatId = $chatId;
-		processingQueueChats.add(targetChatId);
-		try {
-			chatRequestQueues.update((q) => ({
-				...q,
-				[targetChatId]: queue.filter((m) => m.id !== id)
-			}));
-			await stopResponse(false);
-			await tick();
-			await submitPrompt(item.prompt, item.files);
-		} catch (error) {
-			toast.error(String(error));
-			chatRequestQueues.update((q) => ({
-				...q,
-				[targetChatId]: [{ ...item, error: String(error) }, ...(q[targetChatId] ?? [])]
-			}));
-		} finally {
-			processingQueueChats.delete(targetChatId);
-			// Completion can arrive before submitPrompt returns, while the queue is locked.
-			if ($chatId === targetChatId) {
-				await processNextInQueue(targetChatId);
-			}
-		}
-	};
-
-	const editQueuedMessage = async (id) => {
-		const queue = $chatRequestQueues[$chatId] ?? [];
-		const item = queue.find((m) => m.id === id);
-		if (!item) return;
-
-		chatRequestQueues.update((q) => ({
-			...q,
-			[$chatId]: queue.filter((m) => m.id !== id)
-		}));
-		files = item.files;
-		messageInput?.setText(item.prompt);
-
-		await processNextInQueue($chatId);
-	};
-
-	const deleteQueuedMessage = async (id) => {
-		const queue = $chatRequestQueues[$chatId] ?? [];
-		chatRequestQueues.update((q) => ({
-			...q,
-			[$chatId]: queue.filter((m) => m.id !== id)
-		}));
-
-		await processNextInQueue($chatId);
-	};
+	const processNextInQueue = (targetChatId: string) => requestQueueController.processNext(targetChatId);
+	const sendQueuedMessageNow = (id) => requestQueueController.sendNow(id);
+	const editQueuedMessage = (id) => requestQueueController.edit(id);
+	const deleteQueuedMessage = (id) => requestQueueController.remove(id);
 
 	const chatCompletedHandler = async (_chatId, modelId, responseMessageId, messages) => {
 		// Backend handles outlet filters and persistence inline.

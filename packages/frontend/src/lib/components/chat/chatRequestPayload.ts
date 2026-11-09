@@ -32,6 +32,56 @@ export type ChatRequestPayloadDependencies = {
   backgroundTasks: Record<string, any>;
 };
 
+export type ChatRequestFeatureDependencies = {
+  config?: Record<string, any> | null;
+  user?: Record<string, any> | null;
+  showCallOverlay: boolean;
+  callMode: string;
+  bridgeConnected: boolean;
+  imageGenerationEnabled: boolean;
+  codeInterpreterEnabled: boolean;
+  webSearchActive: boolean;
+  settingsMemory?: boolean | null;
+};
+
+/** Resolves feature flags using the same permission and settings precedence as Chat. */
+export const buildChatRequestFeatures = ({
+  config,
+  user,
+  showCallOverlay,
+  callMode,
+  bridgeConnected,
+  imageGenerationEnabled,
+  codeInterpreterEnabled,
+  webSearchActive,
+  settingsMemory,
+}: ChatRequestFeatureDependencies): Record<string, boolean> => {
+  let features: Record<string, boolean> = {};
+
+  if (config?.features) {
+    features = {
+      voice: (showCallOverlay && callMode === 'current') || bridgeConnected,
+      image_generation:
+        config.features.enable_image_generation &&
+        (user?.role === 'admin' || user?.permissions?.features?.image_generation)
+          ? imageGenerationEnabled
+          : false,
+      code_interpreter:
+        config.features.enable_code_interpreter &&
+        (user?.role === 'admin' || user?.permissions?.features?.code_interpreter)
+          ? codeInterpreterEnabled
+          : false,
+      web_search: webSearchActive,
+    };
+  }
+
+  if (settingsMemory ?? config?.features?.enable_memories ?? false) {
+    features = { ...features, memory: true };
+  }
+
+  return features;
+};
+
 /** Normalizes configured stop tokens while retaining malformed values verbatim. */
 export const normalizeStopTokens = (
   stop?: string | string[] | null,

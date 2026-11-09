@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildChatRequestPayload, normalizeStopTokens } from './chatRequestPayload';
+import {
+  buildChatRequestFeatures,
+  buildChatRequestPayload,
+  normalizeStopTokens,
+} from './chatRequestPayload';
 
 const toolRouting = {
   filterIds: ['filter-1'],
@@ -116,5 +120,77 @@ describe('normalizeStopTokens', () => {
   it('returns undefined when no stop setting is provided', () => {
     expect(normalizeStopTokens(undefined)).toBeUndefined();
     expect(normalizeStopTokens('')).toBeUndefined();
+  });
+});
+
+describe('buildChatRequestFeatures', () => {
+  const createInput = (overrides: Record<string, any> = {}) => ({
+    config: {
+      features: {
+        enable_image_generation: true,
+        enable_code_interpreter: true,
+        enable_memories: true,
+      },
+    },
+    user: { role: 'user', permissions: { features: {} } },
+    showCallOverlay: false,
+    callMode: 'current',
+    bridgeConnected: false,
+    imageGenerationEnabled: true,
+    codeInterpreterEnabled: true,
+    webSearchActive: false,
+    settingsMemory: undefined,
+    ...overrides,
+  });
+
+  it('honors feature flags and permissions while selecting enabled features', () => {
+    expect(
+      buildChatRequestFeatures(
+        createInput({
+          user: { role: 'user', permissions: { features: { image_generation: true } } },
+          webSearchActive: true,
+        }),
+      ),
+    ).toEqual({
+      voice: false,
+      image_generation: true,
+      code_interpreter: false,
+      web_search: true,
+      memory: true,
+    });
+  });
+
+  it('allows admins and turns voice on for the active call overlay or connected bridge', () => {
+    expect(
+      buildChatRequestFeatures(
+        createInput({
+          user: { role: 'admin', permissions: { features: {} } },
+          showCallOverlay: true,
+          imageGenerationEnabled: false,
+        }),
+      ),
+    ).toEqual({ voice: true, image_generation: false, code_interpreter: true, web_search: false, memory: true });
+
+    expect(
+      buildChatRequestFeatures(
+        createInput({ bridgeConnected: true, config: { features: {} } }),
+      ),
+    ).toEqual({ voice: true, image_generation: false, code_interpreter: false, web_search: false });
+  });
+
+  it('uses the explicit memory setting before the configured default', () => {
+    expect(
+      buildChatRequestFeatures(
+        createInput({
+          config: { features: { enable_memories: true } },
+          settingsMemory: false,
+        }),
+      ),
+    ).toEqual({
+      voice: false,
+      image_generation: false,
+      code_interpreter: false,
+      web_search: false,
+    });
   });
 });

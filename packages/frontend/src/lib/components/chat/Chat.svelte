@@ -17,7 +17,11 @@
 	import { buildChatRequestFiles } from './chatResourceManifest';
 	import { buildChatRequestMessages } from './chatRequestMessages';
 	import { buildChatRequestToolRouting } from './chatRequestToolRouting';
-	import { buildChatRequestPayload, normalizeStopTokens } from './chatRequestPayload';
+	import {
+		buildChatRequestFeatures,
+		buildChatRequestPayload,
+		normalizeStopTokens
+	} from './chatRequestPayload';
 	import { applyChatRequestFailure, applyOpenAIResponseError } from './chatRequestFailure';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
@@ -3864,29 +3868,17 @@
 	};
 
 	const getFeatures = () => {
-		let features = {};
-
-		if ($config?.features)
-			features = {
-				voice: ($showCallOverlay && callMode === 'current') || !!bridge?.connected,
-				image_generation:
-					$config?.features?.enable_image_generation &&
-					($user?.role === 'admin' || $user?.permissions?.features?.image_generation)
-						? imageGenerationEnabled
-						: false,
-				code_interpreter:
-					$config?.features?.enable_code_interpreter &&
-					($user?.role === 'admin' || $user?.permissions?.features?.code_interpreter)
-						? codeInterpreterEnabled
-						: false,
-				web_search: webSearchActive
-			};
-
-		if ($settings?.memory ?? $config?.features?.enable_memories ?? false) {
-			features = { ...features, memory: true };
-		}
-
-		return features;
+		return buildChatRequestFeatures({
+			config: $config,
+			user: $user,
+			showCallOverlay: $showCallOverlay,
+			callMode,
+			bridgeConnected: !!bridge?.connected,
+			imageGenerationEnabled,
+			codeInterpreterEnabled,
+			webSearchActive,
+			settingsMemory: $settings?.memory
+		});
 	};
 
 	const sendMessageSocket = async (

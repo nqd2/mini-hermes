@@ -16,6 +16,7 @@
 	import { createChatFileAskController } from './chatFileAskController';
 	import { buildChatRequestFiles } from './chatResourceManifest';
 	import { buildChatRequestMessages } from './chatRequestMessages';
+	import { buildChatRequestToolRouting } from './chatRequestToolRouting';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -3969,30 +3970,19 @@
 			isRasterImageContentType
 		});
 
-		const toolIds = [];
-		const toolServerIds = [];
-
-		for (const toolId of selectedToolIds) {
-			if (toolId.startsWith('direct_server:')) {
-				let serverId = toolId.replace('direct_server:', '');
-				// Check if serverId is a number
-				if (!isNaN(parseInt(serverId))) {
-					toolServerIds.push(parseInt(serverId));
-				} else {
-					toolServerIds.push(serverId);
-				}
-			} else {
-				toolIds.push(toolId);
-			}
-		}
-
-		// The backend applies the skill loading setting to menu-selected skills.
-		// Keep mentions in the message so the backend can resolve them.
-		const skillIds = [...selectedSkillIds];
-
-		// Only send terminal_id if the model has terminal capability enabled
-		const terminalEnabled =
-			$config?.features?.enable_tool_servers && (model.info?.meta?.capabilities?.terminal ?? true);
+		const toolRouting = buildChatRequestToolRouting({
+			selectedToolIds,
+			selectedSkillIds,
+			selectedFilterIds,
+			enableFunctions: $config?.features?.enable_functions,
+			enableToolServers: $config?.features?.enable_tool_servers,
+			enableTools: $config?.features?.enable_tools,
+			terminalCapability: model.info?.meta?.capabilities?.terminal,
+			requestTerminalId,
+			filesystemAttachment,
+			toolServers: $toolServers,
+			terminalServers: $terminalServers
+		});
 		const useChatVariablesFallback =
 			!_chatId || $temporaryChatEnabled || isTemporaryChatId(_chatId);
 
@@ -4015,33 +4005,11 @@
 						? files
 						: undefined,
 
-				filter_ids:
-					$config?.features?.enable_functions && selectedFilterIds.length > 0
-						? selectedFilterIds
-						: undefined,
-				tool_ids: toolIds.filter((id) =>
-					id.startsWith('server:')
-						? $config?.features?.enable_tool_servers
-						: $config?.features?.enable_tools
-				),
-				skill_ids: skillIds.length > 0 ? skillIds : undefined,
-				terminal_id: terminalEnabled && requestTerminalId ? requestTerminalId : undefined,
-				tool_servers: $config?.features?.enable_tool_servers
-					? [
-							...($toolServers ?? []).filter(
-								(server, idx) => toolServerIds.includes(idx) || toolServerIds.includes(server?.id)
-							),
-							// Direct terminal servers — always included when enabled (not routed through selectedToolIds)
-							...(terminalEnabled
-								? ($terminalServers ?? [])
-										.filter(
-											(server) =>
-												!server.id && (!filesystemAttachment || server.url === requestTerminalId)
-										)
-										.map((server) => ({ ...server, is_terminal: true }))
-								: [])
-						]
-					: [],
+				filter_ids: toolRouting.filterIds,
+				tool_ids: toolRouting.toolIds,
+				skill_ids: toolRouting.skillIds,
+				terminal_id: toolRouting.terminalId,
+				tool_servers: toolRouting.toolServers,
 				features: getFeatures(),
 				variables: {
 					...getPromptVariables(

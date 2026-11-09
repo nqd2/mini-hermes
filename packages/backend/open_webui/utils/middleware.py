@@ -148,6 +148,9 @@ from open_webui.utils.chat_runtime.stream_state import (
 from open_webui.utils.chat_runtime.stream_state import (
     _start_tag_pattern as _start_tag_pattern,
 )
+from open_webui.utils.chat_runtime.stream_state import (
+    get_stream_message_error_content as get_message_error_content,
+)
 from open_webui.utils.chat_runtime.stream_tags import TagOutputTransformer
 from open_webui.utils.chat_runtime.tool_execution import execute_tool_call
 from open_webui.utils.chat_runtime.tool_resolution import ToolResolutionAdapters, resolve_chat_tools
@@ -1338,16 +1341,6 @@ async def streaming_chat_response_handler(response, ctx):
                 else:
                     # Snapshot after the whole provider chunk, which may update several items.
                     stream_size = 0
-
-            def get_message_error_content(error):
-                if isinstance(error, HTTPException):
-                    error = error.detail
-                elif isinstance(error, dict):
-                    error = error.get('detail', error)
-                else:
-                    error = str(error)
-
-                return error if isinstance(error, (str, dict)) else str(error)
 
             async def emit_message_error(error_content):
                 if save_to_chat:

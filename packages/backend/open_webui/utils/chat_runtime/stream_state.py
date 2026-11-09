@@ -8,6 +8,7 @@ import re
 import time
 from uuid import uuid4
 
+from fastapi import HTTPException
 from starlette.responses import JSONResponse
 
 from open_webui.env import ENABLE_CHAT_RESPONSE_STREAM_INPLACE_APPEND
@@ -47,6 +48,18 @@ def combine_stream_outputs(continuing: bool, prior_output: list, output: list) -
             *output[1:],
         ]
     return prior_output + output if prior_output else output
+
+
+def get_stream_message_error_content(error):
+    """Convert provider/route errors to the stable chat error payload shape."""
+    if isinstance(error, HTTPException):
+        error = error.detail
+    elif isinstance(error, dict):
+        error = error.get('detail', error)
+    else:
+        error = str(error)
+
+    return error if isinstance(error, (str, dict)) else str(error)
 
 
 def append_to_text_field(item: dict, key: str, value: str) -> None:

@@ -86,6 +86,7 @@
 		uploadFilesystemChatAttachment
 	} from './MessageInput/filesystemUpload';
 	import { createChatFileUploadController } from './MessageInput/chatFileUploadController';
+	import { createChatInputKeyboardController } from './MessageInput/chatInputKeyboardController';
 	import { processComposerFile } from './MessageInput/fileProcessing';
 	import { createAttachmentCollection } from './MessageInput/attachmentCollection';
 	import { createSuggestionAttachmentHandler } from './MessageInput/suggestionAttachmentHandler';
@@ -1032,56 +1033,25 @@
 	const onDragLeave = resourceDropController.handleDragLeave;
 	const onDrop = resourceDropController.handleDrop;
 
-	const onKeyDown = (e: KeyboardEvent) => {
-		if (e.key === 'Shift') {
-			shiftKey = true;
-		}
-
-		if (
-			$settings?.keyboardShortcuts !== false &&
-			(recording ||
-				(document.activeElement?.closest('[data-composer-id]')?.getAttribute('data-composer-id') ??
-					'chat-input') === inputId) &&
-			matchKeybinding(e) === Shortcut.TOGGLE_DICTATION
-		) {
-			e.preventDefault();
-			if (recording) {
-				// Confirm and stop recording
-				document
-					.getElementById(
-						inputId === 'chat-input'
-							? 'confirm-recording-button'
-							: `${inputId}-confirm-recording-button`
-					)
-					?.click();
-			} else {
-				// Start recording (same logic as voice-input-button click)
-				document
-					.getElementById(
-						inputId === 'chat-input' ? 'voice-input-button' : `${inputId}-voice-input-button`
-					)
-					?.click();
-			}
-			return;
-		}
-
-		if (e.key === 'Escape') {
-			console.log('Escape');
-			dragged = false;
-		}
-	};
-
-	const onKeyUp = (e: KeyboardEvent) => {
-		if (e.key === 'Shift') {
-			shiftKey = false;
-		}
-	};
+	const keyboardController = createChatInputKeyboardController({
+		areShortcutsEnabled: () => $settings?.keyboardShortcuts !== false,
+		isRecording: () => recording,
+		getInputId: () => inputId,
+		getActiveComposerId: () =>
+			document.activeElement?.closest('[data-composer-id]')?.getAttribute('data-composer-id') ??
+			'chat-input',
+		matchKeybinding,
+		dictationKeybinding: Shortcut.TOGGLE_DICTATION,
+		setShiftKey: (value) => (shiftKey = value),
+		clickElementById: (id) => document.getElementById(id)?.click(),
+		setDragged: (value) => (dragged = value),
+		logEscape: () => console.log('Escape')
+	});
+	const onKeyDown = keyboardController.onKeyDown;
+	const onKeyUp = keyboardController.onKeyUp;
 
 	const onFocus = () => {};
-
-	const onBlur = () => {
-		shiftKey = false;
-	};
+	const onBlur = keyboardController.onBlur;
 
 	onMount(() => {
 		suggestions = [

@@ -181,6 +181,31 @@ async def test_parallel_index_workers_claim_distinct_jobs(postgres_resource_db, 
 
 
 @pytest.mark.asyncio
+async def test_index_worker_reclaims_an_expired_lease(postgres_resource_db, monkeypatch):
+    from open_webui.mini_hermes import worker
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(worker, 'AsyncSessionLocal', postgres_resource_db)
+    (job_id,) = await _seed_pending_jobs(postgres_resource_db, count=1)
+    async with postgres_resource_db() as db:
+        job = await db.get(ResourceIndexJob, job_id)
+        job.status = 'processing'
+        job.attempts = 1
+        job.lease_until = now() - dt.timedelta(minutes=1)
+        await db.commit()
+
+    assert await worker.claim_resource_index_job() == job_id
+    async with postgres_resource_db() as db:
+        job = await db.get(ResourceIndexJob, job_id)
+        lease_until = job.lease_until
+        if lease_until.tzinfo is None:
+            lease_until = lease_until.replace(tzinfo=dt.UTC)
+        assert job.status == 'processing'
+        assert job.attempts == 2
+        assert lease_until > now()
+
+
+@pytest.mark.asyncio
 async def test_parallel_legacy_backfills_preserve_one_job_per_revision(postgres_resource_db):
     document_id = 'pg-legacy-document'
     async with postgres_resource_db() as db:
@@ -252,6 +277,28 @@ async def test_resource_task_worker_skips_a_locked_task(postgres_resource_db, mo
         assert first.status == 'pending'
         assert second.status == 'processing'
         assert second.lease_until is not None
+
+
+@pytest.mark.asyncio
+async def test_resource_task_worker_reclaims_an_expired_lease(postgres_resource_db, monkeypatch):
+    from open_webui.mini_hermes import worker
+
+    monkeypatch.setattr(worker, 'AsyncSessionLocal', postgres_resource_db)
+    (task_id,) = await _seed_pending_tasks(postgres_resource_db, count=1)
+    async with postgres_resource_db() as db:
+        task = await db.get(ResourceTask, task_id)
+        task.status = 'processing'
+        task.lease_until = now() - dt.timedelta(minutes=1)
+        await db.commit()
+
+    assert await worker.claim_resource_task() == task_id
+    async with postgres_resource_db() as db:
+        task = await db.get(ResourceTask, task_id)
+        lease_until = task.lease_until
+        if lease_until.tzinfo is None:
+            lease_until = lease_until.replace(tzinfo=dt.UTC)
+        assert task.status == 'processing'
+        assert lease_until > now()
 
 
 @pytest.mark.asyncio

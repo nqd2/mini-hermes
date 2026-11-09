@@ -11,6 +11,7 @@
 
 	import { getContext, setContext, onDestroy, onMount, tick } from 'svelte';
 	import { createChatRequestLifecycle } from './chatRequestLifecycle';
+	import { applyChatCompletionEvent } from './chatCompletionEventReducer';
 	import { prepareChatSubmission } from './chatSubmissionPreparation';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
@@ -3466,72 +3467,15 @@
 	};
 
 	const chatCompletionEventHandler = async (data, message, chatId, shared = false) => {
-		const { id, done, choices, content, output, sources, selected_model_id, error, usage } = data;
-
-		if (error) {
-			if (shared) message.error = error;
-			else handleOpenAIError(error, message);
-		}
-
-		// Store raw OR-aligned output items from backend
-		if (output) {
-			message.output = output;
-			message.content = getOutputText(output);
-			if (
-				data.type === 'response.output_text.delta' &&
-				!shared &&
-				navigator.vibrate &&
-				$settings?.hapticFeedback
-			) {
-				navigator.vibrate(5);
-			}
-			if (!shared) dispatchCallOverlayAudio(message);
-		}
-
-		if (sources && !message?.sources) {
-			message.sources = sources;
-		}
-
-		if (choices && !output) {
-			if (choices[0]?.message?.content) {
-				// Non-stream response
-				message.content += choices[0]?.message?.content;
-				if (!shared) dispatchCallOverlayAudio(message);
-			} else {
-				// Stream response
-				let value = choices[0]?.delta?.content ?? '';
-				if (message.content == '' && value == '\n') {
-					console.log('Empty response');
-				} else {
-					message.content += value;
-
-					if (!shared && navigator.vibrate && ($settings?.hapticFeedback ?? false)) {
-						navigator.vibrate(5);
-					}
-					if (!shared) dispatchCallOverlayAudio(message);
-				}
-			}
-		}
-
-		if (content && !output) {
-			// REALTIME_CHAT_SAVE is disabled
-			message.content = content;
-
-			if (!shared && navigator.vibrate && ($settings?.hapticFeedback ?? false)) {
-				navigator.vibrate(5);
-			}
-			if (!shared) dispatchCallOverlayAudio(message);
-		}
-
-		if (selected_model_id) {
-			message.selectedModelId = selected_model_id;
-			message.arena = true;
-		}
-
-		if (usage) {
-			message.usage = usage;
-			captureUsageCheckpoint(message);
-		}
+		const { done } = applyChatCompletionEvent(data, message, shared, {
+			getOutputText,
+			hapticFeedback: Boolean(navigator.vibrate && ($settings?.hapticFeedback ?? false)),
+			handleError: (error, targetMessage) => handleOpenAIError(error, targetMessage),
+			vibrate: (duration) => navigator.vibrate(duration),
+			dispatchAudio: dispatchCallOverlayAudio,
+			captureUsageCheckpoint,
+			logEmptyResponse: () => console.log('Empty response')
+		});
 
 		history.messages[message.id] = message;
 		history = history;

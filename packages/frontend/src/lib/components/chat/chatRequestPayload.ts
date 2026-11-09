@@ -32,6 +32,22 @@ export type ChatRequestPayloadDependencies = {
   backgroundTasks: Record<string, any>;
 };
 
+/** Normalizes configured stop tokens while retaining malformed values verbatim. */
+export const normalizeStopTokens = (
+  stop?: string | string[] | null,
+): string[] | undefined => {
+  if (!stop) return undefined;
+
+  const tokens = Array.isArray(stop) ? stop : stop.split(',').map((token) => token.trim());
+  return tokens.filter(Boolean).map((token) => {
+    try {
+      return decodeURIComponent(JSON.parse(`"${token.replace(/"/g, '\\"')}"`));
+    } catch {
+      return token;
+    }
+  });
+};
+
 /** Assembles the existing OpenAI-compatible chat completion request shape. */
 export const buildChatRequestPayload = ({
   stream,

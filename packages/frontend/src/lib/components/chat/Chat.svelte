@@ -17,7 +17,7 @@
 	import { buildChatRequestFiles } from './chatResourceManifest';
 	import { buildChatRequestMessages } from './chatRequestMessages';
 	import { buildChatRequestToolRouting } from './chatRequestToolRouting';
-	import { buildChatRequestPayload } from './chatRequestPayload';
+	import { buildChatRequestPayload, normalizeStopTokens } from './chatRequestPayload';
 	import { applyChatRequestFailure, applyOpenAIResponseError } from './chatRequestFailure';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
@@ -3889,21 +3889,6 @@
 		return features;
 	};
 
-	const getStopTokens = () => {
-		const stop = params?.stop ?? $settings?.params?.stop;
-		if (!stop) return undefined;
-
-		const tokens = Array.isArray(stop) ? stop : stop.split(',').map((s) => s.trim());
-
-		return tokens.filter(Boolean).map((token) => {
-			try {
-				return decodeURIComponent(JSON.parse(`"${token.replace(/"/g, '\\"')}"`));
-			} catch {
-				return token;
-			}
-		});
-	};
-
 	const sendMessageSocket = async (
 		model,
 		_messages,
@@ -3994,7 +3979,7 @@
 			messages,
 			settingsParams: $settings?.params,
 			modelParams: params,
-			stop: getStopTokens(),
+			stop: normalizeStopTokens(params?.stop ?? $settings?.params?.stop),
 			files,
 			embedded,
 			noteFiles,

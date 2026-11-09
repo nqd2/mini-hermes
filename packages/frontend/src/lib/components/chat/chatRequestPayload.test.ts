@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildChatRequestPayload } from './chatRequestPayload';
+import { buildChatRequestPayload, normalizeStopTokens } from './chatRequestPayload';
 
 const toolRouting = {
   filterIds: ['filter-1'],
@@ -97,5 +97,24 @@ describe('buildChatRequestPayload', () => {
     expect(payload.regeneration_prompt).toBe('make it shorter');
     expect(payload.regeneration_message_id).toBe('previous-response');
     expect(payload.assistant_message_id).toBe('response-1');
+  });
+});
+
+describe('normalizeStopTokens', () => {
+  it('splits comma-separated values and trims empty entries', () => {
+    expect(normalizeStopTokens(' END,STOP ,, ')).toEqual(['END', 'STOP']);
+  });
+
+  it('decodes JSON escaped token content and preserves invalid encodings', () => {
+    expect(normalizeStopTokens(['\\n', 'plain%20text', 'bad\\q'])).toEqual([
+      '\n',
+      'plain text',
+      'bad\\q',
+    ]);
+  });
+
+  it('returns undefined when no stop setting is provided', () => {
+    expect(normalizeStopTokens(undefined)).toBeUndefined();
+    expect(normalizeStopTokens('')).toBeUndefined();
   });
 });

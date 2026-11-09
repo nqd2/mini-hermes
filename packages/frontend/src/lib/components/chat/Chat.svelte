@@ -18,7 +18,7 @@
 	import { buildChatRequestMessages } from './chatRequestMessages';
 	import { buildChatRequestToolRouting } from './chatRequestToolRouting';
 	import { buildChatRequestPayload } from './chatRequestPayload';
-	import { applyChatRequestFailure } from './chatRequestFailure';
+	import { applyChatRequestFailure, applyOpenAIResponseError } from './chatRequestFailure';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -4118,17 +4118,14 @@
 	};
 
 	const handleOpenAIError = (error, responseMessage) => {
-		const responseFailed = responseMessage.done && responseMessage.error;
-		const errorMessage = getErrorMessage(error, $i18n.t('Server connection failed'));
-		responseMessage.error = { content: errorMessage };
-		responseMessage.done = true;
-		if (responseMessage.statusHistory) {
-			responseMessage.statusHistory = responseMessage.statusHistory.filter(
-				(status) => status.action !== 'knowledge_search'
-			);
-		}
-		history.messages[responseMessage.id] = responseMessage;
-		if (!responseFailed) toast.error(errorMessage);
+		applyOpenAIResponseError({
+			error,
+			responseMessage,
+			history,
+			getErrorMessage,
+			fallbackMessage: $i18n.t('Server connection failed'),
+			notify: (message) => toast.error(message)
+		});
 	};
 
 	const stopResponse = async (processQueue = true, messageId = history.currentId) => {

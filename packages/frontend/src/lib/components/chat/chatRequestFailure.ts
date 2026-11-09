@@ -10,6 +10,37 @@ export type ChatRequestFailureDependencies = {
   notify: (message: string) => void;
 };
 
+export type OpenAIResponseErrorDependencies = {
+  error: any;
+  responseMessage: Record<string, any>;
+  history: { messages: Record<string, any> };
+  getErrorMessage: (error: any, fallback: string) => string;
+  fallbackMessage: string;
+  notify: (message: string) => void;
+};
+
+/** Records an OpenAI-compatible response error and avoids duplicate notifications. */
+export const applyOpenAIResponseError = ({
+  error,
+  responseMessage,
+  history,
+  getErrorMessage,
+  fallbackMessage,
+  notify,
+}: OpenAIResponseErrorDependencies): void => {
+  const responseFailed = responseMessage.done && responseMessage.error;
+  const errorMessage = getErrorMessage(error, fallbackMessage);
+  responseMessage.error = { content: errorMessage };
+  responseMessage.done = true;
+  if (responseMessage.statusHistory) {
+    responseMessage.statusHistory = responseMessage.statusHistory.filter(
+      (status: Record<string, any>) => status.action !== 'knowledge_search'
+    );
+  }
+  history.messages[responseMessage.id] = responseMessage;
+  if (!responseFailed) notify(errorMessage);
+};
+
 /** Normalizes request errors for display and completes the active response in history. */
 export const applyChatRequestFailure = ({
   error,

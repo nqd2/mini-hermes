@@ -79,6 +79,7 @@
 	import { createFileInputLifecycle } from './fileInputLifecycle';
 	import { createPromptVariableController } from './MessageInput/promptVariableController';
 	import { createPromptInsertionController } from './MessageInput/promptInsertionController';
+	import { createSlashPromptInsertionController } from './MessageInput/slashPromptInsertionController';
 	import {
 		findFilesystemChatUploadTerminal,
 		uploadFilesystemChatAttachment
@@ -537,62 +538,35 @@
 	});
 	const insertTextAtCursor = promptInsertionController.insertTextAtCursor;
 
-	const replaceSlashRangeWithPrompt = async (editor, range, text: string) => {
-		text = await textVariableHandler(text);
-
-		const { state, view } = editor;
-		let tr = state.tr;
-
-		if ($settings?.insertPromptAsRichText ?? false) {
-			const htmlContent = DOMPurify.sanitize(
+	const slashPromptInsertionController = createSlashPromptInsertionController({
+		resolveTextVariables: textVariableHandler,
+		getRichTextMode: () => $settings?.insertPromptAsRichText ?? false,
+		renderMarkdown: (text) =>
+			DOMPurify.sanitize(
 				marked
 					.parse(text, {
 						breaks: true,
 						gfm: true
 					})
 					.trim()
-			);
+			),
+		parseRichText: (html, schema) => {
 			const tempDiv = document.createElement('div');
-			tempDiv.innerHTML = htmlContent;
-			const fragment = DOMParser.fromSchema(state.schema).parse(tempDiv);
-			const nodesToInsert = [];
-
-			fragment.content.forEach((node) => {
-				if (node.type.name === 'paragraph') {
-					nodesToInsert.push(...node.content.content);
-				} else {
-					nodesToInsert.push(node);
-				}
-			});
-
-			tr = tr.replaceWith(range.from, range.to, nodesToInsert);
-			const newPos = range.from + nodesToInsert.reduce((sum, node) => sum + node.nodeSize, 0);
-			tr = tr.setSelection(Selection.near(tr.doc.resolve(newPos)));
-		} else if (text.includes('\n')) {
-			const nodes = text
-				.split('\n')
-				.map((line, index) =>
-					index === 0
-						? state.schema.text(line ? line : [])
-						: state.schema.nodes.paragraph.create({}, line ? state.schema.text(line) : undefined)
-				);
-			tr = tr.replaceWith(range.from, range.to, nodes);
-			const newPos = nodes.reduce((pos, node) => pos + node.nodeSize, range.from);
-			tr = tr.setSelection(TextSelection.near(tr.doc.resolve(newPos)));
-		} else {
-			tr = tr.replaceWith(range.from, range.to, text !== '' ? state.schema.text(text) : []);
-			tr = tr.setSelection(
-				state.selection.constructor.near(tr.doc.resolve(range.from + text.length + 1))
-			);
-		}
-
-		view.dispatch(tr);
-
-		await tick();
-		await inputVariableHandler(text);
-		await tick();
-		focus({ preventScroll: true });
-	};
+			tempDiv.innerHTML = html;
+			return DOMParser.fromSchema(schema).parse(tempDiv);
+		},
+		createRichTextSelection: (state, position) =>
+			Selection.near(state.doc.resolve(position)),
+		createMultilineSelection: (state, position) =>
+			TextSelection.near(state.doc.resolve(position)),
+		createSingleLineSelection: (state, position) =>
+			state.selection.constructor.near(state.doc.resolve(position)),
+		tick,
+		resolveInputVariables: inputVariableHandler,
+		focus
+	});
+	const replaceSlashRangeWithPrompt =
+		slashPromptInsertionController.replaceSlashRangeWithPrompt;
 
 	let command = '';
 	export let showCommands = false;

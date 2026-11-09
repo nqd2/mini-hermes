@@ -21,6 +21,7 @@
 	import { createManualContextCompactionController } from './chatManualCompaction';
 	import { syncChatRoom as syncChatRoomWithController } from './chatSocketRoomSynchronizer';
 	import { insertSubmittedUserMessage } from './chatMessageSubmission';
+	import { createChatCommandController } from './chatCommandController';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -3658,6 +3659,24 @@
 		messageInput?.setText('');
 		prompt = '';
 	};
+	const chatCommandController = createChatCommandController({
+		clearInput: clearCommandInput,
+		compact: handleManualCompact,
+		showStatus: handleStatusCommand,
+		openComments: () => messageInput?.openComments(),
+		isSideChatAllowed: () => sideChatAllowed,
+		canStartSideChat: () => !embedded && Boolean($chatId) && Boolean(history.currentId),
+		hasSingleModelSelected: () => selectedModels.length === 1 && Boolean(selectedModelIds[0]),
+		getParentChatId: () => $chatId,
+		openSideChat: (parentId, prompt) => {
+			sideChatRequest.set({ parentId, prompt });
+			showTabs.set('side');
+		},
+		fork: () => handleForkChat(),
+		switchModel: handleModelCommand,
+		notifyError: (message) => toast.error(message),
+		translate: (key) => $i18n.t(key)
+	});
 
 	let terminalTabs: ChatTabs;
 	let fullWidthTabs = false;
@@ -3732,48 +3751,10 @@
 			selectedModels = _selectedModels;
 		}
 
-		if (String(userPrompt).trim() === '/compact') {
-			clearCommandInput();
-			await handleManualCompact();
-			return { status: 'rejected' };
-		}
-		if (String(userPrompt).trim() === '/status') {
-			clearCommandInput();
-			handleStatusCommand();
-			return { status: 'rejected' };
-		}
-		if (String(userPrompt).trim() === '/comments') {
-			clearCommandInput();
-			messageInput?.openComments();
-			return { status: 'rejected' };
-		}
-		const sideCommand = String(userPrompt)
-			.trim()
-			.match(/^\/(?:side|btw)(?:\s+([\s\S]*))?$/i);
-		if (sideCommand && !sideChatAllowed) {
-			toast.error($i18n.t('You do not have permission to use side chat.'));
-			return { status: 'rejected' };
-		}
-		if (sideCommand && !embedded && $chatId && history.currentId) {
-			if (selectedModels.length !== 1 || !selectedModelIds[0]) {
-				toast.error($i18n.t('Select only one model to open a side chat.'));
-				return { status: 'rejected' };
-			}
-			clearCommandInput();
-			sideChatRequest.set({ parentId: $chatId, prompt: sideCommand[1] ?? '' });
-			showTabs.set('side');
-			return { status: 'rejected' };
-		}
-		if (String(userPrompt).trim() === '/fork') {
-			clearCommandInput();
-			await handleForkChat();
-			return { status: 'rejected' };
-		}
-		const modelCommandMatch = String(userPrompt)
-			.trim()
-			.match(/^\/model(?:\s+([\s\S]+))?$/);
-		if (modelCommandMatch) {
-			handleModelCommand(modelCommandMatch[1]?.trim() ?? '');
+		const commandResult = chatCommandController.handle(userPrompt);
+		if (typeof commandResult === 'boolean') {
+			if (commandResult) return { status: 'rejected' };
+		} else if (await commandResult) {
 			return { status: 'rejected' };
 		}
 

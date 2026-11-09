@@ -14,7 +14,6 @@ from urllib.request import urlopen
 from dotenv import dotenv_values
 from watchfiles import watch
 
-
 ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / 'packages' / 'backend'
 FRONTEND = ROOT / 'packages' / 'frontend'
@@ -54,7 +53,14 @@ def wait_for_backend(timeout: int = 90) -> None:
 def show_output(name: str, process: subprocess.Popen[str]) -> None:
     assert process.stdout is not None
     for line in process.stdout:
-        print(f'[{name}] {line}', end='', flush=True)
+        output = f'[{name}] {line}'
+        try:
+            print(output, end='', flush=True)
+        except UnicodeEncodeError:
+            encoding = getattr(sys.stdout, 'encoding', None) or 'utf-8'
+            output = output.encode(encoding, errors='replace').decode(encoding)
+            sys.stdout.write(output)
+            sys.stdout.flush()
 
 
 def start(name: str, command: list[str], cwd: Path) -> None:
@@ -113,7 +119,10 @@ def watch_backend() -> None:
                          stop_event=STOP, raise_interrupt=False):
         if STOP.is_set():
             return
-        print(f'[dev] restarting sandbox, backend, connector and worker after {len(changes)} file change(s)', flush=True)
+        print(
+            f'[dev] restarting sandbox, backend, connector and worker after {len(changes)} file change(s)',
+            flush=True,
+        )
         with LOCK:
             old = [PROCESSES.pop(name, None) for name in ('worker', 'connector', 'backend', 'sandbox')]
         for process in old:

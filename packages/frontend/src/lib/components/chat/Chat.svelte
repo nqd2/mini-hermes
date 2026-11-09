@@ -18,6 +18,7 @@
 	import { buildChatRequestMessages } from './chatRequestMessages';
 	import { buildChatRequestToolRouting } from './chatRequestToolRouting';
 	import { buildChatRequestPayload } from './chatRequestPayload';
+	import { applyChatRequestFailure } from './chatRequestFailure';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -4034,32 +4035,16 @@
 			localStorage.token,
 			requestPayload,
 			`${WEBUI_BASE_URL}/api`
-		).catch(async (error) => {
-			console.log(error);
-
-			let errorMessage = error;
-			if (error?.error?.message) {
-				errorMessage = error.error.message;
-			} else if (error?.message) {
-				errorMessage = error.message;
-			}
-
-			if (typeof errorMessage === 'object') {
-				errorMessage = $i18n.t(`Uh-oh! There was an issue with the response.`);
-			}
-
-			toast.error(`${errorMessage}`);
-			responseMessage.error = {
-				content: error
-			};
-
-			responseMessage.done = true;
-
-			history.messages[responseMessageId] = responseMessage;
-			history.currentId = responseMessageId;
-
-			return null;
-		});
+		).catch((error) =>
+			applyChatRequestFailure({
+				error,
+				responseMessageId,
+				responseMessage,
+				history,
+				translate: (key) => $i18n.t(key),
+				notify: (message) => toast.error(message)
+			})
+		);
 
 		if (filesystemAttachment && (!res || res.error))
 			throw new Error('File request failed. Retry from the message or queue.');

@@ -1,7 +1,11 @@
 import pytest
 from fastapi import HTTPException
 
-from open_webui.utils.chat_runtime.stream_state import combine_stream_outputs, get_stream_message_error_content
+from open_webui.utils.chat_runtime.stream_state import (
+    combine_stream_outputs,
+    get_stream_message_error_content,
+    mark_stream_output_incomplete,
+)
 
 
 def test_combines_continuation_message_into_prior_item_and_keeps_prior_id():
@@ -67,3 +71,24 @@ def test_does_not_merge_output_when_not_continuing_or_message_items_do_not_match
 )
 def test_normalizes_stream_message_errors_without_dropping_structured_details(error, expected):
     assert get_stream_message_error_content(error) == expected
+
+
+def test_marks_unfinished_stream_items_and_tool_calls_without_results_incomplete():
+    output = [
+        {'type': 'message', 'id': 'message-1', 'status': 'in_progress'},
+        {'type': 'function_call', 'id': 'tool-with-result', 'status': 'completed'},
+        {'type': 'function_call_output', 'call_id': 'tool-with-result', 'status': 'completed'},
+        {'type': 'function_call', 'id': 'tool-without-result', 'status': 'completed'},
+        {'type': 'message', 'id': 'message-2', 'status': 'completed'},
+    ]
+
+    result = mark_stream_output_incomplete(output)
+
+    assert result is output
+    assert [item['status'] for item in output] == [
+        'incomplete',
+        'completed',
+        'completed',
+        'incomplete',
+        'completed',
+    ]

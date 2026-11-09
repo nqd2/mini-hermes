@@ -62,6 +62,22 @@ def get_stream_message_error_content(error):
     return error if isinstance(error, (str, dict)) else str(error)
 
 
+def mark_stream_output_incomplete(output: list) -> list:
+    """Mark unfinished stream items and tool calls without results as incomplete."""
+    result_call_ids = {
+        item.get('call_id') for item in output if item.get('type') == 'function_call_output' and item.get('call_id')
+    }
+    for item in output:
+        is_running_tool_call = (
+            item.get('type') == 'function_call'
+            and item.get('status') == 'completed'
+            and (item.get('call_id') or item.get('id')) not in result_call_ids
+        )
+        if item.get('status') == 'in_progress' or is_running_tool_call:
+            item['status'] = 'incomplete'
+    return output
+
+
 def append_to_text_field(item: dict, key: str, value: str) -> None:
     # Default: keep the existing field intact until concatenation succeeds.
     # Non-string values and str subclasses also use this path to preserve errors.

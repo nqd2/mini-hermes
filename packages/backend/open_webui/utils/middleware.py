@@ -141,6 +141,7 @@ from open_webui.utils.chat_runtime.stream_state import (
     append_to_text_field,
     combine_stream_outputs,
     get_response_completion_event_data,
+    mark_stream_output_incomplete,
     merge_streamed_reasoning_details,
     output_id,
     update_assistant_message_from_stream,
@@ -3163,21 +3164,7 @@ async def streaming_chat_response_handler(response, ctx):
                         pass
 
                 async def save_cancelled_state():
-                    cancelled_output = full_output()
-                    result_call_ids = {
-                        item.get('call_id')
-                        for item in cancelled_output
-                        if item.get('type') == 'function_call_output' and item.get('call_id')
-                    }
-                    for item in cancelled_output:
-                        # A tool call is stamped completed when its arguments finish, before the tool runs
-                        is_running_tool_call = (
-                            item.get('type') == 'function_call'
-                            and item.get('status') == 'completed'
-                            and (item.get('call_id') or item.get('id')) not in result_call_ids
-                        )
-                        if item.get('status') == 'in_progress' or is_running_tool_call:
-                            item['status'] = 'incomplete'
+                    cancelled_output = mark_stream_output_incomplete(full_output())
 
                     await event_emitter({'type': 'chat:tasks:cancel', 'data': {'output': cancelled_output}})
                     if save_to_chat:

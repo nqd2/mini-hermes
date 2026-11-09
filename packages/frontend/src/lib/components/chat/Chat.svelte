@@ -13,6 +13,7 @@
 	import { evaluateChatSubmission } from './chatSubmissionGate';
 	import { executeChatSubmission } from './chatSubmissionExecutor';
 	import { createChatRequestQueueController } from './chatRequestQueueController';
+	import { createChatFileAskController } from './chatFileAskController';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -496,18 +497,19 @@
 	let chatFiles = [];
 	let files: any[] = [];
 	let terminalContext: TerminalContext | null = null;
-	const askFile = async (instruction: string, file: FilesystemFile) => {
-		const attachments = [structuredClone(file)];
-		const last = history.currentId ? history.messages[history.currentId] : null;
-		if (last?.role === 'assistant' && !last.done) {
+	const chatFileAskController = createChatFileAskController({
+		getLastMessage: () => (history.currentId ? history.messages[history.currentId] : null),
+		createRequestId: uuidv4,
+		cloneFile: (file) => structuredClone(file),
+		enqueueRequest: (request) =>
 			chatRequestQueues.update((queues) => ({
 				...queues,
-				[$chatId]: [
-					...(queues[$chatId] ?? []),
-					{ id: uuidv4(), prompt: instruction, files: attachments }
-				]
-			}));
-		} else await submitPrompt(instruction, attachments);
+				[$chatId]: [...(queues[$chatId] ?? []), request]
+			})),
+		submitPrompt: (instruction, attachments) => submitPrompt(instruction, attachments)
+	});
+	const askFile = async (instruction: string, file: FilesystemFile): Promise<void> => {
+		await chatFileAskController.askFile(instruction, file);
 	};
 
 	let params = {};

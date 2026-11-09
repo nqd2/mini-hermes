@@ -81,6 +81,7 @@
 	import { getNoteById } from '$lib/apis/notes';
 	import { getSessionUser } from '$lib/apis/auths';
 	import { createFileInputLifecycle } from './fileInputLifecycle';
+	import { createPromptVariableController } from './MessageInput/promptVariableController';
 	import {
 		findFilesystemChatUploadTerminal,
 		uploadFilesystemChatAttachment
@@ -351,155 +352,6 @@
 
 	$: onChange(chatInputDraft);
 
-	const inputVariableHandler = async (text: string): Promise<string> => {
-		inputVariables = extractInputVariables(text);
-
-		// No variables? return the original text immediately.
-		if (Object.keys(inputVariables).length === 0) {
-			return text;
-		}
-
-		// Show modal and wait for the user's input.
-		showInputVariablesModal = true;
-		return await new Promise<string>((resolve) => {
-			inputVariablesModalCallback = (variableValues) => {
-				inputVariableValues = { ...inputVariableValues, ...variableValues };
-				replaceVariables(inputVariableValues);
-				showInputVariablesModal = false;
-				resolve(text);
-			};
-		});
-	};
-
-	const textVariableHandler = async (text: string) => {
-		if (text.includes('{{CLIPBOARD}}')) {
-			const clipboardText = await navigator.clipboard.readText().catch((err) => {
-				toast.error($i18n.t('Failed to read clipboard contents'));
-				return '{{CLIPBOARD}}';
-			});
-
-			const clipboardItems = await navigator.clipboard.read().catch((err) => {
-				console.error('Failed to read clipboard items:', err);
-				return [];
-			});
-
-			for (const item of clipboardItems) {
-				for (const type of item.types) {
-					if (type.startsWith('image/')) {
-						const blob = await item.getType(type);
-						const file = new File([blob], `clipboard-image.${type.split('/')[1]}`, {
-							type: type
-						});
-
-						inputFilesHandler([file]);
-					}
-				}
-			}
-
-			text = text.replaceAll('{{CLIPBOARD}}', () => clipboardText.replaceAll('\r\n', '\n'));
-		}
-
-		if (text.includes('{{USER_LOCATION}}')) {
-			let location;
-			try {
-				location = await getUserPosition();
-			} catch (error) {
-				toast.error($i18n.t('Location access not allowed'));
-				location = 'LOCATION_UNKNOWN';
-			}
-			text = text.replaceAll('{{USER_LOCATION}}', String(location));
-		}
-
-		const sessionUser = await getSessionUser(localStorage.token);
-
-		if (text.includes('{{USER_NAME}}')) {
-			const name = sessionUser?.name || 'User';
-			text = text.replaceAll('{{USER_NAME}}', name);
-		}
-
-		if (text.includes('{{USER_EMAIL}}')) {
-			const email = sessionUser?.email || '';
-
-			if (email) {
-				text = text.replaceAll('{{USER_EMAIL}}', email);
-			}
-		}
-
-		if (text.includes('{{USER_ROLE}}')) {
-			const role = sessionUser?.role || '';
-
-			if (role) {
-				text = text.replaceAll('{{USER_ROLE}}', role);
-			}
-		}
-
-		if (text.includes('{{USER_BIO}}')) {
-			const bio = sessionUser?.bio || '';
-
-			if (bio) {
-				text = text.replaceAll('{{USER_BIO}}', bio);
-			}
-		}
-
-		if (text.includes('{{USER_GENDER}}')) {
-			const gender = sessionUser?.gender || '';
-
-			if (gender) {
-				text = text.replaceAll('{{USER_GENDER}}', gender);
-			}
-		}
-
-		if (text.includes('{{USER_BIRTH_DATE}}')) {
-			const birthDate = sessionUser?.date_of_birth || '';
-
-			if (birthDate) {
-				text = text.replaceAll('{{USER_BIRTH_DATE}}', birthDate);
-			}
-		}
-
-		if (text.includes('{{USER_AGE}}')) {
-			const birthDate = sessionUser?.date_of_birth || '';
-
-			if (birthDate) {
-				// calculate age using date
-				const age = getAge(birthDate);
-				text = text.replaceAll('{{USER_AGE}}', age);
-			}
-		}
-
-		if (text.includes('{{USER_LANGUAGE}}')) {
-			const language = localStorage.getItem('locale') || 'en-US';
-			text = text.replaceAll('{{USER_LANGUAGE}}', language);
-		}
-
-		if (text.includes('{{CURRENT_DATE}}')) {
-			const date = getFormattedDate();
-			text = text.replaceAll('{{CURRENT_DATE}}', date);
-		}
-
-		if (text.includes('{{CURRENT_TIME}}')) {
-			const time = getFormattedTime();
-			text = text.replaceAll('{{CURRENT_TIME}}', time);
-		}
-
-		if (text.includes('{{CURRENT_DATETIME}}')) {
-			const dateTime = getCurrentDateTime();
-			text = text.replaceAll('{{CURRENT_DATETIME}}', dateTime);
-		}
-
-		if (text.includes('{{CURRENT_TIMEZONE}}')) {
-			const timezone = getUserTimezone();
-			text = text.replaceAll('{{CURRENT_TIMEZONE}}', timezone);
-		}
-
-		if (text.includes('{{CURRENT_WEEKDAY}}')) {
-			const weekday = getWeekday();
-			text = text.replaceAll('{{CURRENT_WEEKDAY}}', weekday);
-		}
-
-		return text;
-	};
-
 	const replaceVariables = (variables: Record<string, any>) => {
 		console.log('Replacing variables:', variables);
 
@@ -510,6 +362,41 @@
 			focus();
 		}
 	};
+
+	const promptVariableController = createPromptVariableController({
+		extractInputVariables,
+		onVariablesDetected: (variables) => {
+			inputVariables = variables;
+		},
+		onInputModalOpened: () => {
+			showInputVariablesModal = true;
+		},
+		onInputValuesResolved: (values) => {
+			inputVariableValues = { ...inputVariableValues, ...values };
+			replaceVariables(inputVariableValues);
+			showInputVariablesModal = false;
+		},
+		readClipboardText: () => navigator.clipboard.readText(),
+		readClipboardItems: async () => Array.from(await navigator.clipboard.read()),
+		onClipboardTextError: () => toast.error($i18n.t('Failed to read clipboard contents')),
+		onClipboardItemsError: (error) => console.error('Failed to read clipboard items:', error),
+		createClipboardImageFile: (blob, name, type) => new File([blob], name, { type }),
+		onClipboardImage: (file) => inputFilesHandler([file]),
+		getUserPosition,
+		onLocationError: () => toast.error($i18n.t('Location access not allowed')),
+		getSessionUser: (token) => getSessionUser(token),
+		getToken: () => localStorage.token,
+		getLanguage: () => localStorage.getItem('locale'),
+		getAge,
+		getFormattedDate,
+		getFormattedTime,
+		getCurrentDateTime,
+		getUserTimezone,
+		getWeekday
+	});
+	const inputVariableHandler = promptVariableController.resolveInputVariables;
+	const textVariableHandler = promptVariableController.replaceTextVariables;
+	inputVariablesModalCallback = promptVariableController.completeInputVariables;
 
 	export const focus = (options: FocusOptions = {}) => {
 		chatInputElement?.focus(options);

@@ -13,6 +13,7 @@
 	import { evaluateChatSubmission } from './chatSubmissionGate';
 	import { executeChatSubmission } from './chatSubmissionExecutor';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
+	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -1506,40 +1507,40 @@
 					}
 					autoScrollToBottom();
 				} else if (type === 'chat:tasks:cancel') {
-					browserInteractionQueue.resolveForMessage(event.message_id, {
-						status: 'cancelled',
-						answers: {}
+					await handleChatTaskCancellation({
+						chatId: $chatId,
+						messageId: event.message_id,
+						shared: Boolean(event.shared),
+						currentMessageId: () => history.currentId,
+						message,
+						output: data?.output,
+						resolvePendingInteractions: (messageId) =>
+							browserInteractionQueue.resolveForMessage(messageId, {
+								status: 'cancelled',
+								answers: {}
+							}),
+						cancelBridge: (messageId) => bridgeCancellations.get(messageId)?.(),
+						clearContextCompaction,
+						getParentChildren: (parentId) =>
+							(parentId && history.messages[parentId]?.childrenIds) ?? [],
+						markMessageDone: (messageId) => {
+							if (history.messages[messageId]) history.messages[messageId].done = true;
+						},
+						setTaskIds: (taskIds) => chatTaskLifecycle.setTaskIds(taskIds),
+						processNextInQueue: (chatId) => processNextInQueue(chatId)
 					});
-					message.bridgeCancelled = true;
-					bridgeCancellations.get(event.message_id)?.();
-					clearContextCompaction(event.message_id);
-					if (data?.output) {
-						message.output = data.output;
-					}
-					if (!event.shared && event.message_id === history.currentId) {
-						chatTaskLifecycle.setTaskIds(null);
-						// Set all response messages to done
-						for (const messageId of history.messages[message.parentId].childrenIds) {
-							history.messages[messageId].done = true;
-							clearContextCompaction(messageId);
-						}
-						message.done = true;
-						await processNextInQueue($chatId);
-					} else {
-						message.done = true;
-					}
 				} else if (type === 'chat:message:error') {
-					const responseCompleted = message.done;
-					if (event.shared) {
-						message.error = data.error;
-						message.done = true;
-					} else handleOpenAIError(data.error, message);
-					if (!event.shared && !responseCompleted) {
-						clearContextCompaction(message.id);
-						if (event.message_id === history.currentId) {
-							await processNextInQueue(event.chat_id);
-						}
-					}
+					await handleChatMessageError({
+						chatId: event.chat_id,
+						messageId: event.message_id,
+						shared: Boolean(event.shared),
+						error: data.error,
+						message,
+						currentMessageId: () => history.currentId,
+						handleOpenAIError,
+						clearContextCompaction,
+						processNextInQueue: (chatId) => processNextInQueue(chatId)
+					});
 				} else if (type === 'chat:message:follow_ups') {
 					message.followUps = data.follow_ups;
 

@@ -15,6 +15,7 @@
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
+	import { reconcileLoadedChatTasks } from './chatLoadTaskReconciliation';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -2869,29 +2870,19 @@
 					pendingTaskCount: pendingTaskIds.length,
 					hasCurrentMessage: !!currentMessage
 				});
-				const responseComplete = currentMessage?.role === 'assistant' && currentMessage?.done;
-
-				if (canReconcileTasks && taskIds === activeTaskIds) {
-					if (pendingTaskIds.length > 0 && !responseComplete) {
-						chatTaskLifecycle.setTaskIds(pendingTaskIds, taskTicket);
-					} else {
-						chatTaskLifecycle.setTaskIds(null, taskTicket);
-						// No active tasks and message incomplete → generation was interrupted
-						if (pendingTaskIds.length === 0) {
-							for (const message of Object.values(history.messages)) {
-								if (
-									message?.role === 'assistant' &&
-									(message.user_id ?? chat?.user_id) === $user?.id &&
-									!message.done &&
-									!messageHasPendingAskUser(message)
-								) {
-									message.done = true;
-									history = history;
-								}
-							}
-						}
-					}
-				}
+				reconcileLoadedChatTasks({
+					pendingTaskIds,
+					currentMessage,
+					snapshotTaskIds: activeTaskIds,
+					getCurrentTaskIds: () => taskIds,
+					canReconcile: () => canReconcileTasks,
+					messages: history.messages,
+					currentUserId: $user?.id,
+					fallbackOwnerId: chat?.user_id,
+					messageHasPendingAskUser,
+					setTaskIds: (ids) => chatTaskLifecycle.setTaskIds(ids, taskTicket),
+					markHistoryChanged: () => (history = history)
+				});
 
 				await tick();
 

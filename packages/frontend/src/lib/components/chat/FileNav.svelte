@@ -6,6 +6,7 @@
 	import { createFileNavRequestLifecycle } from './FileNav/fileNavRequestLifecycle';
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import { createFileMutationController } from './FileNav/fileMutationController';
+	import { createBulkDownloadPlan, deleteSelectedFilePaths } from './FileNav/fileBulkActions';
 	import { createFileUploadController, type FileUploadEntry } from './FileNav/fileUploadController';
 	import { readDroppedFiles } from './FileNav/droppedFileReader';
 	import { prepareFileOpenRequest } from './FileNav/fileOpenRequestController';
@@ -1425,17 +1426,11 @@
 		if (!terminal || !selectedEntriesWritable) return;
 
 		const paths = [...selectedEntries];
-		let ok = 0;
-		for (const p of paths) {
-			const result = await fileMutationController.deletePath(
-				terminal,
-				p.replace(/\/$/, ''),
-				chatId ?? undefined
-			);
-			if (result) ok++;
-		}
-		toast[ok > 0 ? 'success' : 'error'](
-			$i18n.t('Deleted {{ok}} of {{total}} items', { ok, total: paths.length })
+		const result = await deleteSelectedFilePaths(paths, (path) =>
+			fileMutationController.deletePath(terminal, path, chatId ?? undefined)
+		);
+		toast[result.deleted > 0 ? 'success' : 'error'](
+			$i18n.t('Deleted {{ok}} of {{total}} items', { ok: result.deleted, total: result.total })
 		);
 		invalidateTreeCache(currentPath, ...paths);
 		clearSelection();
@@ -1446,12 +1441,12 @@
 		const terminal = selectedTerminal;
 		if (!terminal || downloading) return;
 
-		const paths = [...selectedEntries].map((p) => p.replace(/\/$/, ''));
-		if (paths.length === 0) return;
+		const plan = createBulkDownloadPlan([...selectedEntries]);
+		if (!plan) return;
 
 		// Single file (not dir) — use the regular downloadFile path
-		if (paths.length === 1 && ![...selectedEntries][0].endsWith('/')) {
-			await downloadFile([...selectedEntries][0]);
+		if (plan.kind === 'file') {
+			await downloadFile(plan.path);
 			return;
 		}
 
@@ -1462,7 +1457,7 @@
 			const result = await archiveFromTerminal(
 				terminal.url,
 				terminal.key,
-				paths,
+				plan.paths,
 				chatId ?? undefined
 			);
 			if (!result) {

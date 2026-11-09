@@ -15,7 +15,6 @@ import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
-from urllib.parse import unquote
 from uuid import uuid4
 
 from aiocache import cached
@@ -131,6 +130,11 @@ from open_webui.utils.chat_runtime.response_context import (
 )
 from open_webui.utils.chat_runtime.response_context import (
     build_response_context as build_response_context_service,
+)
+from open_webui.utils.chat_runtime.skill_context import (
+    ChatSkillContextAdapters,
+    load_chat_skill_services,
+    prepare_chat_skill_context,
 )
 from open_webui.utils.chat_runtime.stream_state import (
     _split_tool_calls,
@@ -885,159 +889,31 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     # Otherwise, save any tools that filter inlets added for merging later.
     inlet_filter_tools = None if payload_tools is not None else form_data.get('tools', None)
 
-    # Mentions always load instructions; selected skills can optionally load through view_skill.
-    chat_context = metadata.get('chat_context') or {}
-    metadata['chat_context'] = chat_context
-    skill_versions = chat_context.setdefault('skill_versions', {})
-    mentioned_skill_ids = set(chat_context.get('mentioned_skill_ids') or []) | extract_skill_ids_from_messages(
-        form_data.get('messages', [])
+    skill_context = await prepare_chat_skill_context(
+        request,
+        form_data,
+        user,
+        model,
+        metadata,
+        extra_params,
+        use_builtin_tools=use_builtin_tools,
+        payload_tools=payload_tools,
+        terminal_id=terminal_id,
+        adapters=ChatSkillContextAdapters(
+            config_get=Config.get,
+            extract_skill_ids_from_messages=extract_skill_ids_from_messages,
+            strip_skill_mentions=strip_skill_mentions,
+            add_or_update_system_message=add_or_update_system_message,
+            get_last_user_message=get_last_user_message,
+            set_last_user_message_content=set_last_user_message_content,
+            load_services=load_chat_skill_services,
+        ),
     )
-    activated_skill_ids = set(form_data.pop('skill_ids', None) or []) | mentioned_skill_ids
-    skill_ids = sorted(activated_skill_ids | set(model.get('info', {}).get('meta', {}).get('skillIds', [])))
-    if payload_tools is None and await Config.get('skills.lazy_loading.enable', False):
-        activated_skill_ids = mentioned_skill_ids
-    available_skills = []
-    terminal_skills = []
+    skill_ids = skill_context.skill_ids
+    resolved_skill_ids = skill_context.resolved_skill_ids
+    model_builtin_tools = skill_context.model_builtin_tools
+    prompt = skill_context.prompt
 
-    model_builtin_tools = model.get('info', {}).get('meta', {}).get('builtinTools') or {}
-
-    if skill_ids or (use_builtin_tools and model_builtin_tools.get('skills', True)):
-        from open_webui.models.skills import Skills as SkillsModel
-        from open_webui.utils.skill_files import format_skill_content, skill_overview
-        from open_webui.utils.terminals import (
-            format_terminal_skill_context,
-            format_terminal_skill_manifest_entry,
-            get_terminal_json,
-            get_terminal_skill,
-        )
-
-        terminal_skill_prefix = 'terminal:'
-        db_skill_ids = [sid for sid in skill_ids if not sid.startswith(terminal_skill_prefix)]
-        terminal_skill_ids = [sid for sid in skill_ids if sid.startswith(terminal_skill_prefix)]
-
-        if use_builtin_tools and model_builtin_tools.get('skills', True):
-            accessible_skills = {s.id: s for s in await SkillsModel.get_skills(user_id=user.id)}
-            db_skill_ids = sorted(accessible_skills)
-        else:
-            accessible_skills = {s.id: s for s in await SkillsModel.get_skills(user_id=user.id, ids=db_skill_ids)}
-
-        for sid in db_skill_ids:
-            skill = accessible_skills.get(sid)
-            if skill and skill.is_active:
-                available_skills.append(skill)
-
-        skill_manifest = ''
-        for skill in available_skills:
-            if skill.id in activated_skill_ids or not use_builtin_tools or not model_builtin_tools.get('skills', True):
-                from open_webui.models.skills import get_skill_snapshot
-
-                version_id = skill_versions.get(skill.id) or skill.version_id
-                try:
-                    snapshot = await get_skill_snapshot(skill, version_id)
-                except HTTPException as error:
-                    if error.status_code != 404:
-                        raise
-                    continue
-                skill_versions[skill.id] = version_id
-                skill_tools_enabled = use_builtin_tools and model_builtin_tools.get('skills', True)
-                overview = await skill_overview(
-                    snapshot['content'],
-                    [f['path'] for f in snapshot['data']['files'] if f['path'] != 'SKILL.md'],
-                    tools_enabled=skill_tools_enabled,
-                )
-                root_content = format_skill_content(overview, skill.id, skill_tools_enabled)
-                resources = '\n'.join(overview['files'])
-                resource_hint = (
-                    f'\nSupporting files:\n{resources}'
-                    if skill_tools_enabled and resources
-                    else '\nSupporting files require a model with skill tools enabled.'
-                    if resources
-                    else ''
-                )
-                if overview.get('notice'):
-                    resource_hint += '\n' + overview['notice']
-                form_data['messages'] = add_or_update_system_message(
-                    f'<skill id="{skill.id}" name="{skill.name}">\n{root_content}{resource_hint}\n</skill>',
-                    form_data['messages'],
-                    append=True,
-                )
-            else:
-                skill_manifest += (
-                    f'<skill>\n<id>{skill.id}</id>\n<name>{skill.name}</name>\n'
-                    f'<description>{skill.description or ""}</description>\n</skill>\n'
-                )
-
-        listed = (
-            await get_terminal_json(request, user, metadata, '/skills', extra_params)
-            if terminal_id or terminal_skill_ids
-            else None
-        )
-
-        listed_terminal_skills = listed if isinstance(listed, list) else []
-
-        if terminal_id and use_builtin_tools and model_builtin_tools.get('skills', True):
-            terminal_skills = listed_terminal_skills
-        elif terminal_skill_ids:
-            terminal_skill_map = {skill['id']: skill for skill in listed_terminal_skills}
-            terminal_skills = [skill for sid in terminal_skill_ids if (skill := terminal_skill_map.get(sid))]
-
-        for skill in terminal_skills:
-            sid = skill['id']
-            if sid in activated_skill_ids or not use_builtin_tools or not model_builtin_tools.get('skills', True):
-                skill_name = unquote(sid.removeprefix(terminal_skill_prefix))
-                loaded = await get_terminal_skill(
-                    request,
-                    user.model_dump(),
-                    metadata,
-                    skill_name,
-                    extra_params,
-                    overview=True,
-                    tools_enabled=use_builtin_tools and model_builtin_tools.get('skills', True),
-                )
-                if loaded:
-                    form_data['messages'] = add_or_update_system_message(
-                        format_terminal_skill_context(
-                            loaded, sid, use_builtin_tools and model_builtin_tools.get('skills', True)
-                        ),
-                        form_data['messages'],
-                        append=True,
-                    )
-            else:
-                skill_manifest += format_terminal_skill_manifest_entry(skill)
-
-        if skill_manifest:
-            form_data['messages'] = add_or_update_system_message(
-                f'<available_skills>\n{skill_manifest}</available_skills>',
-                form_data['messages'],
-                append=True,
-            )
-
-    # Strip only resolved skill mentions; ordinary text such as Perl's <$fh> stays intact.
-    resolved_skill_ids = {s.id for s in available_skills} | {s['id'] for s in terminal_skills}
-    chat_context['mentioned_skill_ids'] = sorted(mentioned_skill_ids & resolved_skill_ids)
-    strip_skill_mentions(form_data.get('messages', []), resolved_skill_ids)
-
-    if metadata.get('mh_agent_enabled') and use_builtin_tools:
-        form_data['messages'] = add_or_update_system_message(
-            'Mini-Hermes document agent is active. Available bundled skills: '
-            'docx, pdf, pptx, xlsx. Read the relevant SKILL.md with '
-            'read_document_skill before using its scripts. Work only with '
-            'documents granted to this chat. Use run_document_code or '
-            'run_skill_script to prepare and inspect files. publish_document_output '
-            'creates a staged proposal for review; it does not save a changed revision. '
-            'Never claim that a file changed or was saved until the approved commit succeeds.',
-            form_data['messages'],
-            append=True,
-        )
-
-    prompt = get_last_user_message(form_data['messages'])
-    # Supply fallback text for skill-only messages; some providers reject empty content.
-    if not prompt or not prompt.strip():
-        fallback = ', '.join([s.name for s in available_skills] + [s['name'] for s in terminal_skills])
-        # Attachment-only messages keep their empty text, same as on models without skills.
-        if fallback and not (metadata.get('user_message') or {}).get('files'):
-            set_last_user_message_content(fallback, form_data['messages'])
-            prompt = fallback
     # TODO: re-enable URL extraction from prompt
     # urls = []
     # if prompt and len(prompt or "") < 500 and (not files or len(files) == 0):

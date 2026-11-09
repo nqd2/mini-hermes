@@ -82,6 +82,7 @@
 	import { getSessionUser } from '$lib/apis/auths';
 	import { createFileInputLifecycle } from './fileInputLifecycle';
 	import { createPromptVariableController } from './MessageInput/promptVariableController';
+	import { createPromptInsertionController } from './MessageInput/promptInsertionController';
 	import {
 		findFilesystemChatUploadTerminal,
 		uploadFilesystemChatAttachment
@@ -561,42 +562,22 @@
 		submitPrompt(prompt);
 	};
 
-	const insertTextAtCursor = async (text: string) => {
-		const chatInput = document.getElementById(inputId);
-		if (!chatInput) return;
-
-		text = await textVariableHandler(text);
-
-		if (command) {
-			replaceCommandWithText(text);
-		} else {
+	const promptInsertionController = createPromptInsertionController({
+		getInputElement: () => document.getElementById(inputId),
+		resolveTextVariables: textVariableHandler,
+		getCommand: () => command,
+		replaceCommandWithText,
+		insertContent: (text) => {
 			chatInputElement?.insertContent(text);
-		}
-
-		await tick();
-		text = await inputVariableHandler(text);
-		await tick();
-
-		const chatInputContainer = document.getElementById(`${inputId}-container`);
-		if (chatInputContainer) {
-			chatInputContainer.scrollTop = chatInputContainer.scrollHeight;
-		}
-
-		await tick();
-		if (chatInput) {
-			focus({ preventScroll: true });
-			chatInput.dispatchEvent(new Event('input'));
-
-			const words = extractCurlyBraceWords(prompt);
-
-			if (words.length > 0) {
-				const word = words.at(0);
-				await tick();
-			} else {
-				chatInput.scrollTop = chatInput.scrollHeight;
-			}
-		}
-	};
+		},
+		tick,
+		resolveInputVariables: inputVariableHandler,
+		getInputContainer: () => document.getElementById(`${inputId}-container`),
+		focus,
+		getPrompt: () => prompt,
+		extractCurlyBraceWords
+	});
+	const insertTextAtCursor = promptInsertionController.insertTextAtCursor;
 
 	const replaceSlashRangeWithPrompt = async (editor, range, text: string) => {
 		text = await textVariableHandler(text);

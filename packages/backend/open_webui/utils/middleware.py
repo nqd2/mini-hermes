@@ -131,6 +131,7 @@ from open_webui.utils.chat_runtime.response_context import (
 from open_webui.utils.chat_runtime.response_context import (
     build_response_context as build_response_context_service,
 )
+from open_webui.utils.chat_runtime.response_delta import ResponseDeltaBuffer
 from open_webui.utils.chat_runtime.skill_context import (
     ChatSkillContextAdapters,
     load_chat_skill_services,
@@ -1426,86 +1427,34 @@ async def streaming_chat_response_handler(response, ctx):
                         CHAT_RESPONSE_STREAM_DELTA_CHUNK_SIZE,
                         int(metadata.get('params', {}).get('stream_delta_chunk_size') or 1),
                     )
-                    last_delta_data = None
-                    last_delta_type = None
-                    last_delta_key = None
-
-                    def get_response_data_with_full_output_index(response_data: dict):
-                        if prior_output and isinstance(response_data.get('output_index'), int):
-                            return {
-                                **response_data,
-                                'output_index': response_data['output_index'] + len(prior_output),
-                            }
-                        if prior_output and isinstance(response_data.get('response'), dict):
-                            # response.output is this round only; the response.completed reducer drops earlier rounds
-                            return {
-                                **response_data,
-                                'response': {
-                                    key: value for key, value in response_data['response'].items() if key != 'output'
-                                },
-                            }
-                        return response_data
+                    delta_buffer = ResponseDeltaBuffer(
+                        event_emitter=event_emitter,
+                        save_response_delta=save_response_delta,
+                        get_response_delta_key=get_response_delta_key,
+                        full_output=full_output,
+                        continuing=continuing,
+                        delta_chunk_size=delta_chunk_size,
+                        prior_output=prior_output,
+                        append_to_text_field=append_to_text_field,
+                    )
 
                     async def flush_pending_delta_data(threshold: int = 0):
-                        nonlocal delta_count
-                        nonlocal last_delta_data
-                        nonlocal last_delta_type
-                        nonlocal last_delta_key
-
-                        if delta_count >= threshold and last_delta_data:
-                            await event_emitter(
-                                {
-                                    'type': 'chat:completion' if continuing else 'response:completion',
-                                    'data': {'output': full_output(), 'type': last_delta_data.get('type')}
-                                    if continuing
-                                    else last_delta_data,
-                                }
-                            )
-                            delta_count = 0
-                            last_delta_data = None
-                            last_delta_type = None
-                            last_delta_key = None
+                        await delta_buffer.flush_pending(threshold)
 
                     async def queue_pending_delta_data(delta_data: dict, delta_type: str):
-                        nonlocal delta_count
-                        nonlocal last_delta_data
-                        nonlocal last_delta_type
-                        nonlocal last_delta_key
-
-                        delta_data = get_response_data_with_full_output_index(delta_data)
-                        await save_response_delta(delta_data)
-                        delta_key = get_response_delta_key(delta_data)
-                        if (
-                            last_delta_data
-                            and last_delta_key == delta_key
-                            and isinstance(last_delta_data.get('delta'), str)
-                            and isinstance(delta_data.get('delta'), str)
-                        ):
-                            append_to_text_field(last_delta_data, 'delta', delta_data['delta'])
-                            delta_count += 1
-                        else:
-                            if last_delta_data and (last_delta_type != delta_type or last_delta_key != delta_key):
-                                await flush_pending_delta_data()
-
-                            delta_count += 1
-                            last_delta_data = delta_data
-                            last_delta_type = delta_type
-                            last_delta_key = delta_key
-
-                        if delta_count >= delta_chunk_size:
-                            await flush_pending_delta_data(delta_chunk_size)
+                        await delta_buffer.queue(delta_data, delta_type)
 
                     async def emit_response_completion_event(response_data: dict):
                         nonlocal stream_size
                         if response_data.get('type', '').endswith('.delta'):
-                            await queue_pending_delta_data(
+                            await delta_buffer.queue(
                                 response_data,
                                 response_data.get('type', 'response.delta'),
                             )
                             return
 
-                        response_data = get_response_data_with_full_output_index(response_data)
-                        await flush_pending_delta_data()
+                        response_data = delta_buffer.with_prior_output(response_data)
+                        await delta_buffer.flush_pending()
                         await event_emitter(
                             {
                                 'type': 'chat:completion' if continuing else 'response:completion',

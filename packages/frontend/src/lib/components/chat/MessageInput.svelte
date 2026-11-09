@@ -78,6 +78,7 @@
 	import { getSessionUser } from '$lib/apis/auths';
 	import { createFileInputLifecycle } from './fileInputLifecycle';
 	import { createPromptVariableController } from './MessageInput/promptVariableController';
+	import { createPromptComparisonController } from './MessageInput/promptComparisonController';
 	import { createPromptInsertionController } from './MessageInput/promptInsertionController';
 	import { createSlashPromptInsertionController } from './MessageInput/slashPromptInsertionController';
 	import { createResourceDropController } from './MessageInput/resourceDropController';
@@ -619,40 +620,24 @@
 	let ComparisonModal: typeof import('../common/DiffEditorModal.svelte').default | null = null;
 	// Preserve the previous comparison description in the translation catalogs.
 	// $i18n.t('Uses the left working copy as your prompt.');
-	let comparisonTarget: {
-		chatId: string;
-		input: RichTextInput;
-		content: string;
-	} | null = null;
+	let comparisonTarget: { content: string } | null = null;
 
-	const openComparison = async () => {
-		if (comparisonLoading) return;
-		comparisonLoading = true;
-		const target = { chatId, input: chatInputElement };
-		try {
-			ComparisonModal = (await import('../common/DiffEditorModal.svelte')).default;
-			if (!target.input || target.chatId !== chatId || target.input !== chatInputElement) return;
-			comparisonTarget = { chatId, input: target.input, content: prompt };
+	const promptComparisonController = createPromptComparisonController({
+		getCurrentContext: () => ({ chatId, input: chatInputElement, prompt }),
+		loadModal: async () => (await import('../common/DiffEditorModal.svelte')).default,
+		onLoadingChange: (loading) => (comparisonLoading = loading),
+		onOpen: ({ modal, target }) => {
+			ComparisonModal = modal;
+			comparisonTarget = target;
 			showComparison = true;
-		} catch {
-			toast.error($i18n.t('Could not open comparison. Please try again.'));
-		} finally {
-			comparisonLoading = false;
-		}
-	};
-
-	const applyComparisonToPrompt = (text: string) => {
-		if (
-			!chatInputElement ||
-			comparisonTarget?.chatId !== chatId ||
-			comparisonTarget?.input !== chatInputElement ||
-			comparisonTarget?.content !== prompt
-		)
-			throw new Error($i18n.t('The prompt has changed. Reopen the comparison before applying.'));
-		// The editor's literal setter preserves mentions without expanding prompt variables.
-		if (text !== comparisonTarget.content) chatInputElement.setText(text);
-		void tick().then(() => focus());
-	};
+		},
+		onError: () => toast.error($i18n.t('Could not open comparison. Please try again.')),
+		onApplied: () => void tick().then(() => focus()),
+		getStaleTargetError: () =>
+			new Error($i18n.t('The prompt has changed. Reopen the comparison before applying.'))
+	});
+	const openComparison = promptComparisonController.open;
+	const applyComparisonToPrompt = promptComparisonController.apply;
 
 	export let dragged = false;
 	export let dropzoneId = 'chat-pane';

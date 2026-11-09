@@ -2,6 +2,7 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
@@ -173,6 +174,50 @@ async def test_chat_route_runs_bounded_resource_evidence_before_provider(monkeyp
         SimpleNamespace(id='alice', role='user', name='Alice'),
     )
 
+    assert result['answer'] == 'Program 301'
+    assert result['sources'][0]['metadata'][0]['evidence_id'] == evidence_id
+    assert len(provider_requests) == 1
+
+
+def test_chat_completion_http_route_binds_user_body_and_resource_files(monkeypatch):
+    main = importlib.import_module('open_webui.main')
+    middleware = importlib.import_module('open_webui.utils.middleware')
+    resource_service = importlib.import_module('open_webui.mini_hermes.resource_service')
+
+    prompt = 'Which program is related to Computer Science?'
+    attachment = {'type': 'file', 'id': 'upload-1', 'name': 'programs.xlsx'}
+    evidence_id = 'evidence-program-301-http'
+    model_id = 'qwen3.7-plus'
+    model = {**_build_model(model_id), 'direct': False}
+    _install_model_configuration(monkeypatch, main, model_id, model)
+    user = SimpleNamespace(id='alice', role='user', name='Alice')
+    monkeypatch.setitem(main.app.dependency_overrides, main.get_verified_user, lambda: user)
+    monkeypatch.setattr(main, 'BYPASS_MODEL_ACCESS_CONTROL', True)
+
+    async def no_saved_model(_model_id):
+        return None
+
+    monkeypatch.setattr(main.Models, 'get_model_by_id', no_saved_model)
+    provider_requests = _install_chat_adapters(
+        monkeypatch, main, middleware, resource_service, attachment, prompt, evidence_id
+    )
+
+    response = TestClient(main.app).post(
+        '/api/chat/completions',
+        json={
+            'model': model_id,
+            'messages': [{'role': 'user', 'content': prompt, 'files': [attachment]}],
+            'files': [attachment],
+            'user_message': {'id': 'user-message-http', 'content': prompt, 'files': [attachment]},
+            'id': 'assistant-message-http',
+            'params': {},
+            'stream': False,
+            'tools': [],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
     assert result['answer'] == 'Program 301'
     assert result['sources'][0]['metadata'][0]['evidence_id'] == evidence_id
     assert len(provider_requests) == 1

@@ -24,6 +24,7 @@
 	} from './chatRequestPayload';
 	import { applyChatRequestFailure, applyOpenAIResponseError } from './chatRequestFailure';
 	import { handleChatCompletionResponse } from './chatCompletionResponseHandler';
+	import { adoptChatResponse } from './chatResponseAdoption';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -4038,51 +4039,26 @@
 
 		if (responseOutcome === 'success') {
 			// Finish new-chat setup only if navigation has not changed the active chat during the request.
-			if (
-				res.chat_id &&
-				history.messages[responseMessageId] &&
-				res.chat_id !== _chatId &&
-				($chatId === _chatId || $chatId === res.chat_id)
-			) {
-				chatRequestQueues.update((q) => {
-					if (!q[_chatId]?.length) return q;
-
-					const { [_chatId]: pendingQueue, ...rest } = q;
-					return {
-						...rest,
-						[res.chat_id]: [
-							...pendingQueue.map((entry) => ({
-								...entry,
-								files: entry.files.map((file) =>
-									file.type === 'filesystem' && file.session_id == null
-										? { ...file, session_id: res.chat_id }
-										: file
-								)
-							})),
-							...(rest[res.chat_id] ?? [])
-						]
-					};
-				});
-				for (const file of userMessage?.files ?? [])
-					if (file.type === 'filesystem' && file.session_id == null)
-						file.session_id = res.chat_id;
-				for (const file of history.messages[userMessage.id]?.files ?? [])
-					if (file.type === 'filesystem' && file.session_id == null)
-						file.session_id = res.chat_id;
-				await chatId.set(res.chat_id);
-				if (!$temporaryChatEnabled && !embedded) {
-					// Carry the picks made on the new-chat page over to this chat
-					saveDraft(getChatInputDraft(), res.chat_id, false);
-					window.history.replaceState(window.history.state, '', `/c/${res.chat_id}`);
-					await refreshChatList(localStorage.token);
-
-					// Save chat params omitted from the completion request; the backend already saves files.
-					if (Object.keys(params).length > 0) {
-						await updateChatParams(localStorage.token, res.chat_id, params);
-					}
-				}
-				await processNextInQueue(res.chat_id);
-			}
+			await adoptChatResponse({
+				responseChatId: res.chat_id,
+				requestChatId: _chatId,
+				activeChatId: $chatId,
+				hasResponseMessage: !!history.messages[responseMessageId],
+				userMessage,
+				parentMessage: history.messages[userMessage?.id],
+				queueStore: chatRequestQueues,
+				temporaryChatEnabled: $temporaryChatEnabled,
+				embedded,
+				token: localStorage.token,
+				params,
+				setChatId: (id) => chatId.set(id),
+				getDraft: getChatInputDraft,
+				saveDraft,
+				replaceUrl: (url) => window.history.replaceState(window.history.state, '', url),
+				refreshChatList,
+				updateChatParams,
+				processNextInQueue
+			});
 		}
 
 		await tick();

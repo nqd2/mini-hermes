@@ -17,6 +17,7 @@
 	import { buildChatRequestFiles } from './chatResourceManifest';
 	import { buildChatRequestMessages } from './chatRequestMessages';
 	import { buildChatRequestToolRouting } from './chatRequestToolRouting';
+	import { buildChatRequestPayload } from './chatRequestPayload';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -3986,66 +3987,52 @@
 		const useChatVariablesFallback =
 			!_chatId || $temporaryChatEnabled || isTemporaryChatId(_chatId);
 
+		const requestPayload = buildChatRequestPayload({
+			stream,
+			modelId: model.id,
+			messages,
+			settingsParams: $settings?.params,
+			modelParams: params,
+			stop: getStopTokens(),
+			files,
+			embedded,
+			noteFiles,
+			toolRouting,
+			features: getFeatures(),
+			variables: getPromptVariables(
+				$user?.name,
+				$settings?.userLocation ? userLocation : undefined,
+				$user?.email
+			),
+			includeChatVariables: useChatVariablesFallback,
+			chatVariables,
+			modelItem: $models.find((m) => m.id === model.id),
+			sessionId: $socket?.id,
+			chatId: _chatId,
+			folderId: $selectedFolder?.id ?? undefined,
+			responseMessageId,
+			messageIdsList,
+			userMessage,
+			regenerationPrompt,
+			regenerationMessageId,
+			continueResponse,
+			backgroundTasks: {
+				...(!$temporaryChatEnabled &&
+				(!_chatId ||
+					((userMessage?.parentId ?? null) === null &&
+						createMessagesList(_history, responseMessageId).length === 2))
+					? {
+							title_generation: $settings?.title?.auto ?? true,
+							tags_generation: $settings?.autoTags ?? true
+						}
+					: {}),
+				follow_up_generation: $settings?.autoFollowUps ?? true
+			}
+		});
+
 		const res = await generateOpenAIChatCompletion(
 			localStorage.token,
-			{
-				stream: stream,
-				model: model.id,
-				...(messages.length > 0 ? { messages } : {}),
-				params: {
-					...$settings?.params,
-					...Object.fromEntries(Object.entries(params).filter(([, value]) => value !== null)),
-					model_controls: $settings?.params?.model_controls ?? {},
-					stop: getStopTokens()
-				},
-
-				files: embedded
-					? [...(files ?? []), ...noteFiles]
-					: (files?.length ?? 0) > 0
-						? files
-						: undefined,
-
-				filter_ids: toolRouting.filterIds,
-				tool_ids: toolRouting.toolIds,
-				skill_ids: toolRouting.skillIds,
-				terminal_id: toolRouting.terminalId,
-				tool_servers: toolRouting.toolServers,
-				features: getFeatures(),
-				variables: {
-					...getPromptVariables(
-						$user?.name,
-						$settings?.userLocation ? userLocation : undefined,
-						$user?.email
-					)
-				},
-				...(useChatVariablesFallback ? { chat_variables: chatVariables } : {}),
-				model_item: $models.find((m) => m.id === model.id),
-
-				session_id: $socket?.id,
-				chat_id: _chatId || undefined,
-				folder_id: $selectedFolder?.id ?? undefined,
-
-				id: responseMessageId,
-				...(messageIdsList ? { message_ids: messageIdsList } : {}),
-				parent_id: userMessage?.parentId ?? null,
-				user_message: userMessage,
-				...(regenerationPrompt ? { regeneration_prompt: regenerationPrompt } : {}),
-				...(regenerationMessageId ? { regeneration_message_id: regenerationMessageId } : {}),
-				...(continueResponse ? { assistant_message_id: responseMessageId } : {}),
-
-				background_tasks: {
-					...(!$temporaryChatEnabled &&
-					(!_chatId ||
-						((userMessage?.parentId ?? null) === null &&
-							createMessagesList(_history, responseMessageId).length === 2))
-						? {
-								title_generation: $settings?.title?.auto ?? true,
-								tags_generation: $settings?.autoTags ?? true
-							}
-						: {}),
-					follow_up_generation: $settings?.autoFollowUps ?? true
-				}
-			},
+			requestPayload,
 			`${WEBUI_BASE_URL}/api`
 		).catch(async (error) => {
 			console.log(error);

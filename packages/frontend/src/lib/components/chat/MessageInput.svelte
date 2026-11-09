@@ -79,6 +79,7 @@
 	import { createFileInputLifecycle } from './fileInputLifecycle';
 	import { createPromptVariableController } from './MessageInput/promptVariableController';
 	import { createPromptComparisonController } from './MessageInput/promptComparisonController';
+	import { createCompositionGuard } from './MessageInput/compositionGuard';
 	import { createPromptInsertionController } from './MessageInput/promptInsertionController';
 	import { createSlashPromptInsertionController } from './MessageInput/slashPromptInsertionController';
 	import { createResourceDropController } from './MessageInput/resourceDropController';
@@ -587,23 +588,9 @@
 	let loaded = false;
 	let recording = false;
 
-	let isComposing = false;
-	// Safari has a bug where compositionend is not triggered correctly #16615
-	// when using the virtual keyboard on iOS.
-	let compositionEndedAt = -2e8;
 	const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-	function inOrNearComposition(event: Event) {
-		if (isComposing) {
-			return true;
-		}
-		// On Safari, ignore one keydown within 500 ms of compositionend so confirming IME text adds no newline.
-		// See https://www.stum.de/2016/06/24/handling-ime-events-in-javascript/.
-		if (isSafari && Math.abs(event.timeStamp - compositionEndedAt) < 500) {
-			compositionEndedAt = -2e8;
-			return true;
-		}
-		return false;
-	}
+	const compositionGuard = createCompositionGuard(isSafari);
+	const inOrNearComposition = compositionGuard.shouldIgnore;
 
 	let chatInputContainerElement;
 	let chatInputElement: RichTextInput;
@@ -1778,11 +1765,8 @@
 														return res;
 													}}
 													{suggestions}
-													oncompositionstart={() => (isComposing = true)}
-													oncompositionend={(e) => {
-														compositionEndedAt = e.timeStamp;
-														isComposing = false;
-													}}
+									oncompositionstart={compositionGuard.onCompositionStart}
+									oncompositionend={compositionGuard.onCompositionEnd}
 													on:keydown={async (e) => {
 														const keyEvent = e.detail.event as unknown as KeyboardEvent;
 

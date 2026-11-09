@@ -15,6 +15,7 @@
 	import { createChatRequestQueueController } from './chatRequestQueueController';
 	import { createChatFileAskController } from './chatFileAskController';
 	import { buildChatRequestFiles } from './chatResourceManifest';
+	import { buildChatRequestMessages } from './chatRequestMessages';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -3959,77 +3960,14 @@
 			params?.stream_response ??
 			$settings?.params?.stream_response ??
 			true;
-		// Always include system prompt — backend extracts it and prepends to DB messages.
-		// Only temp chats need conversation messages (persisted chats load from DB).
-		let messages: any[] = [
-			params?.system || $settings.system
-				? {
-						role: 'system',
-						content: `${params?.system || $settings?.system || ''}`
-					}
-				: undefined
-		].filter(Boolean);
-
-		if ($temporaryChatEnabled) {
-			messages = [
-				...messages,
-				..._messages.map((message) => ({
-					...message,
-					...(message.output && message.role === 'assistant'
-						? { output: message.output }
-						: { content: processDetails(message.content) })
-				}))
-			].filter((message) => message);
-
-			messages = messages
-				.map((message) => {
-					const imageFiles = (message?.files ?? []).filter(
-						(file) => file.type === 'image' || isRasterImageContentType(file?.content_type)
-					);
-
-					if (message.output && message.role === 'assistant') {
-						return {
-							role: message.role,
-							model: message.model,
-							output: message.output,
-							meta: message.meta
-						};
-					}
-
-					if (message.role === 'user' && imageFiles.length > 0) {
-						return {
-							id: message.id,
-							role: message.role,
-							contextSummary: message?.contextSummary,
-							content: [
-								{
-									type: 'text',
-									text: message?.merged?.content ?? message.content
-								},
-								...imageFiles.map((file) => ({
-									type: 'image_url',
-									image_url: {
-										url: file.url
-									}
-								}))
-							]
-						};
-					}
-
-					return {
-						id: message.id,
-						role: message.role,
-						contextSummary: message?.contextSummary,
-						content: message?.merged?.content ?? message.content,
-						model: message.model,
-						meta: message.meta
-					};
-				})
-				.filter(
-					(message) =>
-						message?.role === 'user' || message?.content?.trim() || message?.output?.length
-				);
-		}
+		// Persisted chat history is loaded server-side; only temporary chats send it here.
+		const messages = buildChatRequestMessages({
+			systemPrompt: params?.system || $settings.system,
+			isTemporaryChat: $temporaryChatEnabled,
+			historyMessages: _messages,
+			processDetails,
+			isRasterImageContentType
+		});
 
 		const toolIds = [];
 		const toolServerIds = [];

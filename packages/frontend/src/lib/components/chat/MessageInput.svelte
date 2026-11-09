@@ -80,6 +80,7 @@
 	import { createPromptVariableController } from './MessageInput/promptVariableController';
 	import { createPromptInsertionController } from './MessageInput/promptInsertionController';
 	import { createSlashPromptInsertionController } from './MessageInput/slashPromptInsertionController';
+	import { createResourceDropController } from './MessageInput/resourceDropController';
 	import {
 		findFilesystemChatUploadTerminal,
 		uploadFilesystemChatAttachment
@@ -1150,86 +1151,25 @@
 		dragged = false;
 	};
 
-	const onDrop = async (e: DragEvent) => {
-		e.preventDefault();
-		console.log(e);
-
-		// Check if the dropped data is a sidebar chat, folder, note, or model item
-		const textData = e.dataTransfer?.getData('text/plain');
-		if (textData) {
-			try {
-				const data = JSON.parse(textData);
-				if (data.type === 'chat' && data.id) {
-					// Fetch the chat title so the attachment arrives with a name tag.
-					const chat = await getChatById(localStorage.token, data.id);
-					if (chat) {
-						const chatItem = {
-							type: 'chat',
-							id: chat.id,
-							name: chat.title,
-							collection_name: '',
-							status: 'processed'
-						};
-						attachmentCollection.addIfMissing(chatItem, (item) => item.id === chatItem.id);
-					}
-					dragged = false;
-					e.stopPropagation();
-					return;
-				} else if (data.type === 'folder' && data.id) {
-					// Fetch the folder name; an ID alone makes a poor introduction.
-					const folder = await getFolderById(localStorage.token, data.id);
-					if (folder) {
-						const folderItem = {
-							type: 'folder',
-							id: folder.id,
-							name: folder.name,
-							status: 'processed'
-						};
-						attachmentCollection.addIfMissing(folderItem, (item) => item.id === folderItem.id);
-					}
-					dragged = false;
-					e.stopPropagation();
-					return;
-				} else if (data.type === 'note' && data.id) {
-					// Fetch the note title before introducing it to the conversation.
-					const note = await getNoteById(localStorage.token, data.id);
-					if (note) {
-						const noteItem = {
-							type: 'note',
-							id: note.id,
-							name: note.title,
-							status: 'processed'
-						};
-						attachmentCollection.addIfMissing(noteItem, (item) => item.id === noteItem.id);
-					}
-					dragged = false;
-					e.stopPropagation();
-					return;
-				} else if (data.type === 'model' && data.id) {
-					// Find the model from the store and set as @-selected model
-					const model = $models.find((m) => m.id === data.id);
-					if (model) {
-						atSelectedModel = model;
-					}
-					dragged = false;
-					e.stopPropagation();
-					return;
-				}
-			} catch (_) {
-				// Not valid JSON — fall through to file handling
-			}
-		}
-
-		if (e.dataTransfer?.files) {
-			const inputFiles = Array.from(e.dataTransfer?.files);
-			if (inputFiles && inputFiles.length > 0) {
-				console.log(inputFiles);
-				inputFilesHandler(inputFiles);
-			}
-		}
-
-		dragged = false;
-	};
+	const resourceDropController = createResourceDropController({
+		getToken: () => localStorage.token,
+		getChat: getChatById,
+		getFolder: getFolderById,
+		getNote: getNoteById,
+		findModel: (id) => $models.find((model) => model.id === id),
+		addAttachmentIfMissing: (item, isDuplicate) =>
+			attachmentCollection.addIfMissing(item, isDuplicate),
+		selectModel: (model) => {
+			atSelectedModel = model;
+		},
+		handleFiles: (files) => inputFilesHandler(files),
+		setDragging: (value) => {
+			dragged = value;
+		},
+		logDrop: (event) => console.log(event),
+		logFiles: (files) => console.log(files)
+	});
+	const onDrop = resourceDropController.handleDrop;
 
 	const onKeyDown = (e: KeyboardEvent) => {
 		if (e.key === 'Shift') {

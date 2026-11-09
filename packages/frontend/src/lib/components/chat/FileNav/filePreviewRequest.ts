@@ -5,7 +5,9 @@ import type {
 } from './filePreviewLoader';
 
 export type FilePreviewRequestResult =
-  { status: 'stale' } | { status: 'loaded'; preview: FilePreviewData };
+  | { status: 'stale' }
+  | { status: 'loaded'; preview: FilePreviewData }
+  | { status: 'failed'; error: unknown };
 
 export type FilePreviewRequestDependencies = {
   path: string;
@@ -26,12 +28,19 @@ export type FilePreviewRequestDependencies = {
 export const loadCurrentFilePreviewRequest = async (
   dependencies: FilePreviewRequestDependencies,
 ): Promise<FilePreviewRequestResult> => {
-  const preview = await dependencies.loadPreview(
-    dependencies.path,
-    dependencies.terminal,
-    dependencies.sessionId,
-    dependencies.translate,
-  );
+  let preview: FilePreviewData;
+  try {
+    preview = await dependencies.loadPreview(
+      dependencies.path,
+      dependencies.terminal,
+      dependencies.sessionId,
+      dependencies.translate,
+    );
+  } catch (error) {
+    return dependencies.isCurrent()
+      ? { status: 'failed', error }
+      : { status: 'stale' };
+  }
   if (!dependencies.isCurrent()) {
     for (const url of [
       preview.fileImageUrl,

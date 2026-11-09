@@ -1050,6 +1050,16 @@
 			revokeObjectURL: URL.revokeObjectURL
 		});
 		if (previewResult.status === 'stale') return false;
+		if (previewResult.status === 'failed') {
+			fileContent = $i18n.t('Error previewing file: {{error}}', {
+				error:
+					previewResult.error instanceof Error
+						? previewResult.error.message
+						: $i18n.t('Unknown error')
+			});
+			fileLoading = false;
+			return false;
+		}
 		const next = previewResult.preview;
 		fileImageUrl = next.fileImageUrl;
 		fileVideoUrl = next.fileVideoUrl;

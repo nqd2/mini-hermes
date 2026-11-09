@@ -62,7 +62,7 @@ describe('loadCurrentFilePreviewRequest', () => {
     expect(revokeObjectURL).not.toHaveBeenCalled();
   });
 
-  it('propagates preview loader failures to the caller unchanged', async () => {
+  it('returns a current loader failure so the viewer can leave its loading state', async () => {
     const error = new Error('preview reader failed');
     const revokeObjectURL = vi.fn();
 
@@ -78,7 +78,25 @@ describe('loadCurrentFilePreviewRequest', () => {
         }),
         revokeObjectURL,
       }),
-    ).rejects.toBe(error);
+    ).resolves.toEqual({ status: 'failed', error });
     expect(revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('drops loader failures from a stale selection', async () => {
+    const error = new Error('old preview failed');
+
+    await expect(
+      loadCurrentFilePreviewRequest({
+        path: '/workspace/old.txt',
+        terminal,
+        sessionId: 'chat-1',
+        translate: (key) => key,
+        isCurrent: () => false,
+        loadPreview: vi.fn(async () => {
+          throw error;
+        }),
+        revokeObjectURL: vi.fn(),
+      }),
+    ).resolves.toEqual({ status: 'stale' });
   });
 });

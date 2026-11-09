@@ -87,6 +87,7 @@
 	} from './MessageInput/filesystemUpload';
 	import { createChatFileUploadController } from './MessageInput/chatFileUploadController';
 	import { createChatInputKeyboardController } from './MessageInput/chatInputKeyboardController';
+	import { isChatInputSendShortcut } from './MessageInput/chatInputSendShortcut';
 	import { processComposerFile } from './MessageInput/fileProcessing';
 	import { createAttachmentCollection } from './MessageInput/attachmentCollection';
 	import { createSuggestionAttachmentHandler } from './MessageInput/suggestionAttachmentHandler';
@@ -1785,18 +1786,17 @@
 														isComposing = false;
 													}}
 													on:keydown={async (e) => {
-														e = e.detail.event;
+														const keyEvent = e.detail.event as unknown as KeyboardEvent;
 
-														const isCtrlPressed = e.ctrlKey || e.metaKey; // metaKey is for Cmd key on Mac
 														const suggestionsContainerElement =
 															document.getElementById('suggestions-container');
 
-														if (e.key === 'Escape') {
+														if (keyEvent.key === 'Escape') {
 															stopResponse();
 														}
 
-														if (prompt === '' && e.key == 'ArrowUp') {
-															e.preventDefault();
+														if (prompt === '' && keyEvent.key == 'ArrowUp') {
+															keyEvent.preventDefault();
 
 															const userMessageElement = [
 																...(document
@@ -1825,23 +1825,12 @@
 																	navigator.msMaxTouchPoints > 0
 																)
 															) {
-																if (inOrNearComposition(e)) {
+																if (inOrNearComposition(keyEvent)) {
 																	return;
 																}
 
-																// Uses keyCode '13' for Enter key for chinese/japanese keyboards.
-																//
-																// Depending on the user's settings, it will send the message
-																// either when Enter is pressed or when Ctrl+Enter is pressed.
-																const enterPressed =
-																	($settings?.ctrlEnterToSend ?? false)
-																		? (e.key === 'Enter' || e.keyCode === 13) &&
-																			isCtrlPressed &&
-																			!e.shiftKey
-																		: (e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey;
-
-																if (enterPressed) {
-																	e.preventDefault();
+																if (isChatInputSendShortcut(keyEvent, $settings?.ctrlEnterToSend ?? false)) {
+																	keyEvent.preventDefault();
 																	if (
 																		!isProcessingInputFiles &&
 																		(prompt !== '' || files.length > 0)
@@ -1854,7 +1843,7 @@
 
 														if (
 															$settings?.keyboardShortcuts !== false &&
-															matchKeybinding(e) === Shortcut.CLEAR_INPUT_SELECTIONS
+															matchKeybinding(keyEvent) === Shortcut.CLEAR_INPUT_SELECTIONS
 														) {
 															console.log('Escape');
 															atSelectedModel = undefined;

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from open_webui.env import ENABLE_CHAT_RESPONSE_STREAM_INPLACE_APPEND
-from open_webui.utils.json_codec import JSONCodec
-from open_webui.utils.response import handle_responses_streaming_event, update_usage_snapshot
-from starlette.responses import JSONResponse
-from uuid import uuid4
 import copy
 import json
 import re
 import time
+from uuid import uuid4
+
+from starlette.responses import JSONResponse
+
+from open_webui.env import ENABLE_CHAT_RESPONSE_STREAM_INPLACE_APPEND
+from open_webui.utils.json_codec import JSONCodec
+from open_webui.utils.response import handle_responses_streaming_event, update_usage_snapshot
 
 
 def _start_tag_pattern(start_tag: str) -> str:
@@ -18,9 +20,34 @@ def _start_tag_pattern(start_tag: str) -> str:
         return rf'<{re.escape(start_tag[1:-1])}(\s.*?)?>'
     return re.escape(start_tag)
 
+
 def output_id(prefix: str) -> str:
     """Generate OR-style ID: prefix + 24-char hex UUID."""
     return f'{prefix}_{uuid4().hex[:24]}'
+
+
+def combine_stream_outputs(continuing: bool, prior_output: list, output: list) -> list:
+    """Merge the first assistant message across a continuation response."""
+    if (
+        continuing
+        and prior_output
+        and output
+        and prior_output[-1].get('type') == output[0].get('type') == 'message'
+        and prior_output[-1].get('role', 'assistant') == 'assistant'
+        and output[0].get('role', 'assistant') == 'assistant'
+    ):
+        return [
+            *prior_output[:-1],
+            {
+                **prior_output[-1],
+                **output[0],
+                'id': prior_output[-1].get('id'),
+                'content': [*prior_output[-1].get('content', []), *output[0].get('content', [])],
+            },
+            *output[1:],
+        ]
+    return prior_output + output if prior_output else output
+
 
 def append_to_text_field(item: dict, key: str, value: str) -> None:
     # Default: keep the existing field intact until concatenation succeeds.
@@ -35,6 +62,7 @@ def append_to_text_field(item: dict, key: str, value: str) -> None:
     item[key] = ''
     text += value
     item[key] = text
+
 
 def merge_streamed_reasoning_details(target: list, details) -> None:
     items = details if isinstance(details, list) else [details]
@@ -57,6 +85,7 @@ def merge_streamed_reasoning_details(target: list, details) -> None:
                 append_to_text_field(existing, key, value)
             else:
                 existing[key] = value
+
 
 def _split_tool_calls(
     tool_calls: list[dict],
@@ -113,7 +142,9 @@ def _split_tool_calls(
 
     return expanded
 
+
 RESPONSE_COMPLETION_RESPONSE_FIELDS = ('error', 'id', 'output', 'usage')
+
 
 def get_response_completion_event_data(event: dict) -> dict:
     """Build the data payload for response:completion events."""
@@ -127,6 +158,7 @@ def get_response_completion_event_data(event: dict) -> dict:
         **event,
         'response': response_data,
     }
+
 
 def get_response_data(response):
     if isinstance(response, list) and len(response) == 1:
@@ -148,6 +180,7 @@ def get_response_data(response):
 
     return response, response_data
 
+
 def merge_events_into_response(response_data, events):
     if events and isinstance(events, list):
         extra_response = {}
@@ -163,6 +196,7 @@ def merge_events_into_response(response_data, events):
         }
     return response_data
 
+
 def build_response_object(response, response_data):
     if isinstance(response, dict):
         return response_data
@@ -173,6 +207,7 @@ def build_response_object(response, response_data):
             status_code=response.status_code,
         )
     return response
+
 
 def update_assistant_message_from_stream(assistant_message, raw) -> bool:
     """Accumulate the message and report whether the chunk contains [DONE]."""

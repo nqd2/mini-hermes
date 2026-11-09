@@ -139,6 +139,7 @@ from open_webui.utils.chat_runtime.skill_context import (
 from open_webui.utils.chat_runtime.stream_state import (
     _split_tool_calls,
     append_to_text_field,
+    combine_stream_outputs,
     get_response_completion_event_data,
     merge_streamed_reasoning_details,
     output_id,
@@ -1301,25 +1302,7 @@ async def streaming_chat_response_handler(response, ctx):
             last_response_id = None
 
             def full_output():
-                if (
-                    continuing
-                    and prior_output
-                    and output
-                    and prior_output[-1].get('type') == output[0].get('type') == 'message'
-                    and prior_output[-1].get('role', 'assistant') == 'assistant'
-                    and output[0].get('role', 'assistant') == 'assistant'
-                ):
-                    return [
-                        *prior_output[:-1],
-                        {
-                            **prior_output[-1],
-                            **output[0],
-                            'id': prior_output[-1].get('id'),
-                            'content': [*prior_output[-1].get('content', []), *output[0].get('content', [])],
-                        },
-                        *output[1:],
-                    ]
-                return prior_output + output if prior_output else output
+                return combine_stream_outputs(continuing, prior_output, output)
 
             stream_size = 0
             snapshot_size = 0

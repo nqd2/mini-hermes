@@ -14,6 +14,7 @@
 	import { executeChatSubmission } from './chatSubmissionExecutor';
 	import { createChatRequestQueueController } from './chatRequestQueueController';
 	import { createChatFileAskController } from './chatFileAskController';
+	import { buildChatRequestFiles } from './chatResourceManifest';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
@@ -3924,26 +3925,16 @@
 		);
 		const requestTerminalId = filesystemAttachment?.terminal_id ?? $selectedTerminalId;
 
-		const chatMessageFiles = _messages
-			.filter((message) => message.files)
-			.flatMap((message) => message.files);
-
-		// Filter chatFiles to only include files that are in the chatMessageFiles
-		chatFiles = chatFiles.filter((item) => {
-			const fileExists = chatMessageFiles.some((messageFile) => messageFile.id === item.id);
-			return fileExists;
+		const chatRequestFiles = buildChatRequestFiles({
+			chatFiles,
+			messages: _messages,
+			userFiles: userMessage?.files ?? [],
+			cloneTrackedFiles: (trackedFiles) => structuredClone(trackedFiles),
+			isRasterImageContentType,
+			equal
 		});
-
-		let files = structuredClone(chatFiles);
-		files.push(
-			...(userMessage?.files ?? []).filter(
-				(item) =>
-					['doc', 'text', 'note', 'chat', 'collection', 'folder'].includes(item.type) ||
-					(item.type === 'file' && !isRasterImageContentType(item?.content_type))
-			)
-		);
-		// One copy per attachment; the model does not need an encore.
-		files = files.filter((item, index, array) => array.findIndex((i) => equal(i, item)) === index);
+		chatFiles = chatRequestFiles.chatFiles;
+		const files = chatRequestFiles.files;
 
 		scrollToBottom();
 		eventTarget.dispatchEvent(

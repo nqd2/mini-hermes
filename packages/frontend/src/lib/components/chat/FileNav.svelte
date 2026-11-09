@@ -6,6 +6,7 @@
 	import { createFileNavRequestLifecycle } from './FileNav/fileNavRequestLifecycle';
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import { createFileMutationController } from './FileNav/fileMutationController';
+	import { createFileMutationWorkflowController } from './FileNav/fileMutationWorkflowController';
 	import { createFileDownloadController } from './FileNav/fileDownloadController';
 	import { createFileContentMatchController } from './FileNav/fileContentMatchController';
 	import { createBulkDownloadPlan, deleteSelectedFilePaths } from './FileNav/fileBulkActions';
@@ -1318,47 +1319,6 @@
 		return asDirectoryPath(index >= 0 ? cleanSource.slice(0, index + 1) : currentPath);
 	};
 
-	const moveOne = async (source: string, destFolder: string) => {
-		const result = await fileMutationController.move(source, destFolder);
-		if (result.status === 'failed') {
-			toast.error(result.error);
-			return false;
-		}
-		if (result.status !== 'moved') return false;
-
-		toast.success($i18n.t('Moved {{name}}', { name: result.name }));
-		return true;
-	};
-
-	const refreshAfterMove = async (sources: string[], destFolder: string) => {
-		invalidateTreeCache(currentPath, destFolder, ...sources, ...sources.map(sourceParentPath));
-		clearSelection();
-		await refreshBrowser();
-	};
-
-	const handleMovePaths = async (sources: string[], destFolder: string) => {
-		const movedSources: string[] = [];
-		for (const source of sources) {
-			if (await moveOne(source, destFolder)) movedSources.push(source);
-		}
-		if (movedSources.length > 0) {
-			await refreshAfterMove(movedSources, destFolder);
-		}
-	};
-
-	// Rename
-	const handleRename = async (oldPath: string, newName: string) => {
-		const result = await fileMutationController.rename(oldPath, newName);
-		if (result.status === 'blocked' || result.status === 'invalid') return;
-		if (result.status === 'failed') {
-			toast.error(result.error);
-		} else {
-			toast.success($i18n.t('Renamed to {{name}}', { name: result.name }));
-		}
-		invalidateTreeCache(currentPath, oldPath);
-		await refreshBrowser();
-	};
-
 	// Multi-select
 	let selectedEntries: Set<string> = new Set();
 	let lastClickedIndex: number | null = null;
@@ -1384,6 +1344,22 @@
 		lastClickedIndex = null;
 		selectionMode = false;
 	};
+
+	const fileMutationWorkflowController = createFileMutationWorkflowController({
+		move: (source, destinationFolder) => fileMutationController.move(source, destinationFolder),
+		rename: (oldPath, newName) => fileMutationController.rename(oldPath, newName),
+		getCurrentPath: () => currentPath,
+		sourceParentPath,
+		invalidateTreeCache: (...paths) => invalidateTreeCache(...paths),
+		clearSelection,
+		refreshBrowser,
+		onMoveFailed: (error) => toast.error(error),
+		onMoved: (name) => toast.success($i18n.t('Moved {{name}}', { name })),
+		onRenameFailed: (error) => toast.error(error),
+		onRenamed: (name) => toast.success($i18n.t('Renamed to {{name}}', { name }))
+	});
+	const handleMovePaths = fileMutationWorkflowController.movePaths;
+	const handleRename = fileMutationWorkflowController.renamePath;
 
 	const selectAll = () => {
 		selectedEntries = selectAllFilePaths(visibleEntries.map((entry) => entry.fullPath));

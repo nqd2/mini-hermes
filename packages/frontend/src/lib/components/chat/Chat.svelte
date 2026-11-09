@@ -18,6 +18,7 @@
 	import { findPendingToolApproval } from './chatToolApproval';
 	import { createToolApprovalModeHandler } from './chatToolApprovalMode';
 	import { createChatTaskLifecycle } from './chatTaskLifecycle';
+	import { createManualContextCompactionController } from './chatManualCompaction';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -3556,70 +3557,39 @@
 		});
 	};
 
-	const handleManualCompact = async () => {
-		if (!contextCompactionEnabled) {
-			toast.message($i18n.t('Context compaction is disabled'));
-			return;
-		}
-
-		if (!$chatId || !history?.currentId) {
-			toast.message($i18n.t('No chat to compact'));
-			return;
-		}
-
-		const currentMessage = history.messages?.[history.currentId];
-		if (
-			generating ||
-			taskIds?.length ||
-			(currentMessage?.role === 'assistant' && !currentMessage.done)
-		) {
-			toast.warning($i18n.t('Wait for the current response to finish before compacting.'));
-			return;
-		}
-
-		const model = atSelectedModel?.id ?? selectedModels.find((modelId) => modelId);
-		// Preserve the former toast translation for i18n extraction.
-		// const toastId = toast.loading($i18n.t('Compacting context...'));
-		const compactChatId = $chatId;
-		const compactMessageId = history.currentId;
-		if ($contextCompactions[compactMessageId] === 'in_progress') return;
-		$contextCompactions = {
-			...$contextCompactions,
-			[compactMessageId]: 'in_progress'
-		};
-
-		try {
-			const result = await compactChatById(localStorage.token, compactChatId, model);
-			if ($chatId !== compactChatId) return;
-			serverContextUsage = result?.context_usage ?? serverContextUsage;
-
-			if (!result?.compacted) {
-				const skippedReason =
-					result?.reason === 'too_short'
-						? $i18n.t('Chat is too short to compact')
-						: result?.reason === 'empty'
-							? $i18n.t('No chat to compact')
-							: result?.reason === 'disabled'
-								? $i18n.t('Context compaction is disabled')
-								: $i18n.t('Nothing to compact');
-				toast.message(skippedReason);
-			}
-
-			await loadChat();
-			clearContextCompaction(compactMessageId);
-		} catch (error) {
-			if ($chatId === compactChatId) {
-				$contextCompactions = {
-					...$contextCompactions,
-					[compactMessageId]: {
-						error: String(error?.detail ?? error?.message ?? $i18n.t('Context compaction failed'))
-					}
-				};
-			}
-		} finally {
-			messageInput?.focus({ preventScroll: true });
-		}
-	};
+	// Preserve the former toast translation for i18n extraction.
+	// const toastId = toast.loading($i18n.t('Compacting context...'));
+	const manualContextCompactionController = createManualContextCompactionController({
+		isEnabled: () => contextCompactionEnabled,
+		getChatId: () => $chatId,
+		getCurrentMessage: () => ({
+			id: history.currentId,
+			message: history.currentId ? history.messages?.[history.currentId] : undefined
+		}),
+		isGenerating: () => generating,
+		hasPendingTasks: () => Boolean(taskIds?.length),
+		getModelId: () => atSelectedModel?.id ?? selectedModels.find((modelId) => modelId),
+		isInProgress: (messageId) => $contextCompactions[messageId] === 'in_progress',
+		markInProgress: (messageId) => {
+			$contextCompactions = { ...$contextCompactions, [messageId]: 'in_progress' };
+		},
+		clearStatus: clearContextCompaction,
+		markError: (messageId, error) => {
+			$contextCompactions = { ...$contextCompactions, [messageId]: { error } };
+		},
+		getToken: () => localStorage.token,
+		translate: (key) => $i18n.t(key),
+		notify: (kind, text) => (kind === 'warning' ? toast.warning(text) : toast.message(text)),
+		compactChat: compactChatById,
+		setServerContextUsage: (usage) => {
+			serverContextUsage = usage ?? serverContextUsage;
+		},
+		loadChat: () => loadChat(),
+		getErrorMessage: (error, fallback) =>
+			String((error as any)?.detail ?? (error as any)?.message ?? fallback),
+		focus: () => messageInput?.focus({ preventScroll: true })
+	});
+	const handleManualCompact = manualContextCompactionController.compact;
 
 	const handleStatusCommand = () => {
 		messageInput?.showStatus();

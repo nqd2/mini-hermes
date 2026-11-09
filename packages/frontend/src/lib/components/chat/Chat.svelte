@@ -14,6 +14,7 @@
 	import { executeChatSubmission } from './chatSubmissionExecutor';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
+	import { mergeChatHistoryMessages } from './chatHistoryMerge';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -1271,61 +1272,19 @@
 		incoming: typeof history,
 		baseline: Record<string, any> | null = null
 	) => {
-		const currentId = history.currentId;
-		const next = incoming?.messages ?? {};
-		// An edited prompt adds a sibling; other viewers should keep their selected branch.
-		const hasNewBranch = Object.values(next).some(
-			(message: any) =>
-				message.role === 'user' &&
-				!history.messages[message.id] &&
-				Object.values(history.messages).some(
-					(existing: any) => existing.role === 'user' && existing.parentId === message.parentId
-				)
+		const result = mergeChatHistoryMessages(
+			history,
+			incoming,
+			{
+				generating,
+				taskIds,
+				currentUserId: $user?.id,
+				fallbackOwnerId: chat?.user_id
+			},
+			baseline
 		);
-		const follow =
-			!hasNewBranch &&
-			!generating &&
-			!(
-				taskIds?.length &&
-				Object.values(history.messages).some(
-					(message: any) =>
-						message.role === 'assistant' &&
-						message.done === false &&
-						(message.user_id ?? chat?.user_id) === $user?.id
-				)
-			) &&
-			Object.keys(next).some((id) => !history.messages[id]);
-		for (const [id, message] of Object.entries(next) as [string, any][]) {
-			const local = history.messages[id];
-			const ownActive =
-				local?.done === false &&
-				(local.user_id ?? chat?.user_id) === $user?.id &&
-				(taskIds?.length || generating);
-			if (!local || (!ownActive && (!baseline || baseline[id] === local))) {
-				history.messages[id] = { ...local, ...message };
-				// Keep recovered replies finished unless their task is active or has been replaced.
-				if (
-					local?.done === true &&
-					message.done === false &&
-					local.meta?.task_id &&
-					local.meta.task_id === message.meta?.task_id &&
-					!taskIds?.includes(local.meta.task_id)
-				) {
-					history.messages[id].done = true;
-				}
-			}
-			if (local) {
-				history.messages[id] = {
-					...history.messages[id],
-					childrenIds: [...new Set([...(local.childrenIds ?? []), ...(message.childrenIds ?? [])])]
-				};
-			}
-		}
-		if ((!currentId || follow) && incoming.currentId && next[incoming.currentId]) {
-			history.currentId = incoming.currentId;
-			autoScrollToBottom();
-		}
-		history = history;
+		history = result.history;
+		if (result.followedIncoming) autoScrollToBottom();
 	};
 
 	const refreshChat = () => {

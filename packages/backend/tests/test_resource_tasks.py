@@ -88,6 +88,92 @@ async def test_summary_task_checkpoints_chunks_and_reduces_with_evidence(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_large_summary_reduces_multiple_groups_across_database_sessions(monkeypatch):
+    from open_webui.mini_hermes import resource_tasks
+
+    calls = []
+
+    async def summarize(text):
+        calls.append(text)
+        return f'summary-{len(calls)}:{text[:30]}'
+
+    monkeypatch.setattr(resource_tasks, 'summarize_with_provider', summarize)
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            lambda sync: Document.metadata.create_all(
+                sync,
+                tables=[
+                    Folder.__table__,
+                    Document.__table__,
+                    Revision.__table__,
+                    DocumentChunk.__table__,
+                    ResourceTask.__table__,
+                ],
+            )
+        )
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as db:
+        doc = Document(
+            id='doc-many',
+            owner_id='alice',
+            filename='large-report.txt',
+            mime_type='text/plain',
+            current_revision=1,
+        )
+        db.add_all(
+            [
+                doc,
+                Revision(
+                    id='rev-many',
+                    document_id=doc.id,
+                    number=1,
+                    object_key='large-report',
+                    sha256='b' * 64,
+                    size=130,
+                ),
+                *[
+                    DocumentChunk(
+                        id=f'chunk-{ordinal:02}',
+                        document_id=doc.id,
+                        revision=1,
+                        ordinal=ordinal,
+                        source_kind='text',
+                        section='document',
+                        start_offset=ordinal * 10,
+                        end_offset=(ordinal + 1) * 10,
+                        content=f'content for section {ordinal}',
+                    )
+                    for ordinal in range(13)
+                ],
+            ]
+        )
+        await db.commit()
+        task = await create_summary_task(db, doc, 'alice', 'chat-many')
+        task_id = task.id
+
+    # Reopen the DB session for every unit to prove that group cursors and evidence survive restarts.
+    for _ in range(25):
+        async with sessions() as db:
+            task = await db.get(ResourceTask, task_id)
+            if task.status == 'completed':
+                break
+            task.status = 'processing'
+            await process_summary_task(db, task)
+
+    async with sessions() as db:
+        task = await db.get(ResourceTask, task_id)
+        status = await get_summary_task(db, task_id, 'alice')
+        assert task.status == 'completed'
+        assert task.level == 1
+        assert status['progress']['completed_units'] == status['progress']['total_units']
+        assert status['evidence_ids'] == [f'chunk-{ordinal:02}' for ordinal in range(13)]
+        assert len(calls) == 16
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_cancel_and_resume_keeps_checkpoint_and_rejects_changed_revision():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:

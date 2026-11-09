@@ -149,6 +149,7 @@ from open_webui.utils.chat_runtime.stream_state import (
 )
 from open_webui.utils.chat_runtime.stream_tags import TagOutputTransformer
 from open_webui.utils.chat_runtime.tool_execution import execute_tool_call
+from open_webui.utils.chat_runtime.tool_resolution import ToolResolutionAdapters, resolve_chat_tools
 from open_webui.utils.chat_runtime.tool_results import (
     BASE64_IMAGE_DATA_URI_RE,
     _is_tool_result_error,
@@ -226,7 +227,12 @@ from open_webui.utils.task import (
     rag_template,
     tools_function_calling_generation_template,
 )
-from open_webui.utils.terminals import filter_user_terminal_tools, upload_files_to_terminal
+from open_webui.utils.terminals import (
+    add_terminal_agents_md,
+    filter_user_terminal_tools,
+    get_terminal_agents_md,
+    upload_files_to_terminal,
+)
 from open_webui.utils.tool_approval import complete_tool_call, pause_for_tool_approval, pending_tool_calls
 from open_webui.utils.tool_search import apply_tool_search, resolve_tool_call
 from open_webui.utils.tools import (
@@ -937,251 +943,44 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     )
     form_data['metadata'] = metadata
 
-    # When the caller provides an explicit `tools` key in the request body,
-    # skip all server-side tool resolution and pass the caller's tools through
-    # unchanged.  Sending `tools: []` explicitly opts out of builtin injection.
-    if payload_tools is None:
-        # Server side tools
-        tool_ids = metadata.get('tool_ids', None)
-        # Client side tools
-        direct_tool_servers = metadata.get('tool_servers', None)
-
-        log.debug('tool_ids=%r', tool_ids)
-        log.debug('direct_tool_servers=%r', direct_tool_servers)
-
-        tools_dict = {}
-
-        mcp_clients = {}
-        mcp_tools_dict = {}
-
-        if tool_ids:
-            resolved_tool_ids = []
-            for tool_id in tool_ids:
-                if tool_id.startswith('server:mcp:'):
-                    try:
-                        server_id = tool_id[len('server:mcp:') :]
-
-                        result = await connect_mcp_server(
-                            request,
-                            server_id,
-                            user,
-                            extra_params,
-                        )
-                        if result is None:
-                            continue
-
-                        client, tool_specs = result
-                        mcp_clients[server_id] = client
-
-                        if client.instructions:
-                            form_data['messages'] = add_or_update_system_message(
-                                f'MCP server {JSONCodec.dumps(server_id)} instructions:\n{client.instructions}',
-                                form_data['messages'],
-                                append=True,
-                            )
-
-                        for tool_spec in tool_specs:
-
-                            async def make_tool_function(client, function_name):
-                                async def tool_function(**kwargs):
-                                    return await client.call_tool(
-                                        function_name,
-                                        function_args=kwargs,
-                                    )
-
-                                return tool_function
-
-                            tool_function = await make_tool_function(client, tool_spec['name'])
-
-                            tool_name = f'{server_id}_{tool_spec["name"]}'
-                            # Providers reject tool names over 64 characters
-                            if len(tool_name) > 64:
-                                tool_name = f'{tool_name[:55]}_{hashlib.sha256(tool_name.encode()).hexdigest()[:8]}'
-
-                            mcp_tools_dict[tool_name] = {
-                                'spec': {
-                                    **tool_spec,
-                                    'name': tool_name,
-                                },
-                                'callable': tool_function,
-                                'type': 'mcp',
-                                'client': client,
-                                'direct': False,
-                            }
-                    except Exception:
-                        log.exception("Failed to connect to MCP server '%s'", server_id)
-                        if event_emitter:
-                            await event_emitter(
-                                {
-                                    'type': 'status',
-                                    'data': {
-                                        'action': 'tool_connection',
-                                        'description': f"Failed to connect to MCP server '{server_id}'",
-                                        'error': True,
-                                        'done': True,
-                                    },
-                                }
-                            )
-                        continue
-                else:
-                    resolved_tool_ids.append(tool_id)
-
-            if resolved_tool_ids:
-                tools_dict = await get_tools(
-                    request,
-                    resolved_tool_ids,
-                    user,
-                    {
-                        **extra_params,
-                        '__model__': models[task_model_id],
-                        '__messages__': form_data['messages'],
-                        '__files__': metadata.get('files') or [],
-                    },
-                )
-
-            if mcp_tools_dict:
-                tools_dict = {**tools_dict, **mcp_tools_dict}
-
-        # Resolve terminal tools if terminal_id is set (outside tool_ids check
-        # so system terminals work even when no other tools are selected)
-        terminal_capability = (model.get('info', {}).get('meta', {}).get('capabilities') or {}).get('terminal', True)
-        terminal_connection_ids = {
-            connection.get('id') for connection in await Config.get('terminal_server.connections', []) or []
-        }
-        if terminal_id and terminal_capability and terminal_id in terminal_connection_ids:
-            try:
-                terminal_result = await get_terminal_tools(
-                    request,
-                    terminal_id,
-                    user,
-                    extra_params,
-                )
-                if isinstance(terminal_result, tuple):
-                    terminal_tools, terminal_system_prompt = terminal_result
-                else:
-                    terminal_tools = terminal_result
-                    terminal_system_prompt = None
-                if terminal_tools:
-                    tools_dict = {**tools_dict, **terminal_tools}
-                if terminal_system_prompt:
-                    form_data['messages'] = add_or_update_system_message(
-                        terminal_system_prompt,
-                        form_data['messages'],
-                        append=True,
-                    )
-            except Exception as e:
-                log.exception(e)
-                raise HTTPException(status_code=503, detail=f'Terminal unavailable: {e}') from e
-
-        if direct_tool_servers:
-            for tool_server in direct_tool_servers:
-                if tool_server.get('is_terminal') is True and not terminal_capability:
-                    continue
-                # Copy so the pops below keep metadata intact for sub-agents and approval resumes
-                tool_server = dict(tool_server)
-                tool_server_system_prompt = tool_server.pop('system_prompt', None)
-                if tool_server_system_prompt:
-                    form_data['messages'] = add_or_update_system_message(
-                        tool_server_system_prompt,
-                        form_data['messages'],
-                        append=True,
-                    )
-
-                tool_specs = tool_server.pop('specs', [])
-
-                for tool in tool_specs:
-                    tools_dict[tool['name']] = {
-                        'spec': (
-                            get_builtin_tool_spec(display_file)
-                            if tool_server.get('is_terminal') and tool['name'] == 'display_file'
-                            else tool
-                        ),
-                        'direct': True,
-                        'server': tool_server,
-                    }
-
-        if terminal_id and terminal_capability:
-            from open_webui.utils.terminals import add_terminal_agents_md, get_terminal_agents_md
-
-            agents_md = await get_terminal_agents_md(request, user, metadata, extra_params)
-            if agents_md:
-                form_data['messages'] = add_terminal_agents_md(form_data['messages'], agents_md)
-
-        if mcp_clients:
-            metadata['mcp_clients'] = mcp_clients
-
-        # Inject builtin tools for native function calling based on enabled features and model capability.
-        # Only inject when the request originates from the UI (identified by session_id).
-        # API callers don't expect hidden tools; they can explicitly request tools via tool_ids.
-        if use_builtin_tools:
-            if model_builtin_tools.get('knowledge', True):
-                from html import escape
-
-                knowledge_tags = []
-                for item in get_attached_knowledge(model, metadata):
-                    if not item.get('id') or not item.get('type'):
-                        continue
-                    attrs = f'type="{escape(str(item["type"]), quote=True)}" id="{escape(str(item["id"]), quote=True)}"'
-                    if item.get('name'):
-                        attrs += f' name="{escape(str(item["name"]), quote=True)}"'
-                    if item.get('source'):
-                        attrs += f' source="{escape(str(item["source"]), quote=True)}"'
-                    knowledge_tags.append(f'<knowledge {attrs}/>')
-
-                if knowledge_tags:
-                    form_data['messages'] = add_or_update_system_message(
-                        '<attached_knowledge>\n' + '\n'.join(knowledge_tags) + '\n</attached_knowledge>',
-                        form_data['messages'],
-                        append=True,
-                    )
-
-            builtin_tools = await get_builtin_tools(
-                request,
-                {
-                    **extra_params,
-                    '__event_emitter__': event_emitter,
-                    '__skill_ids__': sorted(resolved_skill_ids),
-                },
-                features,
-                model,
-                is_note_chat=is_note_chat,
-            )
-            for name, tool_dict in builtin_tools.items():
-                if name not in tools_dict:
-                    tools_dict[name] = tool_dict
-                elif name == 'display_file' and (
-                    tools_dict[name].get('type') == 'terminal'
-                    or tools_dict[name].get('server', {}).get('is_terminal') is True
-                ):
-                    tools_dict[name] = {**tools_dict[name], 'file_tool': tool_dict}
-
-        await filter_user_terminal_tools(request, user, tools_dict, metadata, extra_params)
-
-        if tools_dict:
-            # Always store resolved tools in metadata so downstream consumers
-            # (e.g. pipe functions) can access all tools including MCP and builtins.
-            metadata['tools'] = tools_dict
-
-            if metadata.get('params', {}).get('function_calling') != 'legacy':
-                deferred = await apply_tool_search(form_data, metadata, tools_dict, inlet_filter_tools)
-
-                # If the function calling is native, then call the tools function calling handler
-                form_data['tools'] = [
-                    {'type': 'function', 'function': tool.get('spec', {})}
-                    for name, tool in tools_dict.items()
-                    if name not in deferred
-                ]
-                if inlet_filter_tools:
-                    form_data['tools'].extend(inlet_filter_tools)
-            else:
-                # If the function calling is not native, then call the tools function calling handler
-                try:
-                    form_data, flags = await chat_completion_tools_handler(
-                        request, form_data, extra_params, user, models, tools_dict
-                    )
-                    sources.extend(flags.get('sources', []))
-                except Exception as e:
-                    log.exception(e)
+    tool_resolution = await resolve_chat_tools(
+        request,
+        form_data,
+        user,
+        metadata,
+        model,
+        extra_params,
+        sources,
+        models=models,
+        task_model_id=task_model_id,
+        payload_tools=payload_tools,
+        inlet_filter_tools=inlet_filter_tools,
+        use_builtin_tools=use_builtin_tools,
+        model_builtin_tools=model_builtin_tools,
+        is_note_chat=is_note_chat,
+        features=features,
+        resolved_skill_ids=resolved_skill_ids,
+        adapters=ToolResolutionAdapters(
+            config_get=Config.get,
+            connect_mcp_server=connect_mcp_server,
+            get_tools=get_tools,
+            get_terminal_tools=get_terminal_tools,
+            get_terminal_agents_md=get_terminal_agents_md,
+            add_terminal_agents_md=add_terminal_agents_md,
+            add_or_update_system_message=add_or_update_system_message,
+            get_builtin_tool_spec=get_builtin_tool_spec,
+            display_file=display_file,
+            get_builtin_tools=get_builtin_tools,
+            get_attached_knowledge=get_attached_knowledge,
+            filter_user_terminal_tools=filter_user_terminal_tools,
+            apply_tool_search=apply_tool_search,
+            legacy_tool_calling_handler=chat_completion_tools_handler,
+            logger=log,
+        ),
+    )
+    form_data = tool_resolution.form_data
+    metadata = tool_resolution.metadata
+    sources = tool_resolution.sources
 
     form_data, metadata, sources = await prepare_resource_context(
         request,

@@ -3194,155 +3194,34 @@ async def streaming_chat_response_handler(response, ctx):
         return await response_handler(response, events)
 
     else:
-        # Fallback to the original response
         from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+        from open_webui.utils.chat_runtime.stream_wrapper import (
+            StreamWrapperAdapters,
+            wrap_chat_completion_stream,
+        )
 
-        async def stream_wrapper(original_generator, events):
-            def wrap_item(item):
-                return f'data: {item}\n\n'
+        def resource_gate_requires_fallback(answer_gate):
+            return ResourceRequestPipeline.decision(answer_gate.metadata).status != 'completed'
 
-            answer_gate = ctx.get('resource_answer_gate')
-            gate_stream = bool(
-                answer_gate
-                and answer_gate.active
-                and ResourceRequestPipeline.decision(answer_gate.metadata).status != 'completed'
-            )
-            response_stream = False
-            fallback_emitted = False
-
-            def fallback_chunk(responses_format: bool):
-                text = answer_gate.fallback_text_for_current_state()
-                if responses_format:
-                    return JSONCodec.dumps({
-                        'type': 'response.output_text.delta',
-                        'delta': text,
-                        'output_index': 0,
-                        'content_index': 0,
-                    })
-                return JSONCodec.dumps({
-                    'id': f'chatcmpl-{uuid4().hex}',
-                    'object': 'chat.completion.chunk',
-                    'created': int(time.time()),
-                    'model': form_data.get('model', ''),
-                    'choices': [{'index': 0, 'delta': {'content': text}, 'finish_reason': None}],
-                })
-
-            audit_enabled = bool(getattr(request.state, 'audit_request_id', None))
-            current_usage = None
-            try:
-                message = {}
-                outlet_task = None
-                filter_context = FilterContext()
-                outlet_enabled = ENABLE_API_OUTLET_FILTERS and bool(filter_functions)
-                if ENABLE_API_OUTLET_FILTERS and not outlet_enabled:
-                    try:
-                        outlet_enabled = bool(
-                            (isinstance(model, dict) and 'pipeline' in model)
-                            or get_sorted_filters(
-                                model.get('id') if isinstance(model, dict) else model, request.app.state.MODELS
-                            )
-                        )
-                    except Exception:
-                        outlet_enabled = True
-
-                for event in events:
-                    event, _ = await process_filter_functions(
-                        request=request,
-                        filter_context=filter_context,
-                        filter_functions=filter_functions,
-                        filter_type='stream',
-                        form_data=event,
-                        extra_params=extra_params,
-                    )
-
-                    if event:
-                        yield wrap_item(JSONCodec.dumps(event))
-
-                async for data in original_generator:
-                    if filter_functions or audit_enabled:
-                        line = data.decode('utf-8', 'replace') if isinstance(data, bytes) else data
-                        if isinstance(line, str) and line.startswith('data:'):
-                            payload = line.removeprefix('data:').strip()
-                            if payload and payload != '[DONE]':
-                                try:
-                                    event = JSONCodec.loads(payload)
-                                except JSONCodec.JSONDecodeError:
-                                    event = None
-
-                                if isinstance(event, dict):
-                                    if audit_enabled:
-                                        form_data['model'] = event.get('selected_model_id') or form_data['model']
-                                        payload = (
-                                            event.get('response') if isinstance(event.get('response'), dict) else event
-                                        )
-                                        usage = payload.get('usage') or {}
-                                        timings = payload.get('timings') or {}
-                                        if isinstance(usage, dict) and isinstance(timings, dict) and (usage or timings):
-                                            current_usage = {**usage, **timings}
-                                    if filter_functions:
-                                        event, _ = await process_filter_functions(
-                                            request=request,
-                                            filter_context=filter_context,
-                                            filter_functions=filter_functions,
-                                            filter_type='stream',
-                                            form_data=event,
-                                            extra_params=extra_params,
-                                        )
-                                        data = wrap_item(JSONCodec.dumps(event)) if event else None
-
-                    if gate_stream and data:
-                        line = data.decode('utf-8', 'replace') if isinstance(data, bytes) else data
-                        if isinstance(line, str) and line.startswith('data:'):
-                            payload_text = line.removeprefix('data:').strip()
-                            if payload_text == '[DONE]':
-                                if not fallback_emitted:
-                                    yield wrap_item(fallback_chunk(response_stream))
-                                    fallback_emitted = True
-                            else:
-                                try:
-                                    payload = JSONCodec.loads(payload_text)
-                                except JSONCodec.JSONDecodeError:
-                                    payload = None
-                                if isinstance(payload, dict):
-                                    if str(payload.get('type') or '').startswith('response.'):
-                                        response_stream = True
-                                        if payload.get('type') in {'response.completed', 'response.incomplete'} and not fallback_emitted:
-                                            yield wrap_item(fallback_chunk(True))
-                                            fallback_emitted = True
-                                    filtered = answer_gate.filter_provider_payload(payload)
-                                    if filtered is None:
-                                        continue
-                                    data = wrap_item(JSONCodec.dumps(filtered))
-
-                    if data:
-                        if outlet_enabled:
-                            done = update_assistant_message_from_stream(message, data)
-                            if done and message and outlet_task is None:
-                                ctx['assistant_message'] = message
-                                # Start before yielding [DONE], which may trigger a disconnect.
-                                outlet_task = asyncio.create_task(outlet_filter_handler(ctx))
-                        yield data
-
-                if gate_stream and not fallback_emitted:
-                    yield wrap_item(fallback_chunk(response_stream))
-
-                if outlet_task is not None:
-                    await asyncio.shield(outlet_task)
-                elif outlet_enabled and message:
-                    ctx['assistant_message'] = message
-                    await outlet_filter_handler(ctx)
-            except Exception as e:
-                log.exception('Chat completion stream failed mid-response: %s', e)
-                # Separate the error frame from any unfinished upstream event.
-                yield f'\n\ndata: {JSONCodec.dumps({"error": {"message": "Chat completion stream failed"}})}\n\n'
-                yield 'data: [DONE]\n\n'
-            finally:
-                log_model_usage(request, user, form_data['model'], current_usage)
-
-        return StreamingResponse(
-            convert_responses_stream_to_chat_completions(stream_wrapper(response.body_iterator, events)),
-            headers=dict(response.headers),
-            background=response.background,
+        adapters = StreamWrapperAdapters(
+            api_outlet_filters_enabled=ENABLE_API_OUTLET_FILTERS,
+            filter_context_factory=FilterContext,
+            process_filter_functions=process_filter_functions,
+            get_sorted_filters=get_sorted_filters,
+            resource_gate_requires_fallback=resource_gate_requires_fallback,
+            update_assistant_message_from_stream=update_assistant_message_from_stream,
+            outlet_filter_handler=outlet_filter_handler,
+            log_model_usage=log_model_usage,
+            convert_responses_stream_to_chat_completions=convert_responses_stream_to_chat_completions,
+            logger=log,
+        )
+        return await wrap_chat_completion_stream(
+            response,
+            ctx,
+            events,
+            filter_functions,
+            extra_params,
+            adapters,
         )
 
 

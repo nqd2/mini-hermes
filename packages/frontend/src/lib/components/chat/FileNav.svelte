@@ -7,6 +7,7 @@
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import { createFileMutationController } from './FileNav/fileMutationController';
 	import { createFileDownloadController } from './FileNav/fileDownloadController';
+	import { createFileContentMatchController } from './FileNav/fileContentMatchController';
 	import { createBulkDownloadPlan, deleteSelectedFilePaths } from './FileNav/fileBulkActions';
 	import { createFileUploadController, type FileUploadEntry } from './FileNav/fileUploadController';
 	import { readDroppedFiles } from './FileNav/droppedFileReader';
@@ -981,7 +982,7 @@
 	const openEntry = async (
 		entry: FileEntry & Partial<Pick<BrowserRow, 'fullPath' | 'parentPath' | 'depth' | 'rowIndex'>>,
 		options: { page?: unknown; refresh?: boolean } = {}
-	) => {
+	): Promise<boolean> => {
 		const preparation = await prepareFileOpenRequest(entry, options, {
 			isDisposed: () => disposed,
 			getCurrentPath: () => currentPath,
@@ -996,13 +997,13 @@
 			protectBuffer,
 			loadDir
 		});
-		if (preparation.status !== 'ready') return;
+		if (preparation.status !== 'ready') return false;
 		const { fullPath: filePath, parentPath } = preparation;
 		selectedFileWritable = entry.writable !== false;
 		pushNavHistory(parentPath, filePath);
 
 		const terminal = selectedTerminal;
-		if (!terminal) return;
+		if (!terminal) return false;
 
 		const selector = effectiveTerminalId!,
 			session = chatId;
@@ -1035,7 +1036,7 @@
 				selectedExcelSheet = previousView.selectedExcelSheet;
 			}
 			fileLoading = false;
-			return;
+			return false;
 		}
 
 		const previewResult = await loadCurrentFilePreviewRequest({
@@ -1047,7 +1048,7 @@
 			loadPreview: loadFilePreviewData,
 			revokeObjectURL: URL.revokeObjectURL
 		});
-		if (previewResult.status === 'stale') return;
+		if (previewResult.status === 'stale') return false;
 		const next = previewResult.preview;
 		fileImageUrl = next.fileImageUrl;
 		fileVideoUrl = next.fileVideoUrl;
@@ -1064,7 +1065,7 @@
 		currentSlide = next.currentSlide;
 		fileContent = next.fileContent;
 		fileLoading = false;
-		if (
+		const hasPreview =
 			next.fileContent !== null ||
 			[
 				next.fileImageUrl,
@@ -1076,8 +1077,8 @@
 				next.fileDocxData,
 				next.fileOfficeHtml,
 				next.fileOfficeSlides
-			].some(Boolean)
-		) {
+			].some(Boolean);
+		if (hasPreview) {
 			openedFile = pendingFile;
 
 			publishFile();
@@ -1088,15 +1089,15 @@
 			await tick();
 			if (viewerRoot) viewerRoot.scrollTop = previousView.scroll;
 		}
+		return hasPreview;
 	};
 
 	const openFileMatch = async (match: TerminalFileMatch) => {
 		if (match.type === 'directory') {
 			searchQuery = '';
-			await loadDir(match.path);
-			return;
+			return await loadDir(match.path);
 		}
-		await openEntry({
+		return await openEntry({
 			name: match.name,
 			type: 'file',
 			size: 0,
@@ -1107,15 +1108,13 @@
 		} as BrowserRow);
 	};
 
-	const openContentMatch = async (match: TerminalFileMatch, contentMatch: TerminalContentMatch) => {
-		await openFileMatch(match);
-		fileSearchTarget = {
-			line: contentMatch.line,
-			column: contentMatch.column,
-			length: searchText.length,
-			requestId: ++searchTargetRequestId
-		};
-	};
+	const fileContentMatchController = createFileContentMatchController({
+		openFileMatch,
+		getSearchLength: () => searchText.length,
+		nextRequestId: () => ++searchTargetRequestId,
+		setSearchTarget: (target) => (fileSearchTarget = target)
+	});
+	const openContentMatch = fileContentMatchController.openContentMatch;
 
 	let downloading = false;
 	const fileDownloadController = createFileDownloadController({

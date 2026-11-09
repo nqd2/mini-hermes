@@ -12,6 +12,10 @@
 	import { applyChatCompletionEvent } from './chatCompletionEventReducer';
 	import { prepareChatSubmission } from './chatSubmissionPreparation';
 	import { evaluateChatSubmission } from './chatSubmissionGate';
+	import {
+		getChatSubmissionDispatchDecision,
+		hasPendingChatFileTransfers
+	} from './chatSubmissionDispatch';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -3835,51 +3839,43 @@
 			processing = '';
 		}
 
-		if (
-			($chatRequestQueues[$chatId] ?? []).some((m) =>
-				(m.files ?? []).some((file) => ['uploading', 'error'].includes(file.status))
-			) ||
-			(files.length > 0 && files.some((file) => ['uploading', 'error'].includes(file.status)))
-		) {
-			if (bridgeRequest) return { status: 'deferred' };
+		const pendingFileTransfers = hasPendingChatFileTransfers(
+			$chatRequestQueues[$chatId] ?? [],
+			files
+		);
+		let assistantGenerating = false;
+		if (!pendingFileTransfers) {
+			// Check if the assistant is still generating the main response
+			// (don't block on background tasks like title gen, follow-ups, tags)
+			const lastMessage = history.currentId ? history.messages[history.currentId] : null;
+			assistantGenerating = bridgeRequest
+				? createMessagesList(history, bridgeRequest.userMessageId).some(
+						(message) => message.role === 'assistant' && !message.done
+					)
+				: Boolean(lastMessage && lastMessage.role === 'assistant' && !lastMessage.done);
+		}
+
+		const dispatch = getChatSubmissionDispatchDecision({
+			isBridgeRequest: Boolean(bridgeRequest),
+			hasPendingFileTransfers: pendingFileTransfers,
+			assistantGenerating,
+			messageQueueEnabled: $settings?.enableMessageQueue ?? true
+		});
+		if (dispatch.action === 'defer') return { status: 'deferred' };
+		if (dispatch.action === 'queue') {
+			const queuedFiles = dispatch.snapshotFiles ? structuredClone(files) : files;
 			chatRequestQueues.update((q) => ({
 				...q,
-				[$chatId]: [...(q[$chatId] ?? []), { id: uuidv4(), prompt: userPrompt, files }]
+				[$chatId]: [...(q[$chatId] ?? []), { id: uuidv4(), prompt: userPrompt, files: queuedFiles }]
 			}));
 			messageInput?.setText('');
 			prompt = '';
 			files = [];
 			return { status: 'rejected' };
 		}
-
-		// Check if the assistant is still generating the main response
-		// (don't block on background tasks like title gen, follow-ups, tags)
-		const lastMessage = history.currentId ? history.messages[history.currentId] : null;
-		const isGenerating = bridgeRequest
-			? createMessagesList(history, bridgeRequest.userMessageId).some(
-					(message) => message.role === 'assistant' && !message.done
-				)
-			: lastMessage && lastMessage.role === 'assistant' && !lastMessage.done;
-
-		if (isGenerating) {
-			if (bridgeRequest) return { status: 'deferred' };
-			if ($settings?.enableMessageQueue ?? true) {
-				// Enqueue the request
-				const _files = structuredClone(files);
-				chatRequestQueues.update((q) => ({
-					...q,
-					[$chatId]: [...(q[$chatId] ?? []), { id: uuidv4(), prompt: userPrompt, files: _files }]
-				}));
-				// Clear input
-				messageInput?.setText('');
-				prompt = '';
-				files = [];
-				return { status: 'rejected' };
-			} else {
-				// Interrupt: stop current generation and proceed
-				await stopResponse();
-				await tick();
-			}
+		if (dispatch.action === 'interrupt') {
+			await stopResponse();
+			await tick();
 		}
 
 		// Clear input and submit

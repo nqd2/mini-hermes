@@ -28,6 +28,7 @@
 		type SortMode
 	} from './FileNav/fileBrowserModel';
 	import { getFileExt, loadFilePreviewData, OFFICE_EXTS } from './FileNav/filePreviewLoader';
+	import { loadCurrentFilePreviewRequest } from './FileNav/filePreviewRequest';
 	import { createFileMatchSearchController } from './FileNav/fileMatchSearchController';
 	import { filesystemFile, type FilesystemFile } from '$lib/apis/terminal';
 	import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
@@ -1038,15 +1039,17 @@
 			return;
 		}
 
-		const next = await loadFilePreviewData(filePath, terminal, session, (key, options) =>
-			$i18n.t(key, options)
-		);
-		if (!current()) {
-			[next.fileImageUrl, next.fileVideoUrl, next.fileAudioUrl]
-				.filter(Boolean)
-				.forEach((url) => URL.revokeObjectURL(url));
-			return;
-		}
+		const previewResult = await loadCurrentFilePreviewRequest({
+			path: filePath,
+			terminal,
+			sessionId: session,
+			translate: (key, options) => $i18n.t(key, options),
+			isCurrent: current,
+			loadPreview: loadFilePreviewData,
+			revokeObjectURL: URL.revokeObjectURL
+		});
+		if (previewResult.status === 'stale') return;
+		const next = previewResult.preview;
 		fileImageUrl = next.fileImageUrl;
 		fileVideoUrl = next.fileVideoUrl;
 		fileAudioUrl = next.fileAudioUrl;

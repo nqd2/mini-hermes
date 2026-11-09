@@ -11,6 +11,7 @@
 	import { readDroppedFiles } from './FileNav/droppedFileReader';
 	import { prepareFileOpenRequest } from './FileNav/fileOpenRequestController';
 	import { createFileBufferProtection } from './FileNav/fileBufferProtection';
+	import { createFileSelectionEventController } from './FileNav/fileSelectionEventController';
 	import {
 		createFileNavigationHistory,
 		navigateFileHistoryEntry
@@ -1476,33 +1477,19 @@
 		}
 	};
 
-	// Escape to clear selection
-	const handleKeydown = (e: KeyboardEvent) => {
-		if (comparison) return;
-		if (e.key === 'Escape' && selectedCount > 0) {
-			e.preventDefault();
-			clearSelection();
-		}
-	};
-
-	// Click outside panel to clear selection
-	const handleWindowClick = (e: MouseEvent) => {
-		if (!active) return;
-		// A close click may reach the window after its modal has already been destroyed.
-		if (
-			e.composedPath().some((node) => node instanceof Element && node.classList.contains('modal'))
-		)
-			return;
-		if (directoryMenu) directoryMenu = null;
-		if (
-			!comparison &&
-			selectedCount > 0 &&
-			containerEl &&
-			!e.composedPath().includes(containerEl)
-		) {
-			clearSelection();
-		}
-	};
+	const selectionEventController = createFileSelectionEventController({
+		isComparisonOpen: () => Boolean(comparison),
+		getSelectedCount: () => selectedCount,
+		clearSelection,
+		isActive: () => active,
+		isDirectoryMenuOpen: () => Boolean(directoryMenu),
+		closeDirectoryMenu: () => (directoryMenu = null),
+		getContainer: () => containerEl,
+		isModalPath: (path) =>
+			path.some((node) => node instanceof Element && node.classList.contains('modal'))
+	});
+	const handleKeydown = selectionEventController.handleKeydown;
+	const handleWindowClick = selectionEventController.handleWindowClick;
 
 	// Lifecycle
 	onMount(() => {

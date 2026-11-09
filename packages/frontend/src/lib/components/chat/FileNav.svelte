@@ -6,6 +6,7 @@
 	import { createFileNavRequestLifecycle } from './FileNav/fileNavRequestLifecycle';
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import { createFileMutationController } from './FileNav/fileMutationController';
+	import { createFileDownloadController } from './FileNav/fileDownloadController';
 	import { createBulkDownloadPlan, deleteSelectedFilePaths } from './FileNav/fileBulkActions';
 	import { createFileUploadController, type FileUploadEntry } from './FileNav/fileUploadController';
 	import { readDroppedFiles } from './FileNav/droppedFileReader';
@@ -1117,39 +1118,25 @@
 	};
 
 	let downloading = false;
-
-	const downloadFile = async (path: string) => {
-		const terminal = selectedTerminal;
-		if (!terminal || downloading) return;
-
-		downloading = true;
-		const toastId = toast.loading($i18n.t('Preparing download...'));
-		try {
-			// Directories end with '/', downloaded as a ZIP archive
-			const isDir = path.endsWith('/');
-			const result = isDir
-				? await archiveFromTerminal(
-						terminal.url,
-						terminal.key,
-						[path.replace(/\/$/, '')],
-						chatId ?? undefined
-					)
-				: await downloadFileBlob(terminal.url, terminal.key, path, chatId ?? undefined);
-			if (!result) {
-				toast.error($i18n.t('Download failed'));
-				return;
-			}
-			const url = URL.createObjectURL(result.blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = result.filename;
-			a.click();
-			URL.revokeObjectURL(url);
-		} finally {
-			toast.dismiss(toastId);
-			downloading = false;
-		}
-	};
+	const fileDownloadController = createFileDownloadController({
+		getTerminal: () => selectedTerminal,
+		getSessionId: () => chatId ?? undefined,
+		downloadFile: downloadFileBlob,
+		archiveDirectory: archiveFromTerminal,
+		setDownloading: (value) => (downloading = value),
+		showPreparingToast: () => toast.loading($i18n.t('Preparing download...')),
+		showDownloadFailed: () => toast.error($i18n.t('Download failed')),
+		dismissToast: (id) => toast.dismiss(id),
+		createObjectUrl: (blob) => URL.createObjectURL(blob),
+		clickDownload: (url, filename) => {
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = filename;
+			anchor.click();
+		},
+		revokeObjectUrl: (url) => URL.revokeObjectURL(url)
+	});
+	const downloadFile = fileDownloadController.download;
 
 	// Drag-and-drop upload
 	const fileUploadController = createFileUploadController({

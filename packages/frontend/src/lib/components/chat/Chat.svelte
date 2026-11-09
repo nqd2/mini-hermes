@@ -1,9 +1,7 @@
 <script lang="ts">
 	import type { TerminalContext } from '$lib/types';
 	import {
-		estimateTokens,
-		estimateMessagesTokens,
-		estimateUsageGrowth,
+		estimateContextUsage,
 		captureUsageCheckpoint
 	} from '$lib/utils/contextUsage';
 	import { v4 as uuidv4 } from 'uuid';
@@ -302,46 +300,7 @@
 		}
 
 		const messages = createMessagesList(chatHistory, chatHistory.currentId);
-		const systemTokens = estimateTokens(system);
-		let estimatedTokens = systemTokens;
-		let hasUsageCheckpoint = false;
-		let summary = '';
-		let startIdx = 0;
-
-		for (let idx = 0; idx < messages.length; idx += 1) {
-			const value = messages[idx]?.contextSummary ?? messages[idx]?.context_summary;
-			if (typeof value === 'string' && value.trim()) {
-				summary = value;
-				startIdx = idx;
-			}
-		}
-
-		const activeMessages = messages.slice(startIdx);
-
-		for (let idx = activeMessages.length - 1; idx >= 0; idx -= 1) {
-			const usage = activeMessages[idx]?.usage ?? activeMessages[idx]?.info?.usage;
-			const usageTokens = getUsageTokenCount(usage);
-			if (usageTokens) {
-				hasUsageCheckpoint = true;
-				estimatedTokens =
-					usageTokens +
-					estimateUsageGrowth(activeMessages[idx]) +
-					estimateMessagesTokens(activeMessages.slice(idx + 1));
-				break;
-			}
-		}
-
-		if (!hasUsageCheckpoint) {
-			estimatedTokens += estimateTokens(summary) + estimateMessagesTokens(activeMessages);
-		}
-
-		return {
-			tokens: estimatedTokens,
-			estimated_tokens: estimatedTokens,
-			threshold,
-			percent: threshold > 0 ? Math.max(0, Math.round((estimatedTokens / threshold) * 100)) : null,
-			source: 'estimated'
-		};
+		return estimateContextUsage(messages, system, threshold, getUsageTokenCount);
 	};
 
 	$: contextThreshold = contextCompactionEnabled

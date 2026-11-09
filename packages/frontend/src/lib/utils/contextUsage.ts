@@ -1,10 +1,12 @@
-type ContextMessage = {
+export type ContextMessage = {
 	content?: unknown;
 	output?: unknown[];
 	tool_calls?: unknown;
 	files?: unknown[];
 	usage?: Record<string, unknown>;
 	info?: { usage?: Record<string, unknown> };
+	contextSummary?: unknown;
+	context_summary?: unknown;
 };
 
 export const estimateTokens = (value: unknown): number => {
@@ -52,4 +54,53 @@ export const estimateUsageGrowth = (message: ContextMessage): number => {
 		usageCheckpoints.set(usage, tokens);
 	}
 	return Math.max(0, tokens - usageCheckpoints.get(usage)!);
+};
+
+export const estimateContextUsage = (
+	messages: ContextMessage[],
+	system: string,
+	threshold: number | null,
+	getUsageTokenCount: (usage?: Record<string, unknown> | null) => number
+) => {
+	let summary = '';
+	let startIdx = 0;
+	for (let idx = 0; idx < messages.length; idx += 1) {
+		const value = messages[idx]?.contextSummary ?? messages[idx]?.context_summary;
+		if (typeof value === 'string' && value.trim()) {
+			summary = value;
+			startIdx = idx;
+		}
+	}
+
+	const activeMessages = messages.slice(startIdx);
+	let estimatedTokens = estimateTokens(system);
+	let hasUsageCheckpoint = false;
+
+	for (let idx = activeMessages.length - 1; idx >= 0; idx -= 1) {
+		const usage = activeMessages[idx]?.usage ?? activeMessages[idx]?.info?.usage;
+		const usageTokens = getUsageTokenCount(usage);
+		if (usageTokens) {
+			hasUsageCheckpoint = true;
+			estimatedTokens =
+				usageTokens +
+				estimateUsageGrowth(activeMessages[idx]) +
+				estimateMessagesTokens(activeMessages.slice(idx + 1));
+			break;
+		}
+	}
+
+	if (!hasUsageCheckpoint) {
+		estimatedTokens += estimateTokens(summary) + estimateMessagesTokens(activeMessages);
+	}
+
+	return {
+		tokens: estimatedTokens,
+		estimated_tokens: estimatedTokens,
+		threshold,
+		percent:
+			threshold !== null && threshold > 0
+				? Math.max(0, Math.round((estimatedTokens / threshold) * 100))
+				: null,
+		source: 'estimated' as const
+	};
 };

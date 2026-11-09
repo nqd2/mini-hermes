@@ -1,10 +1,6 @@
 <script lang="ts">
 	import type { TerminalContext } from '$lib/types';
-	import {
-		estimateTokens,
-		estimateMessagesTokens,
-		estimateUsageGrowth
-	} from '$lib/utils/contextUsage';
+	import { estimateContextUsage } from '$lib/utils/contextUsage';
 	import { resolveLocalizedFunction } from '$lib/utils/localizedContent';
 	import { functions as localizedFunctions } from '$lib/stores';
 	import DOMPurify from 'dompurify';
@@ -453,45 +449,7 @@
 		if (!messages.length) {
 			return null;
 		}
-
-		let summary = '';
-		let startIdx = 0;
-		for (let idx = 0; idx < messages.length; idx += 1) {
-			const value = messages[idx]?.contextSummary ?? messages[idx]?.context_summary;
-			if (typeof value === 'string' && value.trim()) {
-				summary = value;
-				startIdx = idx;
-			}
-		}
-
-		const activeMessages = messages.slice(startIdx);
-		let estimatedTokens = estimateTokens(system);
-		let hasUsageCheckpoint = false;
-
-		for (let idx = activeMessages.length - 1; idx >= 0; idx -= 1) {
-			const usage = activeMessages[idx]?.usage ?? activeMessages[idx]?.info?.usage;
-			const usageTokens = getUsageTokenCount(usage);
-			if (usageTokens) {
-				hasUsageCheckpoint = true;
-				estimatedTokens =
-					usageTokens +
-					estimateUsageGrowth(activeMessages[idx]) +
-					estimateMessagesTokens(activeMessages.slice(idx + 1));
-				break;
-			}
-		}
-
-		if (!hasUsageCheckpoint) {
-			estimatedTokens += estimateTokens(summary) + estimateMessagesTokens(activeMessages);
-		}
-
-		return {
-			tokens: estimatedTokens,
-			estimated_tokens: estimatedTokens,
-			threshold: null,
-			percent: null,
-			source: 'estimated'
-		};
+		return estimateContextUsage(messages, system, null, getUsageTokenCount);
 	};
 
 	const copyStatusChatId = async () => {

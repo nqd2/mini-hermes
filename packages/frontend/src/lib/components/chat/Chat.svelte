@@ -22,6 +22,7 @@
 	import { syncChatRoom as syncChatRoomWithController } from './chatSocketRoomSynchronizer';
 	import { insertSubmittedUserMessage } from './chatMessageSubmission';
 	import { createChatCommandController } from './chatCommandController';
+	import { handleChatInteractionDialogEvent } from './chatInteractionDialogHandler';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -1613,41 +1614,37 @@
 					} else {
 						toast.info(toastContent);
 					}
-				} else if (type === 'confirmation') {
-					eventCallback = cb;
-					eventInteractionId = data.interaction_id ?? null;
-
-					eventConfirmationInput = false;
-					showEventConfirmation = true;
-					eventConfirmationInputOptions = [];
-
-					eventConfirmationTitle = data.title;
-					eventConfirmationMessage = data.message;
-				} else if (type === 'execute') {
-					try {
-						// Use Function constructor to evaluate code in a safer way
-						const asyncFunction = new Function(`return (async () => { ${data.code} })()`);
-						const result = await asyncFunction(); // Await the result of the async function
-
-						if (cb) {
-							cb(result);
-						}
-					} catch (error) {
-						console.error('Error executing code:', error);
-					}
-				} else if (type === 'input') {
-					eventCallback = cb;
-					eventInteractionId = data.interaction_id ?? null;
-
-					eventConfirmationInput = true;
-					showEventConfirmation = true;
-
-					eventConfirmationTitle = data.title;
-					eventConfirmationMessage = data.message;
-					eventConfirmationInputPlaceholder = data.placeholder;
-					eventConfirmationInputValue = data?.value ?? '';
-					eventConfirmationInputType = data?.input?.type ?? data?.type ?? '';
-					eventConfirmationInputOptions = data?.input?.options ?? data?.options ?? [];
+				} else if (type === 'confirmation' || type === 'execute' || type === 'input') {
+					const dialogResult = handleChatInteractionDialogEvent(type, data, cb, {
+						showConfirmation: (callback, payload) => {
+							eventCallback = callback;
+							eventInteractionId = payload?.interaction_id ?? null;
+							eventConfirmationInput = false;
+							showEventConfirmation = true;
+							eventConfirmationInputOptions = [];
+							eventConfirmationTitle = payload?.title;
+							eventConfirmationMessage = payload?.message;
+						},
+						showInput: (callback, payload) => {
+							eventCallback = callback;
+							eventInteractionId = payload?.interaction_id ?? null;
+							eventConfirmationInput = true;
+							showEventConfirmation = true;
+							eventConfirmationTitle = payload?.title;
+							eventConfirmationMessage = payload?.message;
+							eventConfirmationInputPlaceholder = payload?.placeholder;
+							eventConfirmationInputValue = payload?.value ?? '';
+							eventConfirmationInputType = payload?.input?.type ?? payload?.type ?? '';
+							eventConfirmationInputOptions = payload?.input?.options ?? payload?.options ?? [];
+						},
+						executeCode: async (code) => {
+							// Use Function constructor to evaluate code in a safer way.
+							const asyncFunction = new Function(`return (async () => { ${code} })()`);
+							return await asyncFunction();
+						},
+						logExecutionError: (error) => console.error('Error executing code:', error)
+					});
+					if (dialogResult instanceof Promise) await dialogResult;
 				} else if (type.startsWith('terminal:')) {
 					terminalEventHandler(type, data, message);
 				} else {

@@ -26,6 +26,47 @@ const makeDependencies = (overrides: Record<string, any> = {}) => ({
 });
 
 describe('createResourceDropController', () => {
+  it('marks only intentional file and resource drags as active', () => {
+    const dependencies = makeDependencies();
+    const controller = createResourceDropController(dependencies);
+    const event = {
+      preventDefault: vi.fn(),
+      dataTransfer: { types: ['text/plain', 'application/x-open-webui-drag'] },
+    };
+
+    controller.handleDragOver(event);
+
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(dependencies.setDragging).toHaveBeenCalledWith(true);
+  });
+
+  it('does not activate reordering drags and clears dragging when the pointer leaves', () => {
+    const dependencies = makeDependencies();
+    const controller = createResourceDropController(dependencies);
+    const dragOverEvent = {
+      preventDefault: vi.fn(),
+      dataTransfer: { types: ['text/plain'] },
+    };
+
+    controller.handleDragOver(dragOverEvent);
+    expect(dependencies.setDragging).toHaveBeenLastCalledWith(false);
+
+    const currentTarget = { contains: vi.fn(() => false) };
+    controller.handleDragLeave({ currentTarget, relatedTarget: {} });
+    expect(currentTarget.contains).toHaveBeenCalledWith({});
+    expect(dependencies.setDragging).toHaveBeenLastCalledWith(false);
+  });
+
+  it('keeps dragging active when the pointer moves within the drop zone', () => {
+    const dependencies = makeDependencies();
+    const controller = createResourceDropController(dependencies);
+    const currentTarget = { contains: vi.fn(() => true) };
+
+    controller.handleDragLeave({ currentTarget, relatedTarget: {} });
+
+    expect(dependencies.setDragging).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       type: 'chat',

@@ -7,6 +7,16 @@ type ResourceDropEvent = {
   } | null;
 };
 
+type ComposerDragOverEvent = {
+  preventDefault: () => void;
+  dataTransfer?: { types?: string[] } | null;
+};
+
+type ComposerDragLeaveEvent = {
+  currentTarget?: unknown;
+  relatedTarget?: unknown;
+};
+
 type ResourceDropItem = Record<string, unknown>;
 
 export type ResourceDropControllerDependencies<ModelValue> = {
@@ -41,6 +51,22 @@ export const createResourceDropController = <ModelValue>(
   const finishResourceDrop = (event: ResourceDropEvent) => {
     dependencies.setDragging(false);
     event.stopPropagation();
+  };
+
+  const handleDragOver = (event: ComposerDragOverEvent) => {
+    event.preventDefault();
+    const types = event.dataTransfer?.types ?? [];
+    dependencies.setDragging(
+      types.includes('Files') ||
+        types.includes('application/x-open-webui-drag'),
+    );
+  };
+
+  const handleDragLeave = (event: ComposerDragLeaveEvent) => {
+    const currentTarget = event.currentTarget as
+      { contains: (target: unknown) => boolean } | null | undefined;
+    if (currentTarget?.contains(event.relatedTarget)) return;
+    dependencies.setDragging(false);
   };
 
   const handleDrop = async (event: ResourceDropEvent): Promise<void> => {
@@ -133,5 +159,5 @@ export const createResourceDropController = <ModelValue>(
     dependencies.setDragging(false);
   };
 
-  return { handleDrop };
+  return { handleDragOver, handleDragLeave, handleDrop };
 };

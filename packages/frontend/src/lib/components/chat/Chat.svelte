@@ -11,6 +11,7 @@
 	import { createChatRequestLifecycle } from './chatRequestLifecycle';
 	import { applyChatCompletionEvent } from './chatCompletionEventReducer';
 	import { prepareChatSubmission } from './chatSubmissionPreparation';
+	import { evaluateChatSubmission } from './chatSubmissionGate';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -3755,48 +3756,61 @@
 			return { status: 'rejected' };
 		}
 
-		if (pendingOAuthTools.length > 0) {
-			toast.warning($i18n.t('Please connect all required integrations before sending a message'));
+		const gate = evaluateChatSubmission({
+			pendingOAuthIntegration: pendingOAuthTools.length > 0,
+			prompt: userPrompt,
+			currentFileCount: files.length,
+			hasUnselectedModel: selectedModels.includes(''),
+			getVariables: () => {
+				const form = getChatVariablesForm(selectedModelIds, chatVariables, $models);
+				return {
+					conflicts: form.conflicts.length,
+					missing: form.missing,
+					empty: form.empty
+				};
+			},
+			maximumFileCount: $config?.file?.max_count ?? null,
+			chatFileCount: chatFiles.length,
+			needsWebSearchConfirmation: Boolean(
+				$config?.features?.enable_web_search_confirmation &&
+				webSearchActive &&
+				!webSearchConfirmed
+			)
+		});
+		if (gate.status === 'rejected') {
+			switch (gate.reason) {
+				case 'integration-required':
+					toast.warning(
+						$i18n.t('Please connect all required integrations before sending a message')
+					);
+					break;
+				case 'prompt-required':
+					toast.error($i18n.t('Please enter a prompt'));
+					break;
+				case 'model-not-selected':
+					toast.error($i18n.t('Model not selected'));
+					break;
+				case 'chat-variables-conflict':
+					showChatVariablesModal = true;
+					toast.error($i18n.t('Chat Variables have conflicting model definitions'));
+					break;
+				case 'file-limit':
+					toast.error(
+						$i18n.t(`You can only chat with a maximum of {{maxCount}} file(s) at a time.`, {
+							maxCount: gate.maximum
+						})
+					);
+					break;
+			}
 			return { status: 'rejected' };
 		}
-		if (userPrompt === '' && files.length === 0) {
-			toast.error($i18n.t('Please enter a prompt'));
-			return { status: 'rejected' };
-		}
-		if (selectedModels.includes('')) {
-			toast.error($i18n.t('Model not selected'));
-			return { status: 'rejected' };
-		}
-		const form = getChatVariablesForm(selectedModelIds, chatVariables, $models);
-		if (form.conflicts.length > 0) {
-			showChatVariablesModal = true;
-			toast.error($i18n.t('Chat Variables have conflicting model definitions'));
-			return { status: 'rejected' };
-		}
-		if (form.missing || form.empty) {
-			showChatVariablesModal = true;
-			return { status: 'deferred' };
-		}
-
-		if (
-			($config?.file?.max_count ?? null) !== null &&
-			files.length + chatFiles.length > $config?.file?.max_count
-		) {
-			toast.error(
-				$i18n.t(`You can only chat with a maximum of {{maxCount}} file(s) at a time.`, {
-					maxCount: $config?.file?.max_count
-				})
-			);
-			return { status: 'rejected' };
-		}
-
-		if (
-			$config?.features?.enable_web_search_confirmation &&
-			webSearchActive &&
-			!webSearchConfirmed
-		) {
-			pendingWebSearchPrompt = bridgeRequest ? null : (userPrompt ?? '');
-			openWebSearchConfirm();
+		if (gate.status === 'deferred') {
+			if (gate.reason === 'chat-variables-input') {
+				showChatVariablesModal = true;
+			} else {
+				pendingWebSearchPrompt = bridgeRequest ? null : (userPrompt ?? '');
+				openWebSearchConfirm();
+			}
 			return { status: 'deferred' };
 		}
 

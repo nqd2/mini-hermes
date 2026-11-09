@@ -81,6 +81,10 @@
 	import { getNoteById } from '$lib/apis/notes';
 	import { getSessionUser } from '$lib/apis/auths';
 	import { createFileInputLifecycle } from './fileInputLifecycle';
+	import {
+		findFilesystemChatUploadTerminal,
+		uploadFilesystemChatAttachment
+	} from './MessageInput/filesystemUpload';
 	import { processComposerFile } from './MessageInput/fileProcessing';
 	import { createAttachmentCollection } from './MessageInput/attachmentCollection';
 	import { createSuggestionAttachmentHandler } from './MessageInput/suggestionAttachmentHandler';
@@ -1053,66 +1057,21 @@
 		selectedId = $selectedTerminalId,
 		servers: any[] | null = $terminalServers,
 		settingsValue: any = $settings
-	) => {
-		if (!selectedId) return null;
+	) => findFilesystemChatUploadTerminal(selectedId, servers, settingsValue);
 
-		const systemTerminal = (servers ?? []).find(
-			(t: any) => t.id && t.id === selectedId && t.config?.chat_uploads === 'filesystem'
-		);
-		if (systemTerminal) return systemTerminal;
-
-		return (
-			(settingsValue?.terminalServers ?? []).find(
-				(t: any) => t.url === selectedId && t.enabled && t.config?.chat_uploads === 'filesystem'
-			) ?? null
-		);
-	};
-
-	const uploadTerminalFile = async (fileItem, sessionId: string | null) => {
-		fileItem.status = 'uploading';
-		fileItem.error = '';
-		attachmentCollection.touch();
-		try {
-			const terminal = getFilesystemUploadTerminal(fileItem.terminal_id);
-			if (!terminal) throw new Error('The attached file’s terminal is unavailable.');
-			if (fileItem.session_id && fileItem.session_id !== sessionId)
-				throw new Error('Attached files must belong to this chat.');
-			if (terminal.contexts?.chat?.context_id === 'chat_id' && !isSavedChatId(sessionId))
-				throw new Error('A saved chat is required for this terminal');
-
-			const cwd =
-				(terminalContext?.terminalId === fileItem.terminal_id
-					? terminalContext?.currentDirectory
-					: null) || (await getCwd(terminal.url, terminal.key, sessionId || undefined))?.cwd;
-			if (!cwd) throw new Error($i18n.t('Could not determine the upload folder.'));
-			const uploadedFile = await uploadNewFileToTerminal(
-				terminal.url,
-				terminal.key,
-				cwd,
-				fileItem.file,
-				sessionId || undefined
-			);
-			if (!uploadedFile) throw new Error($i18n.t('Failed to upload file.'));
-
-			fileItem.status = 'uploaded';
-			fileItem.session_id = sessionId;
-			fileItem.name = uploadedFile.path.split('/').pop() || fileItem.name;
-			fileItem.id = uploadedFile.path;
-			fileItem.path = uploadedFile.path;
-			fileItem.url = uploadedFile.path;
-			fileItem.size = uploadedFile.size ?? fileItem.size;
-			fileItem.file = uploadedFile;
-			showFileNavDir.set(uploadedFile.path);
-		} catch (error) {
-			fileItem.status = 'error';
-			fileItem.error = `${error}`;
-			toast.error(fileItem.error);
-			return false;
-		} finally {
-			attachmentCollection.touch();
-		}
-		return true;
-	};
+	const uploadTerminalFile = async (fileItem, sessionId: string | null) =>
+		uploadFilesystemChatAttachment(fileItem, sessionId, {
+			findTerminal: (terminalId) => getFilesystemUploadTerminal(terminalId),
+			getContextDirectory: (terminalId) =>
+				terminalContext?.terminalId === terminalId ? terminalContext?.currentDirectory : null,
+			getCwd,
+			uploadFile: uploadNewFileToTerminal,
+			isSavedChat: isSavedChatId,
+			showFileNavDirectory: (path) => showFileNavDir.set(path),
+			touchAttachments: () => attachmentCollection.touch(),
+			translate: (message) => $i18n.t(message),
+			showError: (message) => toast.error(message)
+		});
 
 	export const uploadPendingFiles = async (sessionId: string) => {
 		if (!sessionId) return false;

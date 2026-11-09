@@ -7,7 +7,8 @@
 	import { createFileDirectoryController } from './FileNav/fileDirectoryController';
 	import { createFileMutationController } from './FileNav/fileMutationController';
 	import { createFileUploadController, type FileUploadEntry } from './FileNav/fileUploadController';
-import { readDroppedFiles } from './FileNav/droppedFileReader';
+	import { readDroppedFiles } from './FileNav/droppedFileReader';
+	import { prepareFileOpenRequest } from './FileNav/fileOpenRequestController';
 	import { createFileBufferProtection } from './FileNav/fileBufferProtection';
 	import {
 		createFileNavigationHistory,
@@ -978,28 +979,22 @@ import { readDroppedFiles } from './FileNav/droppedFileReader';
 		entry: FileEntry & Partial<Pick<BrowserRow, 'fullPath' | 'parentPath' | 'depth' | 'rowIndex'>>,
 		options: { page?: unknown; refresh?: boolean } = {}
 	) => {
-		if (disposed) return;
-		const fullPath = entry.fullPath ?? entryPath(currentPath, entry);
-		const parentPath = entry.parentPath ?? currentPath;
-		if (entry.type === 'directory') {
-			await loadDir(fullPath);
-			return;
-		}
-
-		if (onOpenFile && !options.refresh && fullPath !== initialFile?.path) {
-			onOpenFile(fullPath, normalizeDocumentTargetPage(options.page));
-			return;
-		}
-
-		if (options.refresh && (dirty || saving)) {
-			diskChanged = true;
-			return;
-		}
-		if (!(await protectBuffer())) return;
-		const filePath = fullPath;
-		if (parentPath !== currentPath) {
-			await loadDir(parentPath);
-		}
+		const preparation = await prepareFileOpenRequest(entry, options, {
+			isDisposed: () => disposed,
+			getCurrentPath: () => currentPath,
+			getInitialFilePath: () => initialFile?.path,
+			hasExternalOpenHandler: () => Boolean(onOpenFile),
+			openExternalFile: (path, page) => onOpenFile?.(path, page),
+			entryPath,
+			normalizePage: normalizeDocumentTargetPage,
+			isDirty: () => dirty,
+			isSaving: () => saving,
+			markDiskChanged: () => (diskChanged = true),
+			protectBuffer,
+			loadDir
+		});
+		if (preparation.status !== 'ready') return;
+		const { fullPath: filePath, parentPath } = preparation;
 		selectedFileWritable = entry.writable !== false;
 		pushNavHistory(parentPath, filePath);
 

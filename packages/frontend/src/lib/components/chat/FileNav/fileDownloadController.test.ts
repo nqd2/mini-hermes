@@ -103,6 +103,22 @@ describe("FileNav download controller", () => {
     expect(harness.downloadFile).not.toHaveBeenCalled();
   });
 
+  it("revokes the temporary URL when the browser download trigger fails", async () => {
+    const error = new Error("download click failed");
+    const clickDownload = vi.fn(() => {
+      throw error;
+    });
+    const harness = createHarness({ clickDownload });
+
+    await expect(harness.controller.download("/report.txt")).rejects.toBe(
+      error,
+    );
+
+    expect(harness.revokeObjectUrl).toHaveBeenCalledWith("blob:download");
+    expect(harness.dismissToast).toHaveBeenCalledWith("toast-id");
+    expect(harness.setDownloading.mock.calls).toEqual([[true], [false]]);
+  });
+
   it("reports an empty response and always dismisses the progress toast", async () => {
     const harness = createHarness({ downloadFile: vi.fn(async () => null) });
 

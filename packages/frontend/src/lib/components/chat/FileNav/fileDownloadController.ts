@@ -61,8 +61,11 @@ export const createFileDownloadController = <ToastId>(
       }
 
       const url = dependencies.createObjectUrl(result.blob);
-      dependencies.clickDownload(url, result.filename);
-      dependencies.revokeObjectUrl(url);
+      try {
+        dependencies.clickDownload(url, result.filename);
+      } finally {
+        dependencies.revokeObjectUrl(url);
+      }
     } finally {
       if (toastId !== undefined) dependencies.dismissToast(toastId);
       isDownloading = false;

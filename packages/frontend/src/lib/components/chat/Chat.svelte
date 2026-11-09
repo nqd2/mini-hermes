@@ -20,6 +20,7 @@
 	import { createChatTaskLifecycle } from './chatTaskLifecycle';
 	import { createManualContextCompactionController } from './chatManualCompaction';
 	import { syncChatRoom as syncChatRoomWithController } from './chatSocketRoomSynchronizer';
+	import { insertSubmittedUserMessage } from './chatMessageSubmission';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -3511,31 +3512,16 @@
 		);
 
 		// Create user message
-		let userMessageId = bridgeRequest?.userMessageId ?? uuidv4();
-		let userMessage = {
+		const userMessageId = bridgeRequest?.userMessageId ?? uuidv4();
+		insertSubmittedUserMessage(history, {
 			id: userMessageId,
-			parentId: history.currentId ?? null,
-			childrenIds: [],
-			role: 'user',
-			user: { id: $user?.id, name: $user?.name },
-			user_id: $user?.id,
 			content: inputContent,
-			files: _files.length > 0 ? _files : undefined,
+			files: _files,
 			timestamp: Math.floor(Date.now() / 1000), // Unix epoch
-			models: selectedModels
-		};
-
-		// A transcribed Bridge message already exists in the same history.
-		const existingUserMessage = history.messages[userMessageId];
-		if (existingUserMessage) userMessage = { ...existingUserMessage, files: userMessage.files };
-		history.messages[userMessageId] = userMessage;
-
-		// Append messageId to childrenIds of parent message
-		if (!existingUserMessage && history.currentId !== null) {
-			history.messages[history.currentId].childrenIds.push(userMessageId);
-		}
-
-		history.currentId = userMessageId;
+			models: selectedModels,
+			userId: $user?.id,
+			userName: $user?.name
+		});
 
 		// focus on chat input (skip during voice call to avoid triggering mobile keyboard)
 		if (!$showCallOverlay) {

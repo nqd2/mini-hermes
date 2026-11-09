@@ -19,6 +19,7 @@
 	import { createToolApprovalModeHandler } from './chatToolApprovalMode';
 	import { createChatTaskLifecycle } from './chatTaskLifecycle';
 	import { createManualContextCompactionController } from './chatManualCompaction';
+	import { syncChatRoom as syncChatRoomWithController } from './chatSocketRoomSynchronizer';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -1349,24 +1350,15 @@
 	};
 
 	const syncChatRoom = (socket: typeof $socket, id: string, temporary: boolean) => {
-		const next = socket?.connected && id && !temporary && !isTemporaryChatId(id) ? id : '';
-		if (next === joinedChatId) return;
-		clearTyping();
-		clearPresence();
-		if (joinedChatId && socket?.connected)
-			socket.emit('events:chat', {
-				chat_id: joinedChatId,
-				data: { type: 'leave' }
-			});
-		joinedChatId = next;
-		const connectionId = socket?.id;
-		if (next && socket)
-			socket.emit('events:chat', { chat_id: next, data: { type: 'join' } }, (accepted: boolean) => {
-				if (!socket.connected || socket.id !== connectionId || $chatId !== next) return;
-				if (!accepted) clearPresence();
-				// A refused join can mean access was lost; the refresh then sends the reader home.
-				void refreshChat();
-			});
+		syncChatRoomWithController(socket, id, temporary, {
+			getJoinedChatId: () => joinedChatId,
+			setJoinedChatId: (chatId) => (joinedChatId = chatId),
+			getCurrentChatId: () => $chatId,
+			isTemporaryChatId,
+			clearTyping,
+			clearPresence,
+			refreshChat
+		});
 	};
 	$: syncChatRoom($socket, $chatId, $temporaryChatEnabled);
 

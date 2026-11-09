@@ -10,12 +10,8 @@
 	import { getContext, setContext, onDestroy, onMount, tick } from 'svelte';
 	import { createChatRequestLifecycle } from './chatRequestLifecycle';
 	import { applyChatCompletionEvent } from './chatCompletionEventReducer';
-	import { prepareChatSubmission } from './chatSubmissionPreparation';
 	import { evaluateChatSubmission } from './chatSubmissionGate';
-	import {
-		getChatSubmissionDispatchDecision,
-		hasPendingChatFileTransfers
-	} from './chatSubmissionDispatch';
+	import { executeChatSubmission } from './chatSubmissionExecutor';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -3819,77 +3815,56 @@
 		}
 
 		const currentHistory = history;
-		processing = 'uploading';
-		try {
-			const preparation = await prepareChatSubmission({
-				history: currentHistory,
-				isCurrentHistory: (candidateHistory) => history === candidateHistory,
-				resolveChatId: getChatId,
-				ensureChatId: initChatHandler,
-				hasPendingFiles: () =>
-					files.some((file) => file.status === 'pending' && file.file instanceof File),
-				uploadPendingFiles: async (sessionId) =>
-					(await messageInput?.uploadPendingFiles(sessionId)) ?? false
-			});
-			if (preparation.status !== 'ready') return { status: 'rejected' };
-		} catch (error) {
-			toast.error(`${error}`);
-			return { status: 'rejected' };
-		} finally {
-			processing = '';
-		}
-
-		const pendingFileTransfers = hasPendingChatFileTransfers(
-			$chatRequestQueues[$chatId] ?? [],
-			files
-		);
-		let assistantGenerating = false;
-		if (!pendingFileTransfers) {
-			// Check if the assistant is still generating the main response
-			// (don't block on background tasks like title gen, follow-ups, tags)
-			const lastMessage = history.currentId ? history.messages[history.currentId] : null;
-			assistantGenerating = bridgeRequest
-				? createMessagesList(history, bridgeRequest.userMessageId).some(
-						(message) => message.role === 'assistant' && !message.done
-					)
-				: Boolean(lastMessage && lastMessage.role === 'assistant' && !lastMessage.done);
-		}
-
-		const dispatch = getChatSubmissionDispatchDecision({
-			isBridgeRequest: Boolean(bridgeRequest),
-			hasPendingFileTransfers: pendingFileTransfers,
-			assistantGenerating,
-			messageQueueEnabled: $settings?.enableMessageQueue ?? true
+		return await executeChatSubmission({
+			prompt: userPrompt,
+			history: currentHistory,
+			bridgeRequest,
+			isCurrentHistory: (candidateHistory) => history === candidateHistory,
+			resolveChatId: getChatId,
+			ensureChatId: initChatHandler,
+			hasPendingFiles: () =>
+				files.some((file) => file.status === 'pending' && file.file instanceof File),
+			uploadPendingFiles: async (sessionId) =>
+				(await messageInput?.uploadPendingFiles(sessionId)) ?? false,
+			setProcessing: (state) => (processing = state),
+			notifyPreparationError: (error) => toast.error(`${error}`),
+			getQueuedMessages: () => $chatRequestQueues[$chatId] ?? [],
+			getCurrentFiles: () => files,
+			isAssistantGenerating: () => {
+				// Ignore background tasks like title generation and follow-ups.
+				const lastMessage = history.currentId ? history.messages[history.currentId] : null;
+				return bridgeRequest
+					? createMessagesList(history, bridgeRequest.userMessageId).some(
+							(message) => message.role === 'assistant' && !message.done
+						)
+					: Boolean(lastMessage && lastMessage.role === 'assistant' && !lastMessage.done);
+			},
+			isMessageQueueEnabled: () => $settings?.enableMessageQueue ?? true,
+			createRequestId: uuidv4,
+			enqueueRequest: (request) =>
+				chatRequestQueues.update((q) => ({
+					...q,
+					[$chatId]: [...(q[$chatId] ?? []), request]
+				})),
+			cloneFiles: (currentFiles) => structuredClone(currentFiles),
+			clearQueuedInput: () => {
+				messageInput?.setText('');
+				prompt = '';
+				files = [];
+			},
+			stopResponse,
+			waitForRender: tick,
+			prepareFinalInput: () => {
+				// Clear input and submit.
+				messageInput?.setText('');
+				prompt = '';
+				const submittedFiles = structuredClone(files);
+				files = [];
+				messageInput?.setText('');
+				return submittedFiles;
+			},
+			submit: submitPrompt
 		});
-		if (dispatch.action === 'defer') return { status: 'deferred' };
-		if (dispatch.action === 'queue') {
-			const queuedFiles = dispatch.snapshotFiles ? structuredClone(files) : files;
-			chatRequestQueues.update((q) => ({
-				...q,
-				[$chatId]: [...(q[$chatId] ?? []), { id: uuidv4(), prompt: userPrompt, files: queuedFiles }]
-			}));
-			messageInput?.setText('');
-			prompt = '';
-			files = [];
-			return { status: 'rejected' };
-		}
-		if (dispatch.action === 'interrupt') {
-			await stopResponse();
-			await tick();
-		}
-
-		// Clear input and submit
-		messageInput?.setText('');
-		prompt = '';
-		const _files = structuredClone(files);
-		files = [];
-		messageInput?.setText('');
-
-		return (
-			(await submitPrompt(userPrompt, _files, bridgeRequest)) ?? {
-				status: 'rejected'
-			}
-		);
 	};
 
 	const sendMessage = async (

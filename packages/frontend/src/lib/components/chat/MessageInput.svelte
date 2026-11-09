@@ -85,6 +85,7 @@
 		findFilesystemChatUploadTerminal,
 		uploadFilesystemChatAttachment
 	} from './MessageInput/filesystemUpload';
+	import { createChatFileUploadController } from './MessageInput/chatFileUploadController';
 	import { processComposerFile } from './MessageInput/fileProcessing';
 	import { createAttachmentCollection } from './MessageInput/attachmentCollection';
 	import { createSuggestionAttachmentHandler } from './MessageInput/suggestionAttachmentHandler';
@@ -889,152 +890,33 @@
 		return !files.some((item) => item.status === 'pending' && item.file instanceof File);
 	};
 
+	const chatFileUploadController = createChatFileUploadController({
+		canUpload: () =>
+			$_user?.role === 'admin' || ($_user?.permissions?.chat?.file_upload ?? true),
+		canUploadWithSelectedModels: () =>
+			fileUploadCapableModels.length === selectedModelIds.length,
+		getFilesystemTerminal: () => getFilesystemUploadTerminal(),
+		getSelectedTerminalId: () => $selectedTerminalId,
+		getChatId: () => chatId || null,
+		isTemporaryChat: () => isTemporary,
+		getDefaultUploadContext: () => $settings?.defaultUploadContext === 'full',
+		getToken: () => localStorage.token,
+		getAudioLanguage: () => $settings?.audio?.stt?.language,
+		createId: uuidv4,
+		translate: (message, values) => $i18n.t(message, values),
+		showError: (message) => toast.error(message),
+		showWarning: (message) => toast.warning(message),
+		addAttachment: (fileItem) => attachmentCollection.add(fileItem),
+		touchAttachments: () => attachmentCollection.touch(),
+		removeAttachment: (predicate) => attachmentCollection.remove(predicate),
+		uploadFilesystem: uploadTerminalFile,
+		uploadToServer: uploadFile,
+		extractContent: extractContentFromFile,
+		onUpdate: (data) => onUpdate(data)
+	});
+
 	const uploadFileHandler = async (file, process = true, itemData = {}) =>
-		fileInputLifecycle.track(() => uploadFileHandlerImpl(file, process, itemData));
-
-	const uploadFileHandlerImpl = async (file, process = true, itemData = {}) => {
-		if ($_user?.role !== 'admin' && !($_user?.permissions?.chat?.file_upload ?? true)) {
-			toast.error($i18n.t('You do not have permission to upload files.'));
-			return null;
-		}
-
-		const filesystemUploadTerminal = getFilesystemUploadTerminal();
-
-		if (!filesystemUploadTerminal && fileUploadCapableModels.length !== selectedModelIds.length) {
-			toast.error($i18n.t('Model(s) do not support file upload'));
-			return null;
-		}
-
-		const tempItemId = uuidv4();
-		const fileItem: any = {
-			type: 'file',
-			file: '',
-			id: null,
-			url: '',
-			name: file.name,
-			collection_name: '',
-			status: 'uploading',
-			size: file.size,
-			error: '',
-			itemId: tempItemId,
-			// Stamp the user's default upload mode so the sent payload carries it;
-			// the per-file toggle in FileItemModal can still override it afterwards.
-			...($settings?.defaultUploadContext === 'full' ? { context: 'full' } : {}),
-			...itemData
-		};
-
-		if (fileItem.size == 0) {
-			toast.error($i18n.t('You cannot upload an empty file.'));
-			return null;
-		}
-
-		attachmentCollection.add(fileItem);
-
-		if (filesystemUploadTerminal) {
-			fileItem.type = 'filesystem';
-			fileItem.file = file;
-			fileItem.terminal_id = $selectedTerminalId;
-			fileItem.session_id = chatId || null;
-			if (!chatId && filesystemUploadTerminal.contexts?.chat?.context_id === 'chat_id') {
-				fileItem.status = 'pending';
-				attachmentCollection.touch();
-				return;
-			}
-
-			if (!(await uploadTerminalFile(fileItem, fileItem.session_id))) {
-				attachmentCollection.remove((item) => item?.itemId === tempItemId);
-			}
-			onUpdate({ file: fileItem });
-			return;
-		}
-
-		if (!isTemporary) {
-			try {
-				// If the file is an audio file, provide the language for STT.
-				let metadata = null;
-				if (
-					(file.type.startsWith('audio/') || file.type.startsWith('video/')) &&
-					$settings?.audio?.stt?.language
-				) {
-					metadata = {
-						language: $settings?.audio?.stt?.language
-					};
-				}
-				if (/\.(docx|xlsx|pptx|pdf)$/i.test(file.name)) {
-					metadata = { ...(metadata ?? {}), mini_hermes_chat_upload: true };
-				}
-
-				// During the file upload, file content is automatically extracted.
-				const uploadedFile = await uploadFile(localStorage.token, file, metadata, process);
-
-				if (uploadedFile) {
-					console.log('File upload completed:', {
-						id: uploadedFile.id,
-						name: fileItem.name,
-						collection: uploadedFile?.meta?.collection_name
-					});
-
-					if (uploadedFile.error) {
-						console.warn('File upload warning:', uploadedFile.error);
-						toast.warning(uploadedFile.error);
-					}
-
-					fileItem.status = 'uploaded';
-					fileItem.file = uploadedFile;
-					fileItem.id = uploadedFile.id;
-					fileItem.collection_name =
-						uploadedFile?.meta?.collection_name || uploadedFile?.collection_name;
-					fileItem.content_type = uploadedFile.meta?.content_type || uploadedFile.content_type;
-					fileItem.url = `${uploadedFile.id}`;
-
-					attachmentCollection.touch();
-				} else {
-					fileItem.status = 'error';
-					fileItem.error = $i18n.t('Failed to upload file.');
-					attachmentCollection.remove((item) => item?.itemId === tempItemId);
-				}
-			} catch (e) {
-				fileItem.status = 'error';
-				fileItem.error = `${e}`;
-				toast.error(`${e}`);
-				attachmentCollection.remove((item) => item?.itemId === tempItemId);
-			} finally {
-				onUpdate({ file: fileItem });
-			}
-		} else {
-			// If temporary chat is enabled, we just add the file to the list without uploading it.
-
-			const content = await extractContentFromFile(file).catch((error) => {
-				toast.error(
-					$i18n.t('Failed to extract content from the file: {{error}}', { error: error })
-				);
-				return null;
-			});
-
-			if (content === null) {
-				fileItem.status = 'error';
-				fileItem.error = $i18n.t('Failed to extract content from the file.');
-				toast.error($i18n.t('Failed to extract content from the file.'));
-				attachmentCollection.remove((item) => item?.itemId === tempItemId);
-				onUpdate({ file: fileItem });
-				return null;
-			} else {
-				console.log('Extracted content from file:', {
-					name: file.name,
-					size: file.size,
-					content: content
-				});
-
-				fileItem.status = 'uploaded';
-				fileItem.type = 'text';
-				fileItem.content = content;
-				fileItem.id = uuidv4(); // Temporary ID for the file
-
-				attachmentCollection.touch();
-				onUpdate({ file: fileItem });
-			}
-		}
-	};
+		fileInputLifecycle.track(() => chatFileUploadController.upload(file, process, itemData));
 
 	const inputFilesHandler = async (inputFiles: File[]) => {
 		console.log('Input files handler called with:', inputFiles);

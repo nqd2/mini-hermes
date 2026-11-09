@@ -88,6 +88,7 @@
 	import { createChatFileUploadController } from './MessageInput/chatFileUploadController';
 	import { createChatInputKeyboardController } from './MessageInput/chatInputKeyboardController';
 	import { isChatInputSendShortcut } from './MessageInput/chatInputSendShortcut';
+	import { createChatInputPasteController, type ChatInputClipboardData } from './MessageInput/chatInputPasteController';
 	import { processComposerFile } from './MessageInput/fileProcessing';
 	import { createAttachmentCollection } from './MessageInput/attachmentCollection';
 	import { createSuggestionAttachmentHandler } from './MessageInput/suggestionAttachmentHandler';
@@ -993,6 +994,18 @@
 		}
 	};
 
+	const chatInputPasteController = createChatInputPasteController({
+		isLargeTextAsFileEnabled: () => $settings?.largeTextAsFile ?? false,
+		isShiftPressed: () => shiftKey,
+		maximumTextLength: PASTED_TEXT_CHARACTER_LIMIT,
+		createTextFile: (text) =>
+			new File([new Blob([text], { type: 'text/plain' })], `Pasted_Text_${Date.now()}.txt`, {
+				type: 'text/plain'
+			}),
+		uploadTextFile: (file) => uploadFileHandler(file, true, { context: 'full' }),
+		processInputFiles: (files) => inputFilesHandler(files)
+	});
+
 	const createNote = async () => {
 		if (inputContent?.md.trim() === '' && inputContent?.html.trim() === '') {
 			toast.error($i18n.t('Cannot create an empty note.'));
@@ -1856,41 +1869,15 @@
 														}
 													}}
 													on:paste={async (e) => {
-														e = e.detail.event;
-														console.log(e);
-
-														const clipboardData = e.clipboardData || window.clipboardData;
-
-														if (clipboardData && clipboardData.items) {
-															for (const item of clipboardData.items) {
-																if (item.type === 'text/plain') {
-																	if (($settings?.largeTextAsFile ?? false) && !shiftKey) {
-																		const text = clipboardData.getData('text/plain');
-
-																		if (text.length > PASTED_TEXT_CHARACTER_LIMIT) {
-																			e.preventDefault();
-																			const blob = new Blob([text], { type: 'text/plain' });
-																			const file = new File(
-																				[blob],
-																				`Pasted_Text_${Date.now()}.txt`,
-																				{
-																					type: 'text/plain'
-																				}
-																			);
-
-																			await uploadFileHandler(file, true, { context: 'full' });
-																		}
-																	}
-																} else {
-																	const file = item.getAsFile();
-																	if (file) {
-																		await inputFilesHandler([file]);
-																		e.preventDefault();
-																	}
-																}
-															}
-														}
-													}}
+																const pasteEvent = e.detail.event as unknown as ClipboardEvent;
+																const clipboardData = (pasteEvent.clipboardData || window.clipboardData) as
+																	| ChatInputClipboardData
+																	| null;
+																await chatInputPasteController.onPaste({
+																	clipboardData,
+																	preventDefault: () => pasteEvent.preventDefault()
+																});
+															}}
 												/>
 											{/key}
 										{/key}

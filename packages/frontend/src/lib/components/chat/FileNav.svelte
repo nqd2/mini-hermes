@@ -14,6 +14,7 @@
 	import { readDroppedFiles } from './FileNav/droppedFileReader';
 	import { prepareFileOpenRequest } from './FileNav/fileOpenRequestController';
 	import { createFileBufferProtection } from './FileNav/fileBufferProtection';
+	import { createFileSaveController } from './FileNav/fileSaveController';
 	import { createFileSelectionEventController } from './FileNav/fileSelectionEventController';
 	import {
 		createFileNavigationHistory,
@@ -282,25 +283,17 @@
 			: '';
 	// Preserve translations for the former save notifications during extraction.
 	// $i18n.t('File saved'); $i18n.t('Failed to save file');
-	const saveFile = async (content: string) => {
-		const target = saveConnection;
-		if (!target || !selectedFileWritable) throw new Error('File is not writable.');
-		const name = target.path.split('/').pop()!;
-		const dir = target.path.slice(0, target.path.lastIndexOf('/') + 1) || '/';
-		const result = await uploadToTerminal(
-			target.url,
-			target.key,
-			dir,
-			new File([content], name, { type: 'text/plain' }),
-			target.chatId ?? undefined
-		);
-		if (!result) throw new Error('Failed to save file. Your changes are still in the editor.');
-		if (saveConnection === target) {
+	const fileSaveController = createFileSaveController({
+		getConnection: () => saveConnection,
+		isWritable: () => selectedFileWritable,
+		uploadFile: uploadToTerminal,
+		onSaved: (content) => {
 			fileContent = content;
 			diskChanged = false;
-		}
-		await tick();
-	};
+		},
+		nextTick: tick
+	});
+	const saveFile = fileSaveController.save;
 
 	// Sessions panel state
 	let terminalExpanded = false;

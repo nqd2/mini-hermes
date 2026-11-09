@@ -12,6 +12,7 @@
 	import { applyChatCompletionEvent } from './chatCompletionEventReducer';
 	import { evaluateChatSubmission } from './chatSubmissionGate';
 	import { executeChatSubmission } from './chatSubmissionExecutor';
+	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
 	import { handleChatToolInteractionEvent } from './chatInteractionEventHandler';
@@ -1545,26 +1546,6 @@
 					if (shouldAutoScrollResponse()) {
 						scrollToBottom('smooth');
 					}
-				} else if (type === 'chat:outlet') {
-					// Outlet filter ran on backend — sync in-memory state
-					const outletMessages = data.messages ?? [];
-					for (const msg of outletMessages) {
-						if (msg?.id && history.messages[msg.id]) {
-							const existing = history.messages[msg.id];
-							if (existing.content !== msg.content) {
-								history.messages[msg.id] = {
-									...existing,
-									originalContent: existing.content,
-									...msg
-								};
-							}
-						}
-					}
-					history = history;
-					return; // Patches history.messages directly; skip the trailing write-back.
-				} else if (type === 'chat:message:favorite') {
-					// Update message favorite status
-					message.favorite = data.favorite;
 				} else if (type === 'chat:title') {
 					chatTitle.set(data);
 					if (embedded && $chatId) {
@@ -1576,44 +1557,28 @@
 					chat = await getChatById(localStorage.token, $chatId);
 					allTags.set(await getAllTags(localStorage.token));
 					return;
-				} else if (type === 'source' || type === 'citation') {
-					if (data?.type === 'code_execution') {
-						// Code execution; update existing code execution by ID, or add new one.
-						if (!message?.code_executions) {
-							message.code_executions = [];
+				} else if (
+					type === 'chat:outlet' ||
+					type === 'chat:message:favorite' ||
+					type === 'source' ||
+					type === 'citation' ||
+					type === 'notification'
+				) {
+					const result = handleChatMessageAuxiliaryEvent(
+						type,
+						data,
+						message,
+						history.messages,
+						{
+							success: toast.success,
+							error: toast.error,
+							warning: toast.warning,
+							info: toast.info
 						}
-
-						const existingCodeExecutionIndex = message.code_executions.findIndex(
-							(execution) => execution.id === data.id
-						);
-
-						if (existingCodeExecutionIndex !== -1) {
-							message.code_executions[existingCodeExecutionIndex] = data;
-						} else {
-							message.code_executions.push(data);
-						}
-
-						message.code_executions = message.code_executions;
-					} else {
-						// Regular source.
-						if (message?.sources) {
-							message.sources.push(data);
-						} else {
-							message.sources = [data];
-						}
-					}
-				} else if (type === 'notification') {
-					const toastType = data?.type ?? 'info';
-					const toastContent = data?.content ?? '';
-
-					if (toastType === 'success') {
-						toast.success(toastContent);
-					} else if (toastType === 'error') {
-						toast.error(toastContent);
-					} else if (toastType === 'warning') {
-						toast.warning(toastContent);
-					} else {
-						toast.info(toastContent);
+					);
+					if (result === 'history-patched') {
+						history = history;
+						return; // The outlet result patches prior messages directly.
 					}
 				} else if (type === 'confirmation' || type === 'execute' || type === 'input') {
 					const dialogResult = handleChatInteractionDialogEvent(type, data, cb, {

@@ -77,6 +77,7 @@ from open_webui.tools.builtin import (
     query_knowledge_bases,
     query_knowledge_files,
     read_memory_path,
+    read_agent_artifact,
     replace_memory_content,
     replace_note_content,
     search_calendar_events,
@@ -972,6 +973,11 @@ async def get_builtin_tools(
         from open_webui.utils.subagents import MUTATING_MEMORY_TOOLS
 
         builtin_functions = [func for func in builtin_functions if func.__name__ not in MUTATING_MEMORY_TOOLS]
+
+    # Truncated output references must remain readable in the same durable turn.
+    # This is read-only and enforces the current user's artifact ownership.
+    if builtin_functions and get_model_capability('builtin_tools'):
+        builtin_functions.append(read_agent_artifact)
 
     for func in builtin_functions:
         callable = await get_async_tool_function_and_apply_extra_params(

@@ -68,6 +68,54 @@ log = logging.getLogger(__name__)
 MAX_KNOWLEDGE_BASE_SEARCH_ITEMS = 10_000
 
 
+async def read_agent_artifact(
+    artifact_id: str,
+    offset: int = 0,
+    length: int = 24000,
+    __user__: dict | None = None,
+) -> str:
+    """Read a bounded byte range from a large tool result stored for your account.
+
+    :param artifact_id: Artifact ID shown in a truncated tool result
+    :param offset: Zero-based byte offset to continue reading from
+    :param length: Number of bytes to read, up to 65536
+    :return: The requested text section and the next offset when more content remains
+    """
+    owner_id = (__user__ or {}).get('id')
+    if not owner_id:
+        return JSONCodec.dumps({'error': 'User context not available'})
+    try:
+        from open_webui.agent_runtime.runtime import AgentRuntime
+
+        artifact_store = AgentRuntime.configured().artifact_store
+        if artifact_store is None:
+            return JSONCodec.dumps({'error': 'Artifact storage is unavailable'})
+        artifact = await artifact_store.repository.get_artifact(artifact_id, owner_id=str(owner_id))
+        if artifact is None:
+            return JSONCodec.dumps({'error': 'Artifact not found'})
+        offset = max(0, int(offset))
+        length = min(65_536, max(1, int(length)))
+        content, start_offset, end_offset, size_bytes = await artifact_store.read_text_range(
+            str(owner_id), artifact_id, offset=offset, length=length
+        )
+        return JSONCodec.dumps(
+            {
+                'artifact_id': artifact.id,
+                'filename': artifact.filename,
+                'sha256': artifact.sha256,
+                'size_bytes': size_bytes,
+                'start_offset': start_offset,
+                'end_offset': end_offset,
+                'next_offset': end_offset if end_offset < size_bytes else None,
+                'content': content,
+            },
+            ensure_ascii=False,
+        )
+    except Exception as error:
+        log.exception('Unable to read agent artifact %s', artifact_id)
+        return JSONCodec.dumps({'error': type(error).__name__})
+
+
 
 
 
@@ -1258,9 +1306,10 @@ async def view_file(
     offset = max(offset, 0)
 
     try:
+        from open_webui.agent_runtime.files import AgentFileContentStore
         from open_webui.models.files import Files
 
-        file = await Files.get_file_by_id(file_id)
+        file = await Files.get_file_by_id_without_content(file_id)
         if not file:
             return JSONCodec.dumps({'error': 'File not found'})
 
@@ -1272,51 +1321,90 @@ async def view_file(
         if not await _has_read_access_to_file(file, __user__, __model_knowledge__):
             return JSONCodec.dumps({'error': 'File not found'})
 
+        file_content_store = AgentFileContentStore.configured()
+        reference = await file_content_store.get_reference(file.id, owner_id=file.user_id)
         content = ''
-        if file.data:
-            content = file.data.get('content', '')
-
-        total_chars = len(content)
+        if reference is None:
+            legacy_file = await Files.get_file_by_id(file_id)
+            content = (legacy_file.data or {}).get('content', '') if legacy_file else ''
+            if isinstance(content, str) and len(content.encode('utf-8')) > file_content_store.inline_threshold_bytes:
+                reference = await file_content_store.migrate_file(file.id, owner_id=file.user_id)
+        total_chars = reference.char_count if reference else len(content)
+        revision = reference.sha256 if reference else content_version(content)
 
         # Line-based addressing (overrides char-based offset/max_chars)
         if start_line is not None or end_line is not None:
-            all_lines = content.split('\n')
-            total_lines = len(all_lines)
-            s = max(1, int(start_line or 1)) - 1  # 1-indexed to 0-indexed
-            e = min(total_lines, int(end_line) if end_line else s + 100)
-            selected = all_lines[s:e]
-            sliced = '\n'.join(f'{s + i + 1}: {line}' for i, line in enumerate(selected))
-            source_start = sum(len(line) + 1 for line in all_lines[:s])
-            source_text = '\n'.join(selected)
-            source_end = source_start + len(source_text)
-            version = content_version(content)
-            is_truncated = e < total_lines
+            total_lines = reference.line_count if reference else len(content.split('\n'))
+            s = max(1, int(start_line or 1))
+            e = min(total_lines, int(end_line) if end_line else s + 99)
+            if s > total_lines:
+                selected_rows = []
+            elif reference:
+                selected_rows = await file_content_store.read_lines(reference, s, e, max_chars=max_chars)
+            else:
+                all_lines = content.split('\n')
+                source_start = sum(len(line) + 1 for line in all_lines[: s - 1])
+                selected_rows = []
+                source_cursor = source_start
+                for line_number, line in enumerate(all_lines[s - 1 : e], start=s):
+                    selected_rows.append((line_number, line, source_cursor, source_cursor + len(line)))
+                    source_cursor += len(line) + 1
+
+            rendered_lines = []
+            bounded_rows = []
+            remaining_chars = max_chars
+            output_truncated = False
+            for line_number, line, line_start, line_end in selected_rows:
+                prefix = f'{line_number}: '
+                rendered = prefix + line
+                if len(rendered) > remaining_chars:
+                    visible_line = line[: max(0, remaining_chars - len(prefix))]
+                    rendered = (prefix + visible_line)[:remaining_chars]
+                    bounded_rows.append((line_number, visible_line, line_start, line_start + len(visible_line)))
+                    rendered_lines.append(rendered)
+                    output_truncated = True
+                    break
+                bounded_rows.append((line_number, line, line_start, line_end))
+                rendered_lines.append(rendered)
+                remaining_chars -= len(rendered) + 1
+                if remaining_chars <= 0:
+                    output_truncated = line_number < e
+                    break
+            source_start = bounded_rows[0][2] if bounded_rows else 0
+            source_end = bounded_rows[-1][3] if bounded_rows else source_start
+            source_text = '\n'.join(item[1] for item in bounded_rows)
+            sliced = '\n'.join(rendered_lines)
+            is_truncated = e < total_lines or output_truncated or len(bounded_rows) < len(selected_rows)
             result = {
                 'id': file.id,
                 'filename': file.filename,
                 'content': sliced,
-                'revision': version,
-                'evidence_id': evidence_id(file.id, version, source_start, source_end, source_text),
+                'revision': revision,
+                'evidence_id': evidence_id(file.id, revision, source_start, source_end, source_text),
                 'start_offset': source_start,
                 'end_offset': source_end,
                 'updated_at': file.updated_at,
                 'created_at': file.created_at,
                 'total_lines': total_lines,
-                'showing_lines': f'{s + 1}-{e}',
+                'showing_lines': (
+                    f'{bounded_rows[0][0]}-{bounded_rows[-1][0]}' if bounded_rows else f'{s}-{e}'
+                ),
             }
             if is_truncated:
                 result['truncated'] = True
-                result['next_start_line'] = e + 1
+                result['next_start_line'] = (bounded_rows[-1][0] + 1) if bounded_rows else s
             return JSONCodec.dumps(result, ensure_ascii=False)
 
-        sliced = content[offset : offset + max_chars]
+        if reference:
+            sliced, _, start_ln = await file_content_store.read_chars(reference, offset, max_chars)
+        else:
+            sliced = content[offset : offset + max_chars]
+            start_ln = content[:offset].count('\n') + 1
         returned_chars = len(sliced)
         is_truncated = (offset + returned_chars) < total_chars
         source_slice = sliced
-        version = content_version(content)
 
         if line_numbers:
-            start_ln = content[:offset].count('\n') + 1
             lines = sliced.split('\n')
             sliced = '\n'.join(f'{start_ln + i}: {line}' for i, line in enumerate(lines))
 
@@ -1324,8 +1412,8 @@ async def view_file(
             'id': file.id,
             'filename': file.filename,
             'content': sliced,
-            'revision': version,
-            'evidence_id': evidence_id(file.id, version, offset, offset + returned_chars, source_slice),
+            'revision': revision,
+            'evidence_id': evidence_id(file.id, revision, offset, offset + returned_chars, source_slice),
             'start_offset': offset,
             'end_offset': offset + returned_chars,
             'updated_at': file.updated_at,

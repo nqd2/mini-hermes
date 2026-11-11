@@ -151,3 +151,103 @@ async def test_worker_processes_and_persists_one_summary_checkpoint(monkeypatch)
         assert task.checkpoint['items'] == [{'summary': 'summary:evidence', 'evidence_ids': ['chunk-worker']}]
 
     await engine.dispose()
+
+
+async def _description_worker_database(monkeypatch):
+    from open_webui.mini_hermes import worker
+
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            lambda sync: Document.metadata.create_all(
+                sync,
+                tables=[Folder.__table__, Document.__table__, Revision.__table__],
+            )
+        )
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr(worker, 'AsyncSessionLocal', sessions)
+    monkeypatch.setattr(worker, 'ObjectStore', lambda: object())
+
+    async def load_revision_content(_store, _revision):
+        return b'large-document-fixture'
+
+    monkeypatch.setattr(worker, 'get_verified_revision_content', load_revision_content)
+    monkeypatch.setattr(worker, 'extract_text', lambda _content, _filename: 'x' * 24_000)
+    async with sessions() as db:
+        db.add(
+            Document(
+                id='doc-description',
+                owner_id='alice',
+                filename='large.txt',
+                mime_type='text/plain',
+                current_revision=1,
+                description_next_attempt_at=now(),
+            )
+        )
+        db.add(
+            Revision(
+                id='rev-description',
+                document_id='doc-description',
+                number=1,
+                object_key='large',
+                sha256='d' * 64,
+                size=24_000,
+            )
+        )
+        await db.commit()
+    return engine, sessions
+
+
+@pytest.mark.asyncio
+async def test_description_provider_receives_bounded_source_text(monkeypatch):
+    from open_webui.mini_hermes import resource_tasks, worker
+
+    engine, sessions = await _description_worker_database(monkeypatch)
+    submitted = []
+
+    async def describe(messages, *, max_tokens, temperature=0.1):
+        submitted.append(messages[-1]['content'])
+        return 'A bounded description.'
+
+    monkeypatch.setattr(resource_tasks, 'call_provider', describe)
+    await worker.process_description('doc-description')
+
+    async with sessions() as db:
+        document = await db.get(Document, 'doc-description')
+        assert document.description_status == 'complete'
+        assert document.description == 'A bounded description.'
+    assert len(submitted) == 1
+    assert len(submitted[0]) <= 8_000
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_description_context_rejection_is_terminal_until_manual_retry(monkeypatch):
+    from fastapi import HTTPException
+
+    from open_webui.mini_hermes import resource_tasks, worker
+
+    engine, sessions = await _description_worker_database(monkeypatch)
+    submitted = []
+
+    async def reject_context(messages, *, max_tokens, temperature=0.1):
+        submitted.append(messages[-1]['content'])
+        raise HTTPException(
+            status_code=413,
+            detail={
+                'code': 'model_context_budget_exceeded',
+                'message': 'The supplied request does not fit the configured model context.',
+            },
+        )
+
+    monkeypatch.setattr(resource_tasks, 'call_provider', reject_context)
+    assert await worker.claim_description() == 'doc-description'
+    await worker.process_description('doc-description')
+
+    async with sessions() as db:
+        document = await db.get(Document, 'doc-description')
+        assert document.description_status == 'failed_permanent'
+        assert document.description_attempts == 1
+    assert len(submitted) == 1
+    assert await worker.claim_description() is None
+    await engine.dispose()

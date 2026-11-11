@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import hashlib
 from io import BytesIO
 from types import SimpleNamespace
 
@@ -137,19 +138,30 @@ async def test_description_failure_keeps_uploaded_revision_and_is_retryable(monk
         await connection.run_sync(lambda sync: Document.metadata.create_all(
             sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__, ChatResource.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
+    content = valid_docx('retryable description source')
 
     class Store:
         async def get(self, key):
-            return b'raw file bytes'
+            return content
 
     async with sessions() as db:
         root = await ensure_personal_folder(db, 'alice')
         db.add(Document(id='doc-1', owner_id='alice', filename='report.docx', mime_type='application/docx',
                         current_revision=1, folder_id=root.id, description_status='processing',
                         description_attempts=1, description_next_attempt_at=now()))
-        db.add(Revision(id='rev-1', document_id='doc-1', number=1, object_key='source', sha256='x', size=14))
+        db.add(
+            Revision(
+                id='rev-1',
+                document_id='doc-1',
+                number=1,
+                object_key='source',
+                sha256=hashlib.sha256(content).hexdigest(),
+                size=len(content),
+            )
+        )
         await db.commit()
 
+    monkeypatch.setenv('MH_RESOURCE_TASK_MODEL', '')
     monkeypatch.setenv('MH_SMALL_TASK_MODEL', '')
     monkeypatch.setattr(worker, 'AsyncSessionLocal', sessions)
     monkeypatch.setattr(worker, 'ObjectStore', lambda: Store())

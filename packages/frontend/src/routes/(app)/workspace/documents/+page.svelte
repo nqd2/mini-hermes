@@ -18,6 +18,7 @@
 		base_revision: number;
 		base_sha256: string | null;
 		artifact_sha256: string | null;
+		patch_hash: string | null;
 	};
 	let documents: DocumentItem[] = [];
 	let selected: DocumentItem | null = null;
@@ -105,7 +106,7 @@
 	async function commit(preview: PreviewItem) {
 		busy = true;
 		try {
-			const approval = preview.base_sha256 && preview.artifact_sha256
+			const approval = preview.base_sha256 && preview.artifact_sha256 && preview.patch_hash
 				? preview
 				: await api(`/previews/${preview.id}`);
 			await api(`/previews/${preview.id}/commit`, {
@@ -114,7 +115,8 @@
 				body: JSON.stringify({
 					base_revision: approval.base_revision,
 					base_sha256: approval.base_sha256,
-					artifact_sha256: approval.artifact_sha256
+					artifact_sha256: approval.artifact_sha256,
+					patch_hash: approval.patch_hash
 				})
 			});
 			statusMessage = 'Revision committed. Drive sync queued automatically.';

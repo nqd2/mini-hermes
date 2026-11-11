@@ -442,6 +442,7 @@ async def propose_document_edit(
             'base_revision': preview.base_revision,
             'base_sha256': preview.base_sha256,
             'artifact_sha256': preview.artifact_sha256,
+            'patch_hash': preview.patch_hash,
             'diff': preview.diff,
             'approval_endpoint': f'/api/v1/mini-hermes/previews/{preview.id}/commit',
             'approval_required': True,
@@ -499,7 +500,9 @@ async def _sandbox_inputs(
         ).scalar_one()
         name = Path(doc.filename).name
         input_path = f'inputs/{doc.id}/{name}'
-        inputs[input_path] = base64.b64encode(await store.get(revision.object_key)).decode()
+        from .service import get_verified_revision_content
+
+        inputs[input_path] = base64.b64encode(await get_verified_revision_content(store, revision)).decode()
         input_revisions[input_path] = revision.number
     return inputs, input_revisions
 
@@ -680,6 +683,7 @@ async def publish_document_output(
                 'base_revision': preview.base_revision,
                 'base_sha256': preview.base_sha256,
                 'artifact_sha256': preview.artifact_sha256,
+                'patch_hash': preview.patch_hash,
                 'diff': preview.diff,
                 'preview_url': f'/api/v1/mini-hermes/previews/{preview.id}/content',
                 'approval_endpoint': f'/api/v1/mini-hermes/previews/{preview.id}/commit',

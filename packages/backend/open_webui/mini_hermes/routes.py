@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import re
 import secrets
@@ -10,7 +11,7 @@ from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import RedirectResponse
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
@@ -25,7 +26,17 @@ from .drive import Gateway, NATIVE_TO_OFFICE
 from .edits import normalize_operations
 from .models import ChatResource, Document, Folder, Preview, ResourceTask, Revision, SyncJob, now
 from .oauth import access_token_for, authorization_url, exchange_code, save_refresh_token
-from .service import MAX_BYTES, commit_preview, create_document, create_preview, ensure_preview_hashes, owned_document, revision_for
+from .service import (
+    MAX_BYTES,
+    create_document,
+    create_preview,
+    ensure_preview_hashes,
+    get_verified_revision_content,
+    owned_document,
+    revision_for,
+)
+from .revision_service import commit_preview as publish_revision
+from .revision_service import prepare_rollback_preview
 from .storage import ObjectStore
 from .library import (
     accessible_document,
@@ -56,10 +67,16 @@ class PreviewRequest(BaseModel):
     operations: list[dict]
 
 
+class RollbackPreviewRequest(BaseModel):
+    target_revision: int = Field(ge=1)
+    expected_current_revision: int = Field(ge=1)
+
+
 class PreviewApprovalRequest(BaseModel):
     base_revision: int
     base_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
     artifact_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+    patch_hash: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
 class ResourceTaskRequest(BaseModel):
@@ -288,6 +305,7 @@ async def list_chat_previews(chat_id: str, user=Depends(get_verified_user), db=D
                        'base_revision': preview.base_revision,
                        'base_sha256': preview.base_sha256,
                        'artifact_sha256': preview.artifact_sha256,
+                       'patch_hash': preview.patch_hash,
                        'revision': committed.number if committed else None,
                        'viewer_url': url, 'download_url': url,
                        'sync_status': job.status if job else 'local_only' if committed else None})
@@ -389,7 +407,7 @@ async def get_content(document_id: str, revision: int | None = None,
                       user=Depends(get_verified_user), db=Depends(get_async_session)):
     doc = await accessible_document(db, document_id, user.id, 'read', is_admin=user.role == 'admin')
     record = await revision_for(db, doc.id, revision or doc.current_revision)
-    return Response(await ObjectStore().get(record.object_key), media_type=doc.mime_type,
+    return Response(await get_verified_revision_content(ObjectStore(), record), media_type=doc.mime_type,
                     headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quote(doc.filename)}"})
 
 
@@ -399,6 +417,37 @@ async def request_preview(document_id: str, request: PreviewRequest,
     doc = await accessible_document(db, document_id, user.id, 'write', is_admin=user.role == 'admin')
     preview = await create_preview(db, doc, user.id, request.operations)
     return {'id': preview.id, 'status': preview.status}
+
+
+@router.post('/documents/{document_id}/rollback-preview')
+async def request_rollback_preview(
+    document_id: str,
+    request: RollbackPreviewRequest,
+    user=Depends(get_verified_user),
+    db=Depends(get_async_session),
+):
+    preview = await prepare_rollback_preview(
+        db,
+        ObjectStore(),
+        user.id,
+        document_id,
+        target_revision=request.target_revision,
+        expected_current_revision=request.expected_current_revision,
+        is_admin=user.role == 'admin',
+    )
+    return {
+        'id': preview.id,
+        'document_id': preview.document_id,
+        'status': preview.status,
+        'diff': preview.diff,
+        'error': preview.error,
+        'base_revision': preview.base_revision,
+        'base_sha256': preview.base_sha256,
+        'artifact_sha256': preview.artifact_sha256,
+        'patch_hash': preview.patch_hash,
+        'approval_endpoint': f'/api/v1/mini-hermes/previews/{preview.id}/commit',
+        'approval_required': True,
+    }
 
 
 @router.post('/documents/{document_id}/tasks')
@@ -460,7 +509,8 @@ async def list_previews(document_id: str, user=Depends(get_verified_user), db=De
                                  .order_by(Preview.created_at.desc()).limit(10))).scalars().all()
     return [{'id': item.id, 'status': item.status, 'diff': item.diff, 'error': item.error,
              'operations': item.operations, 'base_revision': item.base_revision,
-             'base_sha256': item.base_sha256, 'artifact_sha256': item.artifact_sha256} for item in previews]
+             'base_sha256': item.base_sha256, 'artifact_sha256': item.artifact_sha256,
+             'patch_hash': item.patch_hash} for item in previews]
 
 
 @router.get('/previews/{preview_id}')
@@ -473,7 +523,7 @@ async def get_preview(preview_id: str, user=Depends(get_verified_user), db=Depen
     return {'id': preview.id, 'document_id': preview.document_id, 'status': preview.status,
             'diff': preview.diff, 'operations': preview.operations, 'error': preview.error,
             'base_revision': preview.base_revision, 'base_sha256': preview.base_sha256,
-            'artifact_sha256': preview.artifact_sha256,
+            'artifact_sha256': preview.artifact_sha256, 'patch_hash': preview.patch_hash,
             'filename': document.filename if document else 'document'}
 
 
@@ -483,7 +533,10 @@ async def get_preview_content(preview_id: str, user=Depends(get_verified_user), 
     if not preview or not preview.preview_key or preview.status not in {'ready', 'committed'}:
         raise HTTPException(404, 'Preview file not found')
     doc = await accessible_document(db, preview.document_id, user.id, 'read', is_admin=user.role == 'admin')
-    return Response(await ObjectStore().get(preview.preview_key), media_type=doc.mime_type,
+    content = await ObjectStore().get(preview.preview_key)
+    if preview.artifact_sha256 and hashlib.sha256(content).hexdigest() != preview.artifact_sha256:
+        raise HTTPException(503, {'code': 'preview_integrity_failure', 'message': 'Preview failed its checksum check.'})
+    return Response(content, media_type=doc.mime_type,
                     headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quote('preview-' + doc.filename)}"})
 
 
@@ -510,6 +563,7 @@ async def retry_preview(preview_id: str, user=Depends(get_verified_user), db=Dep
     preview.diff = None
     preview.preview_key = None
     preview.artifact_sha256 = None
+    preview.patch_hash = None
     preview.lease_until = None
     await db.commit()
     return {'id': preview.id, 'status': preview.status}
@@ -517,10 +571,16 @@ async def retry_preview(preview_id: str, user=Depends(get_verified_user), db=Dep
 
 @router.post('/previews/{preview_id}/commit')
 async def commit(preview_id: str, approval: PreviewApprovalRequest,
+                 request: Request,
+                 idempotency_key: str | None = Header(default=None, alias='Idempotency-Key'),
                  user=Depends(get_verified_user), db=Depends(get_async_session)):
-    revision, job = await commit_preview(
-        db, ObjectStore(), user.id, preview_id, user.role == 'admin', approval=approval.model_dump()
+    revision, job = await publish_revision(
+        db, ObjectStore(), user.id, preview_id, user.role == 'admin', approval=approval.model_dump(),
+        idempotency_key=idempotency_key,
     )
+    from .revision_service import dispatch_pending_outbox
+
+    await dispatch_pending_outbox(db, request, revision.id)
     return {'revision': revision.number, 'sync_job_id': job.id if job else None,
             'sync_status': job.status if job else 'local_only'}
 

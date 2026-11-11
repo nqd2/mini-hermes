@@ -449,18 +449,25 @@ async def count_anthropic_tokens(request: Request, form_data: dict, user: UserMo
     """Forward an Anthropic token-count request through an OpenAI-compatible connection."""
     requested_model, payload, url, key, headers, cookies = await get_anthropic_request_target(request, form_data, user)
     request_url = f'{url.rstrip("/")}/messages/count_tokens'
+    from open_webui.agent_runtime.gateway import ProviderGateway
+
+    provider_gateway = ProviderGateway()
+    prepared_request = provider_gateway.prepare(payload, url)
+    await provider_gateway.checkpoint(request, prepared_request)
     response = None
 
     try:
         session = await get_session()
-        response = await session.request(
-            method='POST',
-            url=request_url,
-            data=JSONCodec.dumps(payload),
+        response = await provider_gateway.send(
+            session,
+            'POST',
+            request_url,
+            prepared_request,
             headers=headers,
             cookies=cookies,
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(),
+            provider_base_url=url,
         )
 
         try:
@@ -1612,12 +1619,15 @@ async def generate_chat_completion(
     if not is_streaming_request:
         payload.pop('stream_options', None)
 
-    from open_webui.mini_hermes.provider_guard import apply_capability_constraints, validate_provider_payload
-
     capability_overrides = getattr(request.state, 'resource_model_capabilities', None)
-    payload = apply_capability_constraints(payload, url, capability_overrides)
-    serialized_payload = JSONCodec.dumps(payload)
-    payload_metrics = validate_provider_payload(serialized_payload, payload, url, capability_overrides)
+    from open_webui.agent_runtime.gateway import ProviderGateway
+
+    provider_gateway = ProviderGateway()
+    prepared_request = provider_gateway.prepare(payload, url, capability_overrides)
+    await provider_gateway.checkpoint(request, prepared_request)
+    payload = prepared_request.payload
+    serialized_payload = prepared_request.wire_body
+    payload_metrics = prepared_request.metrics
     log.info(
         'Provider chat request size: model=%s messages=%d serialized_chars=%d message_chars=%d tool_chars=%d',
         requested_model,
@@ -1635,14 +1645,17 @@ async def generate_chat_completion(
     try:
         session = await get_session()
 
-        r = await session.request(
-            method='POST',
-            url=request_url,
-            data=payload,
+        r = await provider_gateway.send(
+            session,
+            'POST',
+            request_url,
+            prepared_request,
             headers=headers,
             cookies=cookies,
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(stream=is_streaming_request),
+            provider_base_url=url,
+            capability_overrides=capability_overrides,
         )
         log.info(
             'Provider chat response: model=%s status=%s request_id=%s',
@@ -1767,8 +1780,13 @@ async def embeddings(request: Request, form_data: dict, user):
     url, key, api_config = await get_openai_connection(idx)
 
     form_data['model'] = strip_provider_model_prefix(form_data['model'], api_config.get('prefix_id'))
-    # Prepare payload/body
-    body = JSONCodec.dumps(form_data)
+    from open_webui.agent_runtime.gateway import ProviderGateway
+
+    provider_gateway = ProviderGateway()
+    prepared_request = provider_gateway.prepare(form_data, url)
+    await provider_gateway.checkpoint(request, prepared_request)
+    form_data = prepared_request.payload
+    body = prepared_request.wire_body
 
     r = None
     streaming = False
@@ -1798,14 +1816,16 @@ async def embeddings(request: Request, form_data: dict, user):
 
     try:
         session = await get_session()
-        r = await session.request(
-            method='POST',
-            url=embeddings_url,
-            data=body,
+        r = await provider_gateway.send(
+            session,
+            'POST',
+            embeddings_url,
+            prepared_request,
             headers=headers,
             cookies=cookies,
             timeout=get_client_timeout(),
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
+            provider_base_url=url,
         )
 
         if 'text/event-stream' in r.headers.get('Content-Type', ''):
@@ -1902,13 +1922,15 @@ async def responses(
     url, key, api_config = await get_openai_connection(idx)
 
     payload['model'] = strip_provider_model_prefix(payload['model'], api_config.get('prefix_id'))
-    from open_webui.mini_hermes.provider_guard import apply_capability_constraints, validate_provider_payload
-
     capability_overrides = getattr(request.state, 'resource_model_capabilities', None)
-    payload = apply_capability_constraints(payload, url, capability_overrides)
-    body = JSONCodec.dumps(payload)
+    from open_webui.agent_runtime.gateway import ProviderGateway
 
-    payload_metrics = validate_provider_payload(body, payload, url, capability_overrides)
+    provider_gateway = ProviderGateway()
+    prepared_request = provider_gateway.prepare(payload, url, capability_overrides)
+    await provider_gateway.checkpoint(request, prepared_request)
+    payload = prepared_request.payload
+    body = prepared_request.wire_body
+    payload_metrics = prepared_request.metrics
     log.info(
         'Provider responses request size: model=%s messages=%d serialized_chars=%d',
         payload.get('model'), payload_metrics['message_count'], payload_metrics['serialized_chars'],
@@ -1938,14 +1960,17 @@ async def responses(
             request_url = f'{url}/responses'
 
         session = await get_session()
-        r = await session.request(
-            method='POST',
-            url=request_url,
-            data=body,
+        r = await provider_gateway.send(
+            session,
+            'POST',
+            request_url,
+            prepared_request,
             headers=headers,
             cookies=cookies,
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(stream=is_streaming_request),
+            provider_base_url=url,
+            capability_overrides=capability_overrides,
         )
         log.info(
             'Provider responses response: model=%s status=%s request_id=%s',
@@ -2067,34 +2092,49 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
         else:
             request_url = f'{url}/{path}'
 
-        # Guard after provider-specific URL and payload transformations. The bytes
-        # below are the exact body sent on this attempt (and therefore every retry).
+        # Prepare after provider-specific URL and payload transformations.
         try:
             validation_payload = JSONCodec.loads(body)
         except Exception:
             validation_payload = None
+        prepared_request = None
         if isinstance(validation_payload, dict):
-            from open_webui.mini_hermes.provider_guard import apply_capability_constraints, validate_provider_payload
+            from open_webui.agent_runtime.gateway import ProviderGateway
 
-            validation_payload = apply_capability_constraints(validation_payload, base_url)
-            body = JSONCodec.dumps(validation_payload).encode('utf-8')
-            payload_metrics = validate_provider_payload(body, validation_payload, base_url)
+            provider_gateway = ProviderGateway()
+            prepared_request = provider_gateway.prepare(validation_payload, base_url)
+            await provider_gateway.checkpoint(request, prepared_request)
+            body = prepared_request.wire_body.encode('utf-8')
+            payload_metrics = prepared_request.metrics
             log.info(
                 'Provider proxy request size: model=%s messages=%d serialized_chars=%d',
-                validation_payload.get('model'), payload_metrics['message_count'],
+                prepared_request.payload.get('model'), payload_metrics['message_count'],
                 payload_metrics['serialized_chars'],
             )
 
         session = await get_session()
-        r = await session.request(
-            method=request.method,
-            url=request_url,
-            data=body,
-            headers=headers,
-            cookies=cookies,
-            ssl=AIOHTTP_CLIENT_SESSION_SSL,
-            timeout=get_client_timeout(stream=is_streaming_request),
-        )
+        if prepared_request is not None:
+            r = await provider_gateway.send(
+                session,
+                request.method,
+                request_url,
+                prepared_request,
+                headers=headers,
+                cookies=cookies,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+                timeout=get_client_timeout(stream=is_streaming_request),
+                provider_base_url=base_url,
+            )
+        else:
+            r = await session.request(
+                method=request.method,
+                url=request_url,
+                data=body,
+                headers=headers,
+                cookies=cookies,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+                timeout=get_client_timeout(stream=is_streaming_request),
+            )
         log.info(
             'Provider proxy response: status=%s request_id=%s',
             r.status, r.headers.get('x-request-id') or r.headers.get('request-id'),

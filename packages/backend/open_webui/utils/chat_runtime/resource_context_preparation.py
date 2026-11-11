@@ -8,6 +8,73 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 
+def _function_tool_choice(name: str) -> dict[str, Any]:
+    return {'type': 'function', 'function': {'name': name}}
+
+
+def _provider_tool_names(form_data: dict) -> set[str]:
+    return {
+        tool.get('function', {}).get('name')
+        for tool in form_data.get('tools') or []
+        if isinstance(tool, dict) and isinstance(tool.get('function'), dict)
+    }
+
+
+def _require_document_summary_tool(form_data: dict, metadata: dict) -> None:
+    """Route incomplete, whole-document requests into the durable task flow."""
+    state = metadata.get('agent_task_state') or {}
+    prior_task_ids = state.get('resource_task_ids') or metadata.get('pending_resource_task_ids') or []
+    if not (
+        metadata.get('resource_execution_requested')
+        and metadata.get('resource_context_mode') in {'FULL', 'HIERARCHICAL'}
+        and state.get('requires_complete_coverage') is True
+        and state.get('coverage_complete') is not True
+        and state.get('status') not in {'blocked', 'cancelled'}
+        and (
+            state.get('status') != 'pending'
+            or bool(prior_task_ids)
+            or state.get('reason') == 'resource_index_pending'
+        )
+        and metadata.get('resource_file_tools_available')
+        and (metadata.get('params') or {}).get('function_calling') != 'legacy'
+        and len(metadata.get('resource_scope_ids') or []) == 1
+    ):
+        return
+
+    tool_names = _provider_tool_names(form_data)
+    if not {'list_editable_documents', 'start_document_summary_task', 'get_document_task'} <= tool_names:
+        return
+
+    task_ids = list(dict.fromkeys(
+        str(task_id)
+        for task_id in [*(state.get('resource_task_ids') or []), *(metadata.get('pending_resource_task_ids') or [])]
+        if isinstance(task_id, str) and task_id
+    ))
+    if task_ids:
+        metadata['resource_summary_task_required'] = True
+        metadata['resource_summary_task_phase'] = 'status'
+        form_data['tool_choice'] = _function_tool_choice('get_document_task')
+    else:
+        metadata['resource_summary_task_required'] = True
+        metadata['resource_summary_task_phase'] = 'list'
+        form_data['tool_choice'] = _function_tool_choice('list_editable_documents')
+
+
+def apply_resource_summary_tool_choice(form_data: dict, metadata: dict) -> None:
+    """Apply the next required document-task step after a tool result."""
+    phase_to_tool = {
+        'list': 'list_editable_documents',
+        'start': 'start_document_summary_task',
+        'status': 'get_document_task',
+    }
+    phase = metadata.get('resource_summary_task_phase')
+    tool_name = phase_to_tool.get(phase)
+    if tool_name and tool_name in _provider_tool_names(form_data):
+        form_data['tool_choice'] = _function_tool_choice(tool_name)
+    elif metadata.get('resource_summary_task_required'):
+        form_data['tool_choice'] = 'none' if phase in {'awaiting', 'awaiting_index'} else 'auto'
+
+
 @dataclass(frozen=True)
 class ResourceContextAdapters:
     """Open WebUI and Mini-Hermes services used to prepare resource context."""
@@ -38,6 +105,8 @@ async def prepare_resource_context(request, form_data, extra_params, user, model
         if not resource_model_tools:
             form_data.pop('tools', None)
             form_data.pop('tool_choice', None)
+        else:
+            _require_document_summary_tool(form_data, metadata)
 
     return form_data, metadata, sources
 

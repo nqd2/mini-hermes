@@ -56,10 +56,14 @@ def test_non_1min_provider_has_no_1min_character_limit():
     assert validate_chat_payload(wire_body, payload, 'https://example.com/v1')['serialized_chars'] == len(wire_body)
 
 
-def test_context_budget_uses_serialized_payload_and_reserved_output():
-    payload = {'model': 'custom-model', 'messages': [{'role': 'user', 'content': 'x' * 110_000}]}
+def test_context_budget_uses_serialized_payload_and_reserved_output(monkeypatch):
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_CHARS', '100000')
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_BYTES', '380000')
+    payload = {'model': 'custom-model', 'messages': [{'role': 'user', 'content': 'x' * 96_000}]}
+    wire_body = JSONCodec.dumps(payload)
+    assert len(wire_body) <= 100_000
     with pytest.raises(ProviderPayloadTooLarge) as exc:
-        validate_provider_payload(JSONCodec.dumps(payload), payload, 'https://example.com/v1')
+        validate_provider_payload(wire_body, payload, 'https://example.com/v1')
     assert exc.value.detail['code'] == 'model_context_budget_exceeded'
     assert exc.value.detail['reserved_output_tokens'] == 4096
 
@@ -120,6 +124,54 @@ def test_provider_guard_rejects_output_limit_above_model_capability():
         apply_capability_constraints(payload, BASE_URL)
     assert exc.value.detail['code'] == 'model_output_limit_exceeded'
     assert exc.value.detail['param'] == 'max_tokens'
+
+
+def test_global_request_character_budget_applies_to_every_provider(monkeypatch):
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_CHARS', '160')
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_BYTES', '640')
+    payload = {'model': 'custom-model', 'messages': [{'role': 'user', 'content': 'x' * 200}]}
+
+    with pytest.raises(ProviderPayloadTooLarge) as exc:
+        validate_provider_payload(JSONCodec.dumps(payload), payload, 'https://provider.example/v1')
+
+    assert exc.value.detail['code'] == 'request_json_char_limit_exceeded'
+    assert exc.value.detail['limit_chars'] == 160
+
+
+def test_global_request_byte_budget_is_independent_of_character_budget(monkeypatch):
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_CHARS', '1000')
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_BYTES', '100')
+    wire_body = '{"model":"custom-model","messages":[{"role":"user","content":"' + ('界' * 40) + '"}]}'
+    payload = {'model': 'custom-model', 'messages': [{'role': 'user', 'content': '界' * 40}]}
+
+    with pytest.raises(ProviderPayloadTooLarge) as exc:
+        validate_provider_payload(wire_body, payload, 'https://provider.example/v1')
+
+    assert exc.value.detail['code'] == 'request_json_byte_limit_exceeded'
+    assert exc.value.detail['serialized_chars'] < exc.value.detail['limit_chars']
+    assert exc.value.detail['serialized_bytes'] > exc.value.detail['limit_bytes']
+
+
+@pytest.mark.asyncio
+async def test_ollama_generation_request_is_checked_before_network_send(monkeypatch):
+    from open_webui.routers import ollama
+
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_CHARS', '160')
+    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_BYTES', '640')
+
+    async def unexpected_session():
+        raise AssertionError('provider session was opened before request validation')
+
+    monkeypatch.setattr(ollama, 'get_session', unexpected_session)
+    payload = {'model': 'custom-model', 'messages': [{'role': 'user', 'content': 'x' * 200}]}
+
+    with pytest.raises(ProviderPayloadTooLarge) as exc:
+        await ollama.send_request(
+            'http://ollama.example/v1/chat/completions',
+            payload=JSONCodec.dumps(payload),
+        )
+
+    assert exc.value.detail['code'] == 'request_json_char_limit_exceeded'
 
 
 @pytest.mark.asyncio

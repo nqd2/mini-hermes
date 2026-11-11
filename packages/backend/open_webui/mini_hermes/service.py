@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import io
+import logging
 import zipfile
 from pathlib import PurePosixPath
 from uuid import uuid4
@@ -17,6 +18,12 @@ from .drive import NATIVE_TO_OFFICE
 from .edits import apply_operations, extract_text, normalize_operations
 from .library import SUPPORTED_RESOURCE_SUFFIXES, ensure_personal_folder
 from .models import Document, Preview, Revision, SyncJob, now
+from .revision_integrity import (
+    ensure_preview_hashes,
+    get_verified_revision_content,
+    put_immutable as _put_immutable,
+    revision_for,
+)
 from .storage import ObjectStore
 
 SUPPORTED = {'.docx', '.xlsx', '.pptx', '.pdf'}
@@ -32,6 +39,7 @@ MIME_TYPES = {
     '.json': 'application/json',
 }
 MAX_BYTES = 20 * 1024 * 1024
+log = logging.getLogger(__name__)
 
 
 def validate_generated_content(content: bytes, suffix: str) -> None:
@@ -69,26 +77,6 @@ async def owned_document(db: AsyncSession, document_id: str, user_id: str, lock=
     if not doc:
         raise HTTPException(404, 'Document not found')
     return doc
-
-
-async def revision_for(db: AsyncSession, document_id: str, number: int) -> Revision:
-    revision = (await db.execute(select(Revision).where(Revision.document_id == document_id, Revision.number == number))).scalar_one_or_none()
-    if revision is None:
-        raise HTTPException(404, 'Revision not found')
-    return revision
-
-
-async def ensure_preview_hashes(db: AsyncSession, store: ObjectStore, preview: Preview, *, commit: bool = True) -> None:
-    """Backfill hashes for previews staged before hash-bound approvals were deployed."""
-    if not preview.preview_key:
-        return
-    if not preview.base_sha256:
-        base = await revision_for(db, preview.document_id, preview.base_revision)
-        preview.base_sha256 = hashlib.sha256(await store.get(base.object_key)).hexdigest()
-    if not preview.artifact_sha256:
-        preview.artifact_sha256 = hashlib.sha256(await store.get(preview.preview_key)).hexdigest()
-    if commit:
-        await db.commit()
 
 
 async def create_document(db: AsyncSession, store: ObjectStore, user_id: str, filename: str,
@@ -129,6 +117,7 @@ async def create_document(db: AsyncSession, store: ObjectStore, user_id: str, fi
     db.add(doc)
     db.add(Revision(id=revision_id, document_id=document_id, number=1, object_key=key,
                     sha256=hashlib.sha256(content).hexdigest(), size=len(content), operations=None))
+    await db.flush()
     from .resource_indexing import enqueue_resource_index_job, resource_index_worker_enabled
 
     if resource_index_worker_enabled():
@@ -225,24 +214,31 @@ async def create_artifact_preview(
         base_revision=doc.current_revision, base_sha256=base.sha256,
         drive_version=doc.drive_version, operations=[{'op': 'sandbox_publish'}], status='pending',
     )
-    key = f'documents/{doc.id}/previews/{preview.id}'
-    preview.preview_key = key
+    artifact_sha256 = hashlib.sha256(content).hexdigest()
+    preview.artifact_sha256 = artifact_sha256
+    preview.preview_key = f'documents/{doc.id}/staged/previews/{preview.id}/{artifact_sha256}'
+    from .revision_service import compute_patch_hash
+
+    preview.patch_hash = compute_patch_hash(
+        base_revision=preview.base_revision,
+        base_sha256=preview.base_sha256,
+        operations=preview.operations,
+        artifact_sha256=artifact_sha256,
+    )
     db.add(preview)
     # Persist the stage key before writing to SeaweedFS so abandoned uploads are collectible.
     await db.commit()
     try:
-        await store.put(key, content, doc.mime_type)
-        stored = await store.get(key)
-        artifact_sha256 = hashlib.sha256(content).hexdigest()
+        await _put_immutable(store, preview.preview_key, content, doc.mime_type)
+        stored = await store.get(preview.preview_key)
         if hashlib.sha256(stored).hexdigest() != artifact_sha256:
             raise IOError('Staged artifact checksum verification failed')
-        before = await store.get(base.object_key)
+        before = await get_verified_revision_content(store, base)
         if hashlib.sha256(before).hexdigest() != preview.base_sha256:
             raise IOError('Base revision checksum verification failed')
         old_text = [line + '\n' for line in extract_text(before, doc.filename).splitlines()]
         new_text = [line + '\n' for line in extract_text(content, doc.filename).splitlines()]
         diff = ''.join(difflib.unified_diff(old_text, new_text, fromfile='before', tofile='after'))
-        preview.artifact_sha256 = artifact_sha256
         preview.diff = (diff or 'No text changes; review the preview file for formatting changes.\n')[:100_000]
         preview.status = 'ready'
     except Exception as exc:
@@ -255,23 +251,31 @@ async def create_artifact_preview(
 async def build_preview(db: AsyncSession, store: ObjectStore, preview: Preview) -> None:
     doc = (await db.execute(select(Document).where(Document.id == preview.document_id))).scalar_one()
     base = await revision_for(db, doc.id, preview.base_revision)
-    before = await store.get(base.object_key)
+    before = await get_verified_revision_content(store, base)
     try:
         after = apply_operations(before, doc.filename, preview.operations)
         old_text = [line + '\n' for line in extract_text(before, doc.filename).splitlines()]
         new_text = [line + '\n' for line in extract_text(after, doc.filename).splitlines()]
         diff = ''.join(difflib.unified_diff(old_text, new_text, fromfile='before', tofile='after'))
-        key = f'documents/{doc.id}/previews/{preview.id}'
+        artifact_sha256 = hashlib.sha256(after).hexdigest()
+        key = f'documents/{doc.id}/staged/previews/{preview.id}/{artifact_sha256}'
         preview.preview_key = key
         await db.commit()
-        await store.put(key, after, doc.mime_type)
+        await _put_immutable(store, key, after, doc.mime_type)
         stored = await store.get(key)
-        artifact_sha256 = hashlib.sha256(after).hexdigest()
         if hashlib.sha256(stored).hexdigest() != artifact_sha256:
             raise IOError('Staged artifact checksum verification failed')
         if hashlib.sha256(before).hexdigest() != preview.base_sha256:
             raise IOError('Base revision checksum verification failed')
         preview.artifact_sha256 = artifact_sha256
+        from .revision_service import compute_patch_hash
+
+        preview.patch_hash = compute_patch_hash(
+            base_revision=preview.base_revision,
+            base_sha256=preview.base_sha256,
+            operations=preview.operations,
+            artifact_sha256=artifact_sha256,
+        )
         preview.diff = (diff or 'No text changes; review the preview file for formatting changes.\n')[:100_000]
         preview.status = 'ready'
     except Exception as exc:
@@ -282,70 +286,18 @@ async def build_preview(db: AsyncSession, store: ObjectStore, preview: Preview) 
 
 async def commit_preview(
     db: AsyncSession, store: ObjectStore, user_id: str, preview_id: str, is_admin: bool = False,
-    sync: bool = True, approval: dict | None = None,
+    sync: bool = True, approval: dict | None = None, idempotency_key: str | None = None,
 ) -> tuple[Revision, SyncJob | None]:
-    # An existing revision is the idempotent response, even after a client retry.
-    existing = (await db.execute(select(Revision).where(Revision.preview_id == preview_id))).scalar_one_or_none()
-    if existing:
-        job = (await db.execute(select(SyncJob).where(SyncJob.revision_id == existing.id))).scalar_one_or_none()
-        from .library import accessible_document
+    """Compatibility import path; Revision Service remains the only commit authority."""
+    from .revision_service import commit_preview as publish_revision
 
-        await accessible_document(db, existing.document_id, user_id, 'write', is_admin=is_admin)
-        return existing, job
-    preview = (await db.execute(select(Preview).where(Preview.id == preview_id, Preview.owner_id == user_id))).scalar_one_or_none()
-    if not preview:
-        raise HTTPException(404, 'Preview not found')
-    from .library import accessible_document
-
-    doc = await accessible_document(db, preview.document_id, user_id, 'write', is_admin=is_admin, lock=True)
-    if preview.status != 'ready' or not preview.preview_key:
-        raise HTTPException(409, 'Preview is not ready')
-    await ensure_preview_hashes(db, store, preview, commit=False)
-    expected_approval = {
-        'base_revision': preview.base_revision,
-        'base_sha256': preview.base_sha256,
-        'artifact_sha256': preview.artifact_sha256,
-    }
-    if not approval or any(approval.get(key) != value for key, value in expected_approval.items()):
-        raise HTTPException(400, {
-            'code': 'explicit_preview_approval_required',
-            'message': 'Confirm the exact preview after reviewing its diff and artifact.',
-            **expected_approval,
-        })
-    if doc.current_revision != preview.base_revision:
-        raise HTTPException(409, 'Document has changed since preview')
-    # Recheck while the document row is locked, covering concurrent commits.
-    existing = (await db.execute(select(Revision).where(Revision.preview_id == preview_id))).scalar_one_or_none()
-    if existing:
-        job = (await db.execute(select(SyncJob).where(SyncJob.revision_id == existing.id))).scalar_one_or_none()
-        await accessible_document(db, existing.document_id, user_id, 'write', is_admin=is_admin)
-        return existing, job
-    content = await store.get(preview.preview_key)
-    artifact_sha256 = hashlib.sha256(content).hexdigest()
-    if artifact_sha256 != preview.artifact_sha256:
-        raise HTTPException(409, 'Preview artifact checksum changed; create a new preview')
-    base_revision = await revision_for(db, doc.id, preview.base_revision)
-    if base_revision.sha256 != preview.base_sha256:
-        raise HTTPException(409, 'Base revision checksum changed; create a new preview')
-    preview.approved_at = now()
-    doc.current_revision += 1
-    preview.status = 'committed'
-    revision = Revision(id=str(uuid4()), document_id=doc.id, number=doc.current_revision,
-                        object_key=preview.preview_key, sha256=hashlib.sha256(content).hexdigest(), size=len(content),
-                        preview_id=preview.id, operations=preview.operations)
-    job = None
-    if sync and doc.drive_file_id:
-        job = SyncJob(id=str(uuid4()), document_id=doc.id, revision_id=revision.id,
-                      status='pending', attempts=0)
-        db.add(job)
-    db.add(revision)
-    from .resource_indexing import enqueue_resource_index_job, resource_index_worker_enabled
-
-    if resource_index_worker_enabled():
-        await enqueue_resource_index_job(db, doc.id, doc.current_revision)
-    else:
-        from .chunks import replace_document_chunks
-
-        await replace_document_chunks(db, doc.id, doc.current_revision, doc.filename, content)
-    await db.commit()
-    return revision, job
+    return await publish_revision(
+        db,
+        store,
+        user_id,
+        preview_id,
+        is_admin=is_admin,
+        sync=sync,
+        approval=approval,
+        idempotency_key=idempotency_key,
+    )

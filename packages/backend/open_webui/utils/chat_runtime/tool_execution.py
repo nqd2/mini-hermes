@@ -8,6 +8,7 @@ import re
 import time
 from uuid import uuid4
 
+from fastapi import HTTPException
 from open_webui.utils.chat_id import is_saved_chat_id
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.tools import get_updated_tool_function
@@ -104,16 +105,19 @@ async def _approval_denied(
     ):
         return False
     if not event_caller:
+        tool_call['_agent_approval_decision'] = 'rejected'
         return True
-    return (
+    approved = (
         await event_caller(
             {
                 'type': 'confirmation',
                 'data': {'tool_call': {'id': tool_call.get('call_id'), 'name': name, 'arguments': params}},
             }
         )
-        is not True
-    )  # Disconnection and timeout replies are error objects, not approval.
+        is True
+    )
+    tool_call['_agent_approval_decision'] = 'approved' if approved else 'rejected'
+    return not approved  # Disconnection and timeout replies are error objects, not approval.
 
 
 async def _invoke_tool(
@@ -167,16 +171,74 @@ async def execute_tool_call(form_data, metadata, event_caller, tool_call):
     params, tool, tool_type, direct_tool, unavailable = _resolve_tool_target(name, params, tool)
     if unavailable:
         return params, 'Error: Uploaded file display is not available.', None, None, False
-    if await _approval_denied(name, tool_call, params, metadata, tool_type, event_caller):
+    durable_runtime = None
+    durable_turn_id = metadata.get('agent_turn_id')
+    durable_call_id = tool_call.get('call_id') or tool_call.get('id')
+    approval_denied = await _approval_denied(name, tool_call, params, metadata, tool_type, event_caller)
+    durable_retry_safe = False
+    if durable_turn_id and durable_call_id:
+        from open_webui.agent_runtime.runtime import AgentRuntime
+
+        durable_runtime = AgentRuntime.configured()
+        approval_decision = tool_call.pop('_agent_approval_decision', None)
+        if approval_decision is None and tool_call.get('approved') is True:
+            approval_decision = 'approved'
+        if approval_decision:
+            await durable_runtime.record_tool_approval(
+                durable_turn_id,
+                owner_id=str(metadata.get('user_id') or ''),
+                call_id=str(durable_call_id),
+                tool_name=name,
+                arguments=params,
+                decision=approval_decision,
+                approved_by=str(metadata.get('user_id') or ''),
+                tool=tool,
+            )
+    if approval_denied:
         return params, 'Error: tool call was not approved.', tool, tool_type, direct_tool
+
+    if durable_runtime:
+        invocation, acquired = await durable_runtime.begin_tool_call(
+            durable_turn_id,
+            call_id=str(durable_call_id),
+            tool_name=name,
+            arguments=params,
+            tool=tool,
+        )
+        if not acquired:
+            return params, invocation.result_data, tool, tool_type, direct_tool
+        durable_retry_safe = invocation.retry_safe
 
     tool_call['started_at'] = time.time()
     started = time.perf_counter()
     try:
         result = await _invoke_tool(name, params, tool, direct_tool, form_data, metadata, event_caller)
     except Exception as error:
+        if durable_runtime:
+            await durable_runtime.fail_tool_call(
+                durable_turn_id,
+                str(durable_call_id),
+                {'code': 'tool_execution_failed', 'error_type': type(error).__name__},
+                uncertain=not durable_retry_safe,
+            )
+            if not durable_retry_safe:
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        'code': 'tool_outcome_unknown',
+                        'message': 'Tool outcome is unknown. It was not retried.',
+                    },
+                ) from error
+            durable_runtime = None
         result = {'error': str(error)}
     finally:
         tool_call['ended_at'] = time.time()
         tool_call['duration'] = time.perf_counter() - started
+    if durable_runtime:
+        result = await durable_runtime.complete_tool_call(
+            durable_turn_id,
+            str(durable_call_id),
+            result,
+            owner_id=str(metadata.get('user_id') or ''),
+        )
     return params, result, tool, tool_type, direct_tool

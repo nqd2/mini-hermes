@@ -50,6 +50,44 @@ def build_resource_instructions(metadata: dict[str, Any]) -> str | None:
                 'instead of implying a full summary.'
             )
 
+    summary_phase = metadata.get('resource_summary_task_phase')
+    task_state = metadata.get('agent_task_state') or {}
+    task_ids = list(dict.fromkeys(
+        str(task_id)
+        for task_id in [
+            *(task_state.get('resource_task_ids') or []),
+            *(metadata.get('pending_resource_task_ids') or []),
+        ]
+        if isinstance(task_id, str) and task_id
+    ))
+    if summary_phase == 'list':
+        instructions += (
+            ' The current whole-document summary has only partial evidence. Call '
+            'list_editable_documents, then start_document_summary_task for the single scoped document. '
+            'Do not answer from the initial excerpt.'
+        )
+    elif summary_phase == 'start':
+        instructions += (
+            ' The document list is available in the preceding tool result. Call '
+            'start_document_summary_task using that exact document id. Do not answer from partial excerpts.'
+        )
+    elif summary_phase == 'status':
+        instructions += (
+            ' Continue the saved summary task by calling get_document_task with one of these task ids: '
+            + ', '.join(task_ids)
+            + '. If still processing, report that state and keep the task id; if completed, answer from its result.'
+        )
+    elif summary_phase == 'awaiting':
+        instructions += (
+            ' The summary task is queued or running. Do not claim the summary is complete; tell the user '
+            'to continue this response after processing finishes.'
+        )
+    elif summary_phase == 'awaiting_index':
+        instructions += (
+            ' The document index is still being prepared, so no summary task exists yet. Do not claim the '
+            'summary has started or is complete; tell the user to continue this response after indexing finishes.'
+        )
+
     if metadata.get('pending_resource_task_ids'):
         instructions += (
             '\nContinue the pending document task(s) if relevant: '

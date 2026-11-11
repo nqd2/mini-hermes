@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import hashlib
 
 import pytest
 from sqlalchemy import select
@@ -160,7 +161,8 @@ async def test_retrieval_does_not_treat_first_chunk_as_a_match(monkeypatch):
         db.add(document)
         db.add(Revision(
             id='revision-1', document_id='doc-1', number=1, object_key='revision-1',
-            sha256='unused', size=1,
+                sha256=hashlib.sha256(b'first chunk has no match\nsecond chunk also unrelated').hexdigest(),
+                size=len(b'first chunk has no match\nsecond chunk also unrelated'),
         ))
         await db.commit()
 

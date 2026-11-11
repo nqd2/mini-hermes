@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .chunks import replace_document_chunks
 from .models import Document, DocumentChunk, ResourceIndexJob, Revision, now
+from .revision_integrity import get_verified_revision_content
 
 log = logging.getLogger(__name__)
 MAX_INDEX_ATTEMPTS = 5
@@ -153,7 +154,7 @@ async def process_resource_index_job(
         ).scalar_one_or_none()
         if document is None or revision is None:
             raise LookupError('Indexed document revision no longer exists')
-        content = await store.get(revision.object_key)
+        content = await get_verified_revision_content(store, revision)
         await replace_document_chunks(db, document.id, revision.number, document.filename, content)
         job.status = 'complete'
         job.error = None

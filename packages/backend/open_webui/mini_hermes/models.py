@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from open_webui.internal.db import Base, JSONField
@@ -59,7 +71,11 @@ class ChatResource(Base):
 
 class Revision(Base):
     __tablename__ = 'mh_revision'
-    __table_args__ = (UniqueConstraint('document_id', 'number'), UniqueConstraint('preview_id'))
+    __table_args__ = (
+        UniqueConstraint('document_id', 'number'),
+        UniqueConstraint('preview_id'),
+        UniqueConstraint('idempotency_key', name='uq_mh_revision_idempotency_key'),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     document_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id'), index=True)
     number: Mapped[int] = mapped_column(Integer)
@@ -67,6 +83,7 @@ class Revision(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     size: Mapped[int] = mapped_column(Integer)
     preview_id: Mapped[str | None] = mapped_column(String(36))
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
     operations: Mapped[list | None] = mapped_column(JSONField)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -140,6 +157,7 @@ class Preview(Base):
     base_revision: Mapped[int] = mapped_column(Integer)
     base_sha256: Mapped[str | None] = mapped_column(String(64))
     artifact_sha256: Mapped[str | None] = mapped_column(String(64))
+    patch_hash: Mapped[str | None] = mapped_column(String(64))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     drive_version: Mapped[str | None] = mapped_column(String(255))
     operations: Mapped[list] = mapped_column(JSONField)
@@ -149,6 +167,49 @@ class Preview(Base):
     error: Mapped[str | None] = mapped_column(Text)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class RevisionApproval(Base):
+    """Authenticated approval bound to one resource revision precondition and patch."""
+
+    __tablename__ = 'mh_revision_approval'
+    __table_args__ = (
+        UniqueConstraint('idempotency_key', name='uq_mh_revision_approval_idempotency'),
+        CheckConstraint('expires_at > created_at', name='ck_mh_revision_approval_expiration'),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    preview_id: Mapped[str | None] = mapped_column(ForeignKey('mh_preview.id', ondelete='SET NULL'), index=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    resource_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id', ondelete='CASCADE'), index=True)
+    base_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    patch_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    approver_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=now)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RevisionOutbox(Base):
+    """Durable post-commit notification recorded in the revision publication transaction."""
+
+    __tablename__ = 'mh_revision_outbox'
+    __table_args__ = (
+        UniqueConstraint('event_key', name='uq_mh_revision_outbox_event_key'),
+        Index('ix_mh_revision_outbox_dispatch', 'published_at', 'lease_until', 'created_at'),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    event_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    document_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id', ondelete='CASCADE'), index=True)
+    revision_id: Mapped[str] = mapped_column(ForeignKey('mh_revision.id', ondelete='CASCADE'), index=True)
+    event_type: Mapped[str] = mapped_column(String(96), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONField, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=now)
 
 
 class SyncJob(Base):

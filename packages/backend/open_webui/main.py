@@ -172,7 +172,6 @@ from open_webui.routers import (
     models,
     notes,
     notifications,
-    ollama,
     openai,
     pipelines,
     prompts,
@@ -388,6 +387,11 @@ async def lifespan(app: FastAPI):
 
     await validate_mfa_configuration()
     await initialize_runtime_config(app)
+    from open_webui.agent_runtime.runtime import AgentRuntime
+
+    app.state.agent_runtime = AgentRuntime.configured()
+    await app.state.agent_runtime.recover_expired_turns()
+    app.state.agent_runtime_recovery = asyncio.create_task(agent_runtime_recovery_loop(app.state.agent_runtime))
     await migrate_legacy_webhook_config()
     request = Request(
         {
@@ -400,6 +404,7 @@ async def lifespan(app: FastAPI):
             'app': app,
         }
     )
+    app.state.revision_outbox_dispatcher = asyncio.create_task(revision_outbox_dispatch_loop(app))
     await publish_event(request, EVENTS.SYSTEM_STARTUP_STARTED, source='system')
 
     license_task = None
@@ -536,8 +541,58 @@ async def lifespan(app: FastAPI):
     app.state.periodic_usage_pool_cleanup.cancel()
     app.state.periodic_session_pool_cleanup.cancel()
     app.state.scheduler_worker_loop.cancel()
+    if hasattr(app.state, 'revision_outbox_dispatcher'):
+        app.state.revision_outbox_dispatcher.cancel()
+        try:
+            await app.state.revision_outbox_dispatcher
+        except asyncio.CancelledError:
+            pass
+    if hasattr(app.state, 'agent_runtime_recovery'):
+        app.state.agent_runtime_recovery.cancel()
+        try:
+            await app.state.agent_runtime_recovery
+        except asyncio.CancelledError:
+            pass
 
     await publish_event(request, EVENTS.SYSTEM_SHUTDOWN_COMPLETED, source='system')
+
+
+async def agent_runtime_recovery_loop(runtime, *, interval_seconds: int = 15):
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            await runtime.recover_expired_turns()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('Agent runtime recovery scan failed')
+
+
+async def revision_outbox_dispatch_loop(app: FastAPI, *, interval_seconds: int = 3):
+    """Recover revision events committed before a request could publish them."""
+    from open_webui.internal.db import AsyncSessionLocal
+    from open_webui.mini_hermes.revision_service import dispatch_pending_outbox
+
+    request = Request(
+        {
+            'type': 'http',
+            'method': 'GET',
+            'path': '/internal/revision-outbox',
+            'query_string': b'',
+            'headers': [],
+            'scheme': 'http',
+            'app': app,
+        }
+    )
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                await dispatch_pending_outbox(db, request)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('Revision outbox recovery scan failed')
+        await asyncio.sleep(interval_seconds)
 
 
 # ENABLE_ORJSON: orjson for request-body parsing and JSONResponse bodies;
@@ -592,11 +647,6 @@ if ENABLE_OTEL:
 
     setup_opentelemetry(app=app, db_engine=engine)
 
-
-# Ollama
-
-
-app.state.OLLAMA_MODELS = {}
 
 # OpenAI
 
@@ -703,10 +753,8 @@ async def initialize_runtime_config(app: FastAPI):
         'rag.embedding_engine',
         'rag.embedding_model',
         'rag.openai.api_base_url',
-        'rag.ollama.base_url',
         'rag.azure_openai.base_url',
         'rag.openai.api_key',
-        'rag.ollama.api_key',
         'rag.azure_openai.api_key',
         'rag.embedding_batch_size',
         'rag.azure_openai.api_version',
@@ -717,35 +765,32 @@ async def initialize_runtime_config(app: FastAPI):
         'rag.reranking_batch_size',
     )
     embedding_engine = rag_config.get('rag.embedding_engine')
-    app.state.EMBEDDING_FUNCTION = get_embedding_function(
-        embedding_engine,
-        rag_config.get('rag.embedding_model'),
-        embedding_function=app.state.ef,
-        url=(
-            rag_config.get('rag.openai.api_base_url')
-            if embedding_engine == 'openai'
-            else (
-                rag_config.get('rag.ollama.base_url')
-                if embedding_engine == 'ollama'
+    if embedding_engine == 'ollama':
+        log.error('Ollama embeddings are disabled; configure OpenAI-compatible or Azure OpenAI embeddings.')
+        app.state.ef = None
+        app.state.EMBEDDING_FUNCTION = None
+    else:
+        app.state.EMBEDDING_FUNCTION = get_embedding_function(
+            embedding_engine,
+            rag_config.get('rag.embedding_model'),
+            embedding_function=app.state.ef,
+            url=(
+                rag_config.get('rag.openai.api_base_url')
+                if embedding_engine == 'openai'
                 else rag_config.get('rag.azure_openai.base_url')
-            )
-        ),
-        key=(
-            rag_config.get('rag.openai.api_key')
-            if embedding_engine == 'openai'
-            else (
-                rag_config.get('rag.ollama.api_key')
-                if embedding_engine == 'ollama'
+            ),
+            key=(
+                rag_config.get('rag.openai.api_key')
+                if embedding_engine == 'openai'
                 else rag_config.get('rag.azure_openai.api_key')
-            )
-        ),
-        embedding_batch_size=rag_config.get('rag.embedding_batch_size'),
-        azure_api_version=(
-            rag_config.get('rag.azure_openai.api_version') if embedding_engine == 'azure_openai' else None
-        ),
-        enable_async=rag_config.get('rag.enable_async_embedding'),
-        concurrent_requests=rag_config.get('rag.embedding_concurrent_requests'),
-    )
+            ),
+            embedding_batch_size=rag_config.get('rag.embedding_batch_size'),
+            azure_api_version=(
+                rag_config.get('rag.azure_openai.api_version') if embedding_engine == 'azure_openai' else None
+            ),
+            enable_async=rag_config.get('rag.enable_async_embedding'),
+            concurrent_requests=rag_config.get('rag.embedding_concurrent_requests'),
+        )
 
     app.state.RERANKING_FUNCTION = get_reranking_function(
         rag_config.get('rag.reranking_engine'),
@@ -808,7 +853,6 @@ app.add_middleware(
 app.mount('/ws', socket_app)
 
 
-app.include_router(ollama.router, prefix='/ollama', tags=['ollama'])
 app.include_router(openai.router, prefix='/openai', tags=['openai'])
 
 
@@ -930,66 +974,18 @@ async def unload_model(request: Request, form_data: ModelUnloadForm, user=Depend
     """
     Unified model unload endpoint.
     Resolves the provider that owns the model and calls its native unload mechanism.
-    Supports: Ollama (keep_alive=0) and llama.cpp (/models/unload).
+    Supports providers that expose a native model-unload API.
     """
     model_id = form_data.model
-
-    ollama_models = getattr(request.app.state, 'OLLAMA_MODELS', None) or {}
     openai_models = getattr(request.app.state, 'OPENAI_MODELS', None) or {}
 
     seen = set()
-    while model_id not in ollama_models and model_id not in openai_models and model_id not in seen:
+    while model_id not in openai_models and model_id not in seen:
         seen.add(model_id)
         model_info = await Models.get_model_by_id(model_id)
         if not model_info or not model_info.base_model_id:
             break
         model_id = model_info.base_model_id
-
-    # Ollama provider
-    if model_id in ollama_models:
-        ollama_config = await Config.get_many('ollama.base_urls', 'ollama.api_configs')
-        ollama_base_urls = ollama_config.get('ollama.base_urls') or []
-        ollama_api_configs = ollama_config.get('ollama.api_configs') or {}
-        url_indices = ollama_models[model_id].get('urls', [])
-        errors = []
-        for idx in url_indices:
-            url = ollama_base_urls[idx]
-            api_config = ollama_api_configs.get(
-                str(idx),
-                ollama_api_configs.get(url, {}),
-            )
-            key = api_config.get('key', None)
-
-            prefix_id = api_config.get('prefix_id', None)
-            actual_model = strip_provider_model_prefix(model_id, prefix_id)
-
-            payload = JSONCodec.dumps({'model': actual_model, 'keep_alive': 0, 'prompt': ''})
-
-            try:
-                timeout = aiohttp.ClientTimeout(total=30)
-                async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
-                    headers, cookies = await get_headers_and_cookies(request, url, key, api_config, user=user)
-                    async with session.post(
-                        f'{url}/api/generate',
-                        data=payload,
-                        headers=headers,
-                        cookies=cookies,
-                        ssl=AIOHTTP_CLIENT_SESSION_SSL,
-                    ) as r:
-                        if not r.ok:
-                            errors.append({'url_idx': idx, 'error': await r.text()})
-            except Exception as e:
-                log.exception(f'Failed to unload model on Ollama node {idx}: {e}')
-                errors.append({'url_idx': idx, 'error': str(e)})
-
-        await ollama.clear_models_cache(request)
-
-        if errors:
-            raise HTTPException(
-                status_code=500,
-                detail=f'Failed to unload model on {len(errors)} node(s): {errors}',
-            )
-        return {'status': True}
 
     # OpenAI-compatible providers
     if model_id in openai_models:
@@ -1049,7 +1045,7 @@ async def embeddings(request: Request, form_data: dict, user=Depends(get_verifie
 
     This handler:
       - Performs user/model checks and dispatches to the correct backend.
-      - Supports OpenAI, Ollama, arena models, pipelines, and any compatible provider.
+      - Supports OpenAI-compatible providers, arena models, pipelines, and custom providers.
 
     Args:
         request (Request): Request context.
@@ -1671,6 +1667,11 @@ async def chat_completion(
                 raise  # re-raise to ensure proper task cancellation handling
             except Exception as e:
                 error_detail = e.detail if isinstance(e, HTTPException) else str(e)
+                if metadata.get('agent_turn_id'):
+                    metadata['agent_error'] = {
+                        'code': 'chat_processing_failed',
+                        'message': str(error_detail)[:2000],
+                    }
                 if not (metadata.get('session_id') and metadata.get('chat_id')):
                     raise
             finally:
@@ -1819,19 +1820,109 @@ async def chat_completion(
 
             # Only the first model runs chat-level background tasks;
             # subsequent models only run follow-ups.
-            process = process_chat(
-                request,
-                model_form_data,
-                user,
-                per_model_metadata,
-                resolved_model,
+            model_tasks = (
                 tasks
                 if idx == 0
                 else {
                     k: v for k, v in (tasks or {}).items() if k not in (TASKS.TITLE_GENERATION, TASKS.TAGS_GENERATION)
                 }
-                or None,
+                or None
             )
+
+            async def execute_agent_turn(
+                *,
+                turn_form_data=model_form_data,
+                turn_metadata=per_model_metadata,
+                turn_model=resolved_model,
+                turn_tasks=model_tasks,
+                turn_message_id=assistant_message_id,
+                turn_model_id=target_model_id,
+            ):
+                from open_webui.agent_runtime.runtime import AgentRuntime
+
+                internal_turn = turn_metadata.get('internal') is True
+                runtime_chat_id = None if internal_turn else turn_metadata.get('chat_id')
+                agent_runtime = AgentRuntime.configured()
+                try:
+                    return await agent_runtime.run_chat_turn(
+                        owner_id=user.id,
+                        chat_id=runtime_chat_id,
+                        chat_message_id=turn_message_id,
+                        user_message_id=turn_metadata.get('user_message_id'),
+                        model_id=turn_model_id,
+                        request_payload=turn_form_data,
+                        metadata=turn_metadata,
+                        parent_session_id=(
+                            turn_metadata.get('parent_agent_session_id')
+                            or (turn_metadata.get('agent_session_id') if internal_turn else None)
+                        ),
+                        handler=lambda: process_chat(
+                            request, turn_form_data, user, turn_metadata, turn_model, turn_tasks
+                        ),
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as error:
+                    detail = error.detail if isinstance(error, HTTPException) else str(error)
+                    message = str(detail)[:2000]
+                    error_data = turn_metadata.get('agent_error') or {
+                        'code': 'agent_run_start_failed',
+                        'message': message,
+                    }
+
+                    # Setup failures can happen after HTTP 200 but before the
+                    # chat handler starts. Persist a terminal runtime event when
+                    # a run exists, and always finish the assistant message.
+                    run_id = turn_metadata.get('agent_turn_id')
+                    session_id = turn_metadata.get('agent_session_id')
+                    if run_id:
+                        try:
+                            await agent_runtime._fail_turn(run_id, error_data)
+                            current = await agent_runtime.repository.get_turn(run_id)
+                            if current and session_id:
+                                await agent_runtime._update_task_status(
+                                    session_id, user.id, run_id, current.status
+                                )
+                        except Exception:
+                            log.exception('Could not persist terminal state for agent run %s', run_id)
+
+                    if not turn_metadata.get('agent_error'):
+                        turn_metadata['agent_error'] = error_data
+                        chat_id = turn_metadata.get('chat_id')
+                        if is_saved_chat_id(chat_id) and turn_message_id:
+                            try:
+                                await Chats.upsert_message_to_chat_by_id_and_message_id(
+                                    chat_id,
+                                    turn_message_id,
+                                    {
+                                        'parentId': turn_metadata.get('user_message_id'),
+                                        'error': {'content': message},
+                                        'done': True,
+                                        'meta': {'response_ended_at': time.time()},
+                                    },
+                                )
+                            except Exception:
+                                log.exception('Could not persist failed assistant message %s', turn_message_id)
+                        try:
+                            event_emitter = await get_event_emitter(turn_metadata)
+                            if event_emitter:
+                                await event_emitter(
+                                    {
+                                        'type': 'chat:message:error',
+                                        'data': {'error': {'content': message}, 'done': True},
+                                    }
+                                )
+                        except Exception:
+                            log.exception('Could not emit terminal chat error for task %s', turn_metadata.get('task_id'))
+                        try:
+                            await publish_chat_failed_event(request, user, turn_metadata, message)
+                        except Exception:
+                            log.exception('Could not publish chat failure for task %s', turn_metadata.get('task_id'))
+
+                    log.exception('Agent run failed after chat request acceptance')
+                    return {'status': False, 'chat_id': turn_metadata.get('chat_id'), 'error': error_data}
+
+            process = execute_agent_turn()
             if is_internal:
                 subagent_results.append(await process)
                 continue
@@ -1875,11 +1966,83 @@ async def chat_completion(
         # Legacy/direct: single model, synchronous
         metadata['message_id'] = message_ids[0]['message_id']
         try:
-            return await process_chat(request, form_data, user, metadata, model, tasks)
+            from open_webui.agent_runtime.runtime import AgentRuntime
+
+            internal_turn = metadata.get('internal') is True
+            return await AgentRuntime.configured().run_chat_turn(
+                owner_id=user.id,
+                chat_id=None if internal_turn else metadata.get('chat_id'),
+                chat_message_id=metadata.get('message_id'),
+                user_message_id=metadata.get('user_message_id'),
+                model_id=form_data.get('model'),
+                request_payload=form_data,
+                metadata=metadata,
+                parent_session_id=(
+                    metadata.get('parent_agent_session_id')
+                    or (metadata.get('agent_session_id') if internal_turn else None)
+                ),
+                handler=lambda: process_chat(request, form_data, user, metadata, model, tasks),
+            )
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@app.get('/api/v1/agent/turns/{turn_id}/events')
+async def get_agent_turn_events(
+    turn_id: str,
+    after_sequence: int = 0,
+    limit: int = 200,
+    user=Depends(get_verified_user),
+):
+    """Replay durable lifecycle events for a turn owned by the authenticated user."""
+    from open_webui.agent_runtime.runtime import AgentRuntime
+
+    repository = AgentRuntime.configured().repository
+    turn = await repository.get_owned_turn(turn_id, owner_id=user.id)
+    if turn is None:
+        raise HTTPException(status_code=404, detail=ERROR_MESSAGES.NOT_FOUND)
+    page = await AgentRuntime.configured().stream(
+        turn_id, owner_id=user.id, after_sequence=after_sequence, limit=limit
+    )
+    events = page['events']
+    return {
+        'turn_id': turn_id,
+        'status': turn.status,
+        'first_available_sequence': page['first_available_sequence'],
+        'latest_sequence': page['latest_sequence'],
+        'next_after_sequence': page['next_after_sequence'],
+        'has_more': page['has_more'],
+        'gap_detected': page['gap_detected'],
+        'snapshot_required': page['snapshot_required'],
+        'snapshot': page.get('snapshot'),
+        'events': [
+            {
+                'id': event.id,
+                'sequence': event.sequence,
+                'type': event.event_type,
+                'payload': event.payload,
+                'created_at': event.created_at.isoformat(),
+                'published_at': event.published_at.isoformat() if event.published_at else None,
+            }
+            for event in events
+        ],
+    }
+
+
+@app.get('/api/v1/agent/turns/{turn_id}')
+async def get_agent_turn_status(turn_id: str, user=Depends(get_verified_user)):
+    from open_webui.agent_runtime.runtime import AgentRuntime
+
+    return await AgentRuntime.configured().get_status(turn_id, owner_id=user.id)
+
+
+@app.post('/api/v1/agent/turns/{turn_id}/cancel')
+async def cancel_agent_turn(turn_id: str, user=Depends(get_verified_user)):
+    from open_webui.agent_runtime.runtime import AgentRuntime
+
+    return await AgentRuntime.configured().cancel(turn_id, owner_id=user.id)
 
 
 # Alias for chat_completion (Legacy)
@@ -1897,6 +2060,39 @@ async def resolve_chat_message_tool_call(
     db: AsyncSession = Depends(get_async_session),
 ):
     resolution = await resolve_tool_call_output(id, message_id, form_data, user, db=db)
+    if form_data.action in {'approve', 'reject'}:
+        from open_webui.agent_runtime.runtime import AgentRuntime
+
+        runtime = AgentRuntime.configured()
+        session = await runtime.repository.get_session_for_chat(id, owner_id=user.id)
+        if session is None:
+            raise HTTPException(status_code=409, detail='No durable agent run exists for this approval.')
+        turn = await runtime.repository.find_resumable_turn(session.id, message_id)
+        call = next(
+            (
+                item
+                for item in resolution.get('output', [])
+                if item.get('type') == 'function_call'
+                and (item.get('call_id') or item.get('id')) == form_data.call_id
+            ),
+            None,
+        )
+        if turn and call:
+            raw_arguments = call.get('arguments', {})
+            try:
+                arguments = JSONCodec.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
+            except Exception:
+                arguments = None
+            if isinstance(arguments, dict):
+                await runtime.record_tool_approval(
+                    turn.id,
+                    owner_id=user.id,
+                    call_id=form_data.call_id,
+                    tool_name=str(call.get('name') or 'unknown'),
+                    arguments=arguments,
+                    decision='approved' if form_data.action == 'approve' else 'rejected',
+                    approved_by=user.id,
+                )
     if resolution['resume'] is None:
         return {'status': True, 'chat_id': id, 'message_id': message_id, 'task_ids': []}
     request.state.tool_approval_resume = (id, message_id, resolution['resume'])
@@ -1945,12 +2141,15 @@ async def passthrough_anthropic_messages(request: Request, form_data: dict, user
     )
     request_url = f'{url.rstrip("/")}/messages'
     streaming_requested = bool(payload.get('stream'))
-    from open_webui.mini_hermes.provider_guard import validate_provider_payload
+    from open_webui.agent_runtime.gateway import ProviderGateway
 
-    wire_body = JSONCodec.dumps(payload)
-    payload_metrics = validate_provider_payload(
-        wire_body, payload, url, getattr(request.state, 'resource_model_capabilities', None),
-    )
+    provider_gateway = ProviderGateway()
+    capability_overrides = getattr(request.state, 'resource_model_capabilities', None)
+    prepared_request = provider_gateway.prepare(payload, url, capability_overrides)
+    await provider_gateway.checkpoint(request, prepared_request)
+    payload = prepared_request.payload
+    wire_body = prepared_request.wire_body
+    payload_metrics = prepared_request.metrics
     log.info(
         'Anthropic provider request size: model=%s messages=%d serialized_chars=%d',
         requested_model, payload_metrics['message_count'], payload_metrics['serialized_chars'],
@@ -1960,14 +2159,17 @@ async def passthrough_anthropic_messages(request: Request, form_data: dict, user
 
     try:
         session = await get_session()
-        response = await session.request(
-            method='POST',
-            url=request_url,
-            data=wire_body,
+        response = await provider_gateway.send(
+            session,
+            'POST',
+            request_url,
+            prepared_request,
             headers=headers,
             cookies=cookies,
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(stream=streaming_requested),
+            provider_base_url=url,
+            capability_overrides=capability_overrides,
         )
 
         if 'text/event-stream' in response.headers.get('Content-Type', ''):

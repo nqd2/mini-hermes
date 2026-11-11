@@ -26,10 +26,13 @@ from open_webui.mini_hermes.models import (
     ResourceIndexJob,
     ResourceTask,
     Revision,
+    RevisionApproval,
+    RevisionOutbox,
     SyncJob,
     now,
 )
 from open_webui.mini_hermes.resource_indexing import enqueue_missing_resource_index_jobs
+from open_webui.mini_hermes.revision_service import compute_patch_hash
 
 
 @pytest_asyncio.fixture
@@ -63,6 +66,8 @@ async def postgres_resource_db():
                         ResourceIndexJob.__table__,
                         ResourceTask.__table__,
                         Preview.__table__,
+                        RevisionApproval.__table__,
+                        RevisionOutbox.__table__,
                         SyncJob.__table__,
                     ],
                 )
@@ -472,6 +477,10 @@ async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgr
     edited = b'approved staged artifact'
     base_hash = hashlib.sha256(base).hexdigest()
     edited_hash = hashlib.sha256(edited).hexdigest()
+    operations = []
+    patch_hash = compute_patch_hash(
+        base_revision=1, base_sha256=base_hash, operations=operations, artifact_sha256=edited_hash
+    )
 
     class MemoryStore:
         def __init__(self):
@@ -511,7 +520,8 @@ async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgr
                 base_revision=1,
                 base_sha256=base_hash,
                 artifact_sha256=edited_hash,
-                operations=[],
+                patch_hash=patch_hash,
+                operations=operations,
                 status='ready',
                 preview_key='staged-key',
             )
@@ -522,6 +532,7 @@ async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgr
             'base_revision': 1,
             'base_sha256': base_hash,
             'artifact_sha256': edited_hash,
+            'patch_hash': patch_hash,
         }
         revision, _ = await commit_preview(db, store, 'postgres-test', preview_id, approval=approval)
         assert revision.number == 2
@@ -532,6 +543,10 @@ async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgr
         assert retry_revision.id == revision.id
 
     missing_preview_id = 'pg-missing-staged-preview'
+    missing_hash = hashlib.sha256(b'not-present').hexdigest()
+    missing_patch_hash = compute_patch_hash(
+        base_revision=2, base_sha256=edited_hash, operations=operations, artifact_sha256=missing_hash
+    )
     async with postgres_resource_db() as db:
         document = await db.get(Document, document_id)
         db.add(
@@ -541,8 +556,9 @@ async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgr
                 owner_id='postgres-test',
                 base_revision=2,
                 base_sha256=edited_hash,
-                artifact_sha256=hashlib.sha256(b'not-present').hexdigest(),
-                operations=[],
+                artifact_sha256=missing_hash,
+                patch_hash=missing_patch_hash,
+                operations=operations,
                 status='ready',
                 preview_key='missing-staged-key',
             )
@@ -557,7 +573,8 @@ async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgr
                 approval={
                     'base_revision': 2,
                     'base_sha256': edited_hash,
-                    'artifact_sha256': hashlib.sha256(b'not-present').hexdigest(),
+                    'artifact_sha256': missing_hash,
+                    'patch_hash': missing_patch_hash,
                 },
             )
         await db.rollback()

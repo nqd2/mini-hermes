@@ -57,6 +57,56 @@ log = logging.getLogger(__name__)
 _STRIP_PROXY_HEADERS = frozenset({'content-encoding', 'content-length', 'transfer-encoding', 'server', 'date'})
 _MODEL_LIST_TIMEOUT = aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST)
 BASE_MODELS_CACHE_KEY = f'{REDIS_KEY_PREFIX}:models:base'
+MODEL_REQUEST_PATHS = (
+    '/api/chat',
+    '/api/generate',
+    '/api/embed',
+    '/api/embeddings',
+    '/chat/completions',
+    '/completions',
+    '/embeddings',
+    '/messages',
+    '/responses',
+)
+
+
+def _provider_base_url(url: str) -> str:
+    parsed = urlparse(url)
+    path = parsed.path.rstrip('/')
+    endpoint = next((suffix for suffix in MODEL_REQUEST_PATHS if path.endswith(suffix)), None)
+    if endpoint is None:
+        return url
+    provider_base_path = path[: -len(endpoint)].rstrip('/')
+    return f'{parsed.scheme}://{parsed.netloc}{provider_base_path}'
+
+
+async def _prepare_model_request(url: str, payload: str | bytes | None, request: Request | None = None):
+    path = urlparse(url).path.rstrip('/')
+    endpoint = next((suffix for suffix in MODEL_REQUEST_PATHS if path.endswith(suffix)), None)
+    if endpoint is None or payload is None:
+        return None
+
+    base_url = _provider_base_url(url)
+    try:
+        request_payload = JSONCodec.loads(payload)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail='Invalid JSON model request.') from exc
+    if not isinstance(request_payload, dict):
+        raise HTTPException(status_code=400, detail='Model request body must be a JSON object.')
+
+    from open_webui.agent_runtime.gateway import ProviderGateway
+
+    gateway = ProviderGateway()
+    prepared = gateway.prepare(request_payload, base_url)
+    await gateway.checkpoint(request, prepared)
+    metrics = prepared.metrics
+    log.info(
+        'Ollama model request size: model=%s serialized_chars=%d serialized_bytes=%d',
+        prepared.payload.get('model'),
+        metrics['serialized_chars'],
+        metrics['serialized_bytes'],
+    )
+    return prepared
 
 
 def _clean_proxy_headers(raw_headers) -> dict:
@@ -107,19 +157,35 @@ async def send_request(
     r = None
     streaming = False
     try:
+        prepared_request = await _prepare_model_request(url, payload, request)
         session = await get_session()
 
         headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
 
-        r = await session.request(
-            method,
-            url,
-            data=payload,
-            headers=headers,
-            cookies=cookies,
-            ssl=AIOHTTP_CLIENT_SESSION_SSL,
-            timeout=get_client_timeout(stream=stream),
-        )
+        if prepared_request is not None:
+            from open_webui.agent_runtime.gateway import ProviderGateway
+
+            r = await ProviderGateway().send(
+                session,
+                method,
+                url,
+                prepared_request,
+                headers=headers,
+                cookies=cookies,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+                timeout=get_client_timeout(stream=stream),
+                provider_base_url=_provider_base_url(url),
+            )
+        else:
+            r = await session.request(
+                method,
+                url,
+                data=payload,
+                headers=headers,
+                cookies=cookies,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+                timeout=get_client_timeout(stream=stream),
+            )
 
         if not r.ok:
             retry_headers = {k: v for k, v in r.headers.items() if k.lower() in ('retry-after', 'retry-after-ms')}

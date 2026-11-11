@@ -18,6 +18,31 @@ CALL_TOOL_NAME = 'call_tool'
 MANIFEST_DESCRIPTION_MAX_CHARS = 100
 MAX_SEARCH_COUNT = 20
 DEFAULT_SEARCH_COUNT = 5
+RESOURCE_SUMMARY_TOOLS = {
+    'list_editable_documents',
+    'start_document_summary_task',
+    'get_document_task',
+}
+
+
+def _resource_summary_tools_required(metadata: dict) -> bool:
+    state = metadata.get('agent_task_state') or {}
+    task_ids = state.get('resource_task_ids') or metadata.get('pending_resource_task_ids') or []
+    return bool(
+        metadata.get('resource_aware_files')
+        and metadata.get('resource_execution_requested')
+        and metadata.get('resource_context_mode') in {'FULL', 'HIERARCHICAL'}
+        and state.get('requires_complete_coverage') is True
+        and state.get('coverage_complete') is not True
+        and state.get('status') not in {'blocked', 'cancelled'}
+        and (
+            state.get('status') != 'pending'
+            or task_ids
+            or state.get('reason') == 'resource_index_pending'
+        )
+        and len(metadata.get('resource_scope_ids') or []) == 1
+        and (metadata.get('params') or {}).get('function_calling') != 'legacy'
+    )
 
 _MANIFEST_RE = re.compile(r'\n?<available_tools>\n.*?</available_tools>', re.DOTALL)
 
@@ -38,13 +63,17 @@ async def get_tool_search_config() -> dict | None:
     }
 
 
-def select_deferred_tools(tools_dict: dict[str, dict], config: dict) -> list[str]:
+def select_deferred_tools(
+    tools_dict: dict[str, dict], config: dict, *, protected_names: set[str] | None = None
+) -> list[str]:
     """Sorted names of tools whose schema exceeds the threshold and that are not always loaded."""
     patterns = config['always_loaded']
+    protected_names = protected_names or set()
     return sorted(
         name
         for name, tool in tools_dict.items()
         if (config['defer_builtin_tools'] or tool.get('type') != 'builtin')
+        and name not in protected_names
         and not any(fnmatch.fnmatchcase(name, pattern) for pattern in patterns)
         and len(JSONCodec.dumps(tool.get('spec') or {})) > config['defer_threshold']
     )
@@ -81,7 +110,14 @@ async def apply_tool_search(
     """Add discovery and dispatch when tools can be deferred; return names to omit from provider tools."""
     names = set(tools_dict) | {(tool.get('function') or tool).get('name') for tool in extra_tools or []}
     config = not names.intersection({SEARCH_TOOL_NAME, CALL_TOOL_NAME}) and await get_tool_search_config()
-    deferred = select_deferred_tools(tools_dict, config) if config else []
+    summary_phase = metadata.get('resource_summary_task_phase')
+    protected_names = (
+        RESOURCE_SUMMARY_TOOLS
+        if _resource_summary_tools_required(metadata)
+        or (metadata.get('resource_summary_task_required') and summary_phase in {'list', 'start', 'status'})
+        else set()
+    )
+    deferred = select_deferred_tools(tools_dict, config, protected_names=protected_names) if config else []
     if not deferred:
         return set()
 

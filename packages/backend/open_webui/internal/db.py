@@ -443,9 +443,9 @@ ASYNC_SQLALCHEMY_DATABASE_URL = _make_async_url(SQLALCHEMY_DATABASE_URL)
 # the async engine.  This runs at import time, which is early enough
 # to cover every entry point (workers, reload, direct invocations).
 if sys.platform == 'win32' and _is_postgres_url(DATABASE_URL):
-    import asyncio
+    from open_webui.utils.windows_asyncio import install_windows_selector_policy
 
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    install_windows_selector_policy()
 
 if 'sqlite' in ASYNC_SQLALCHEMY_DATABASE_URL:
     # Generous default — async coroutines + no session sharing = high connection demand.

@@ -118,6 +118,63 @@ class FileUpdateForm(BaseModel):
 
 
 class FilesTable:
+    def __init__(self):
+        self._external_content_store = None
+
+    def _get_external_content_store(self):
+        if self._external_content_store is None:
+            from open_webui.agent_runtime.files import AgentFileContentStore
+
+            self._external_content_store = AgentFileContentStore.configured()
+        return self._external_content_store
+
+    async def hydrate_content_models(
+        self, models: list[FileModel], db: AsyncSession | None = None
+    ) -> list[FileModel]:
+        if not models:
+            return models
+        async with get_async_db_context(db) as db:
+            return [await self._hydrate_external_content(model, db) for model in models]
+
+    async def _hydrate_external_content(self, model: FileModel, db: AsyncSession) -> FileModel:
+        if isinstance(model.data, dict) and isinstance(model.data.get('content'), str):
+            return model
+        try:
+            from open_webui.agent_runtime.models import AgentFileContent
+
+            store = self._get_external_content_store()
+            reference = await db.get(AgentFileContent, model.id)
+            if reference is not None and reference.owner_id == model.user_id:
+                model.data = {
+                    **(model.data or {}),
+                    'content': await store.read_all(store._reference(reference)),
+                }
+        except Exception:
+            # Keep legacy file APIs available while the additive migration is not installed.
+            log.debug('No external extracted content for file %s', model.id, exc_info=True)
+        return model
+
+    async def get_file_by_id_without_content(
+        self, id: str, db: AsyncSession | None = None
+    ) -> FileModel | None:
+        """Read file metadata without selecting the potentially large extracted-text JSON column."""
+        async with get_async_db_context(db) as db:
+            row = (
+                await db.execute(
+                    select(
+                        File.id,
+                        File.user_id,
+                        File.hash,
+                        File.filename,
+                        File.path,
+                        File.meta,
+                        File.created_at,
+                        File.updated_at,
+                    ).where(File.id == id)
+                )
+            ).first()
+            return FileModel.model_validate({**row._mapping, 'data': {}}) if row else None
+
     async def insert_new_file(
         self, user_id: str, form_data: FileForm, db: AsyncSession | None = None
     ) -> FileModel | None:
@@ -161,7 +218,7 @@ class FilesTable:
                 file = await db.get(File, id)
                 if not file:
                     return None
-                return FileModel.model_validate(file)
+                return await self._hydrate_external_content(FileModel.model_validate(file), db)
         except Exception:
             return None
 
@@ -173,7 +230,7 @@ class FilesTable:
                 result = await db.execute(select(File).filter_by(id=id, user_id=user_id))
                 file = result.scalars().first()
                 if file:
-                    return FileModel.model_validate(file)
+                    return await self._hydrate_external_content(FileModel.model_validate(file), db)
                 else:
                     return None
             except Exception:
@@ -198,7 +255,10 @@ class FilesTable:
     async def get_files(self, db: AsyncSession | None = None) -> list[FileModel]:
         async with get_async_db_context(db) as db:
             result = await db.execute(select(File))
-            return [FileModel.model_validate(file) for file in result.scalars().all()]
+            return [
+                await self._hydrate_external_content(FileModel.model_validate(file), db)
+                for file in result.scalars().all()
+            ]
 
     async def count_files_by_user_id(
         self,
@@ -224,7 +284,10 @@ class FilesTable:
     async def get_files_by_ids(self, ids: list[str], db: AsyncSession | None = None) -> list[FileModel]:
         async with get_async_db_context(db) as db:
             result = await db.execute(select(File).filter(File.id.in_(ids)).order_by(File.updated_at.desc()))
-            return [FileModel.model_validate(file) for file in result.scalars().all()]
+            return [
+                await self._hydrate_external_content(FileModel.model_validate(file), db)
+                for file in result.scalars().all()
+            ]
 
     async def get_file_metadatas_by_ids(
         self, ids: list[str], db: AsyncSession | None = None
@@ -249,13 +312,17 @@ class FilesTable:
     async def get_files_by_user_id(self, user_id: str, db: AsyncSession | None = None) -> list[FileModel]:
         async with get_async_db_context(db) as db:
             result = await db.execute(select(File).filter_by(user_id=user_id))
-            return [FileModel.model_validate(file) for file in result.scalars().all()]
+            return [
+                await self._hydrate_external_content(FileModel.model_validate(file), db)
+                for file in result.scalars().all()
+            ]
 
     async def get_file_list(
         self,
         user_id: str | None = None,
         skip: int = 0,
         limit: int = 50,
+        include_content: bool = True,
         db: AsyncSession | None = None,
     ) -> 'FileListResponse':
         async with get_async_db_context(db) as db:
@@ -267,7 +334,10 @@ class FilesTable:
             total = count_result.scalar()
 
             result = await db.execute(stmt.order_by(File.updated_at.desc(), File.id.desc()).offset(skip).limit(limit))
-            items = [FileModelResponse.model_validate(file, from_attributes=True) for file in result.scalars().all()]
+            hydrated = [FileModel.model_validate(file) for file in result.scalars().all()]
+            if include_content:
+                hydrated = [await self._hydrate_external_content(file, db) for file in hydrated]
+            items = [FileModelResponse.model_validate(file) for file in hydrated]
 
             return FileListResponse(items=items, total=total)
 
@@ -300,6 +370,7 @@ class FilesTable:
         filename: str = '*',
         skip: int = 0,
         limit: int = 100,
+        include_content: bool = True,
         db: AsyncSession | None = None,
     ) -> list[FileModel]:
         """
@@ -326,7 +397,10 @@ class FilesTable:
                 stmt = stmt.filter(File.filename.ilike(pattern, escape='\\'))
 
             result = await db.execute(stmt.order_by(File.created_at.desc(), File.id.desc()).offset(skip).limit(limit))
-            return [FileModel.model_validate(file) for file in result.scalars().all()]
+            items = [FileModel.model_validate(file) for file in result.scalars().all()]
+            if include_content:
+                items = [await self._hydrate_external_content(file, db) for file in items]
+            return items
 
     async def update_file_by_id(
         self, id: str, form_data: FileUpdateForm, db: AsyncSession | None = None
@@ -335,18 +409,22 @@ class FilesTable:
             try:
                 result = await db.execute(select(File).filter_by(id=id))
                 file = result.scalars().first()
+                external_object_key = None
 
                 if form_data.hash is not None:
                     file.hash = form_data.hash
 
                 if form_data.data is not None:
                     file.data = {**(file.data if file.data else {}), **form_data.data}
+                    if 'content' in form_data.data:
+                        external_object_key = await self._remove_external_content_record(file.id, db)
 
                 if form_data.meta is not None:
                     file.meta = {**(file.meta if file.meta else {}), **form_data.meta}
 
                 file.updated_at = int(time.time())
                 await db.commit()
+                await self._delete_external_object(external_object_key)
                 return FileModel.model_validate(file)
             except Exception as e:
                 log.exception(f'Error updating file completely by id: {e}')
@@ -372,9 +450,13 @@ class FilesTable:
             try:
                 result = await db.execute(select(File).filter_by(id=id))
                 file = result.scalars().first()
+                external_object_key = None
                 file.data = {**(file.data if file.data else {}), **data}
+                if 'content' in data:
+                    external_object_key = await self._remove_external_content_record(file.id, db)
                 file.updated_at = int(time.time())
                 await db.commit()
+                await self._delete_external_object(external_object_key)
                 return FileModel.model_validate(file)
             except Exception as e:
                 return None
@@ -445,9 +527,10 @@ class FilesTable:
     async def delete_file_by_id(self, id: str, db: AsyncSession | None = None) -> bool:
         async with get_async_db_context(db) as db:
             try:
+                external_object_key = await self._remove_external_content_record(id, db)
                 await db.execute(delete(File).filter_by(id=id))
                 await db.commit()
-
+                await self._delete_external_object(external_object_key)
                 return True
             except Exception:
                 return False
@@ -455,12 +538,47 @@ class FilesTable:
     async def delete_all_files(self, db: AsyncSession | None = None) -> bool:
         async with get_async_db_context(db) as db:
             try:
+                try:
+                    from open_webui.agent_runtime.models import AgentFileContent
+
+                    references = list((await db.scalars(select(AgentFileContent))).all())
+                except Exception:
+                    references = []
                 await db.execute(delete(File))
+                for reference in references:
+                    await db.delete(reference)
                 await db.commit()
+                for reference in references:
+                    await self._delete_external_object(reference.object_key)
 
                 return True
             except Exception:
                 return False
+
+    @staticmethod
+    async def _remove_external_content_record(file_id: str, db: AsyncSession) -> str | None:
+        try:
+            from open_webui.agent_runtime.models import AgentFileContent
+
+            reference = await db.get(AgentFileContent, file_id)
+            if reference is None:
+                return None
+            key = reference.object_key
+            await db.delete(reference)
+            return key
+        except Exception:
+            return None
+
+    @staticmethod
+    async def _delete_external_object(object_key: str | None) -> None:
+        if not object_key:
+            return
+        try:
+            from open_webui.agent_runtime.files import AgentFileContentStore
+
+            await AgentFileContentStore.configured().object_store.delete(object_key)
+        except Exception:
+            log.exception('Could not remove external text object %s', object_key)
 
 
 Files = FilesTable()  # singleton files repository

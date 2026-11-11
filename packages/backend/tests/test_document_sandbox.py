@@ -9,6 +9,7 @@ import pytest
 from docx import Document as WordDocument
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -20,6 +21,8 @@ from open_webui.mini_hermes.models import (
     Preview,
     ResourceIndexJob,
     Revision,
+    RevisionApproval,
+    RevisionOutbox,
     SyncJob,
 )
 from open_webui.mini_hermes.sandbox_service import ReadRequest, RunRequest, app, read_output, run_workspace
@@ -55,6 +58,145 @@ async def test_sandbox_runs_code_on_input_and_reads_only_output(tmp_path, monkey
     with pytest.raises(HTTPException) as error:
         await read_output(ReadRequest(workspace_id='a' * 64, path='../inputs/source.pdf'))
     assert error.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_xlsx_markdown_skill_reads_chat_scoped_workbook(tmp_path, monkeypatch):
+    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Summary'
+    sheet.append(['Metric', 'Value'])
+    sheet.append(['Users', 12])
+    sheet.append(['Status', 'Ready'])
+    contents = io.BytesIO()
+    workbook.save(contents)
+    workbook.close()
+
+    result = await run_workspace(RunRequest(
+        workspace_id='d' * 64,
+        skill='xlsx',
+        script='scripts/markitdown.py',
+        args=['uploaded-file-id'],
+        inputs={'inputs/document-record-id/M.xlsx': base64.b64encode(contents.getvalue()).decode()},
+        input_revisions={'inputs/document-record-id/M.xlsx': 1},
+    ))
+
+    assert result['exit_code'] == 0
+    assert '## Summary' in result['stdout']
+    assert '| Users | 12 |' in result['stdout']
+    assert '| Status | Ready |' in result['stdout']
+
+
+@pytest.mark.asyncio
+async def test_xlsx_markdown_preview_samples_large_sheet_through_its_end(tmp_path, monkeypatch):
+    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'LargeSheet'
+    sheet.append(['Value'])
+    for row_number in range(2, 82):
+        sheet.append([f'Row {row_number}'])
+    sheet['A75'] = 'CriticalRow'
+    contents = io.BytesIO()
+    workbook.save(contents)
+    workbook.close()
+
+    result = await run_workspace(RunRequest(
+        workspace_id='e' * 64,
+        skill='xlsx',
+        script='scripts/markitdown.py',
+        args=['uploaded-file-id'],
+        inputs={'inputs/document-record-id/Large.xlsx': base64.b64encode(contents.getvalue()).decode()},
+        input_revisions={'inputs/document-record-id/Large.xlsx': 1},
+    ))
+
+    assert result['exit_code'] == 0
+    assert 'CriticalRow' in result['stdout']
+
+
+@pytest.mark.asyncio
+async def test_xlsx_markdown_preview_preserves_unicode_text(tmp_path, monkeypatch):
+    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = '招生情况'
+    sheet.append(['专业', '语言'])
+    sheet.append(['动力工程', '英文'])
+    contents = io.BytesIO()
+    workbook.save(contents)
+    workbook.close()
+
+    result = await run_workspace(RunRequest(
+        workspace_id='f' * 64,
+        skill='xlsx',
+        script='scripts/markitdown.py',
+        args=['uploaded-file-id'],
+        inputs={'inputs/document-record-id/M.xlsx': base64.b64encode(contents.getvalue()).decode()},
+        input_revisions={'inputs/document-record-id/M.xlsx': 1},
+    ))
+
+    assert result['exit_code'] == 0
+    assert '招生情况' in result['stdout']
+    assert '动力工程' in result['stdout']
+
+
+@pytest.mark.asyncio
+async def test_xlsx_markdown_preview_fits_tool_result_budget(tmp_path, monkeypatch):
+    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'LargeSheet'
+    for row_number in range(60):
+        sheet.append([f'row {row_number} column {column} ' + 'x' * 180 for column in range(24)])
+    contents = io.BytesIO()
+    workbook.save(contents)
+    workbook.close()
+
+    result = await run_workspace(RunRequest(
+        workspace_id='9' * 64,
+        skill='xlsx',
+        script='scripts/markitdown.py',
+        args=['uploaded-file-id'],
+        inputs={'inputs/document-record-id/Large.xlsx': base64.b64encode(contents.getvalue()).decode()},
+        input_revisions={'inputs/document-record-id/Large.xlsx': 1},
+    ))
+
+    assert result['exit_code'] == 0
+    assert len(result['stdout']) <= 5_100
+    assert '- Non-empty rows: 60;' in result['stdout']
+    assert '[Workbook preview truncated to the output limit.]' in result['stdout']
+
+
+@pytest.mark.asyncio
+async def test_xlsx_profile_maps_visiting_students_to_the_correct_column(tmp_path, monkeypatch):
+    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Catalog'
+    sheet.append([
+        'Program Name', 'Program Code',
+        'Enrollment excluding non-degree visiting students', 'Teaching Language',
+        'Basic Study Duration', 'Degree Conferred', 'Degree Type',
+        'Provide acceptance letter', 'Accept CSC visiting students',
+        'Accept exchanging students', 'Accept other types of non-degree visiting students',
+    ])
+    sheet.append(['Physics', '080700', None, 'English', 2, 'Master', 'Academic', 'Yes', 'No', 'Yes', 'No'])
+    contents = io.BytesIO()
+    workbook.save(contents)
+    workbook.close()
+
+    result = await run_workspace(RunRequest(
+        workspace_id='1' * 64,
+        skill='xlsx',
+        script='scripts/markitdown.py',
+        args=['uploaded-file-id'],
+        inputs={'inputs/document-record-id/Catalog.xlsx': base64.b64encode(contents.getvalue()).decode()},
+        input_revisions={'inputs/document-record-id/Catalog.xlsx': 1},
+    ))
+
+    assert result['exit_code'] == 0
+    assert '- Other Visitors: No: 1' in result['stdout']
 
 
 @pytest.mark.asyncio
@@ -109,8 +251,8 @@ async def test_sandbox_update_requires_preview_approval_and_commit_is_idempotent
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__,
-                            ResourceIndexJob.__table__, Preview.__table__, SyncJob.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, RevisionApproval.__table__,
+                            RevisionOutbox.__table__, DocumentChunk.__table__, ResourceIndexJob.__table__, Preview.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     first_doc = WordDocument()
@@ -151,6 +293,7 @@ async def test_sandbox_update_requires_preview_approval_and_commit_is_idempotent
             'base_revision': preview.base_revision,
             'base_sha256': preview.base_sha256,
             'artifact_sha256': preview.artifact_sha256,
+            'patch_hash': preview.patch_hash,
         }
         updated, _ = await commit_preview(db, store, 'alice', preview.id, sync=False, approval=approval)
         again, _ = await commit_preview(db, store, 'alice', preview.id, sync=False, approval=approval)
@@ -195,8 +338,10 @@ async def test_agent_execution_mounts_only_chat_scoped_documents(monkeypatch):
         db.add_all([
             Document(id='allowed', owner_id='alice', filename='allowed.pdf', mime_type='application/pdf', current_revision=1),
             Document(id='outside', owner_id='alice', filename='outside.pdf', mime_type='application/pdf', current_revision=1),
-            Revision(id='rev-allowed', document_id='allowed', number=1, object_key='allowed-key', sha256='x', size=1),
-            Revision(id='rev-outside', document_id='outside', number=1, object_key='outside-key', sha256='x', size=1),
+            Revision(id='rev-allowed', document_id='allowed', number=1, object_key='allowed-key',
+                     sha256=hashlib.sha256(b'allowed-key').hexdigest(), size=len(b'allowed-key')),
+            Revision(id='rev-outside', document_id='outside', number=1, object_key='outside-key',
+                     sha256=hashlib.sha256(b'outside-key').hexdigest(), size=len(b'outside-key')),
             ChatResource(id='scope-1', chat_id='chat-1', document_id='allowed', granted_by='alice'),
         ])
         await db.commit()
@@ -238,7 +383,8 @@ async def test_agent_edit_creates_preview_until_user_approval(monkeypatch):
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, ChatResource.__table__, Preview.__table__, SyncJob.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, RevisionApproval.__table__,
+                          RevisionOutbox.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, ChatResource.__table__, Preview.__table__, SyncJob.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     source = WordDocument()
     source.add_paragraph('Before')
@@ -268,12 +414,13 @@ async def test_agent_edit_creates_preview_until_user_approval(monkeypatch):
     assert result['approval_required'] is True
     assert result['base_revision'] == 1
     assert len(result['base_sha256']) == len(result['artifact_sha256']) == 64
+    assert len(result['patch_hash']) == 64
     async with sessions() as db:
         assert (await db.get(Document, 'doc-1')).current_revision == 1
         assert (await db.execute(select(SyncJob))).scalars().all() == []
         from open_webui.mini_hermes.service import commit_preview
         approval = {'base_revision': result['base_revision'], 'base_sha256': result['base_sha256'],
-                    'artifact_sha256': result['artifact_sha256']}
+                    'artifact_sha256': result['artifact_sha256'], 'patch_hash': result['patch_hash']}
         revision, _ = await commit_preview(db, store, 'alice', result['preview_id'], approval=approval)
         assert revision.number == 2
         assert (await db.get(Document, 'doc-1')).current_revision == 2

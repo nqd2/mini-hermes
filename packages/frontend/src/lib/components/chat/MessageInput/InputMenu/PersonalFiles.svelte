@@ -227,7 +227,7 @@
 						<span class="min-w-0 flex-1">
 							<span class="block truncate">{document.filename}</span>
 							{#if document.description}<span class="mt-0.5 block line-clamp-2 text-[0.68rem] text-gray-500">{document.description}</span>{/if}
-							{#if document.description_status === 'failed' && document.can_write}
+				{#if ['failed', 'failed_permanent'].includes(document.description_status) && document.can_write}
 								<button class="mt-1 text-[0.68rem] text-sky-600 hover:underline" type="button" on:click={() => retryDescription(document.id)}>Retry description</button>
 							{/if}
 						</span>

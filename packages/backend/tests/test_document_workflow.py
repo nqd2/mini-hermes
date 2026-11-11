@@ -20,6 +20,8 @@ from open_webui.mini_hermes.models import (
     Preview,
     ResourceIndexJob,
     Revision,
+    RevisionApproval,
+    RevisionOutbox,
     SyncJob,
     now,
 )
@@ -115,7 +117,7 @@ async def test_preview_commit_is_idempotent_and_owned():
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, Preview.__table__, SyncJob.__table__, DriveCredential.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, RevisionApproval.__table__, RevisionOutbox.__table__, ResourceIndexJob.__table__, DocumentChunk.__table__, Preview.__table__, SyncJob.__table__, DriveCredential.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     store = MemoryStore()
     from io import BytesIO
@@ -133,8 +135,17 @@ async def test_preview_commit_is_idempotent_and_owned():
         preview = await create_preview(db, doc, 'owner', [{'op': 'replace_text', 'find': 'Before', 'replace': 'After'}])
         from open_webui.mini_hermes.service import build_preview
         await build_preview(db, store, preview)
+        assert preview.artifact_sha256 in preview.preview_key
+        assert preview.patch_hash == __import__(
+            'open_webui.mini_hermes.revision_service', fromlist=['compute_patch_hash']
+        ).compute_patch_hash(
+            base_revision=preview.base_revision,
+            base_sha256=preview.base_sha256,
+            operations=preview.operations,
+            artifact_sha256=preview.artifact_sha256,
+        )
         approval = {'base_revision': preview.base_revision, 'base_sha256': preview.base_sha256,
-                    'artifact_sha256': preview.artifact_sha256}
+                    'artifact_sha256': preview.artifact_sha256, 'patch_hash': preview.patch_hash}
         first_revision, first_job = await commit_preview(db, store, 'owner', preview.id, approval=approval)
         second_revision, second_job = await commit_preview(db, store, 'owner', preview.id)
         assert first_revision.id == second_revision.id
@@ -152,7 +163,7 @@ async def test_preview_commit_is_idempotent_and_owned():
         preview = await create_preview(db, doc, 'owner', [{'op': 'replace_text', 'find': 'After', 'replace': 'Synced'}])
         await build_preview(db, store, preview)
         approval = {'base_revision': preview.base_revision, 'base_sha256': preview.base_sha256,
-                    'artifact_sha256': preview.artifact_sha256}
+                    'artifact_sha256': preview.artifact_sha256, 'patch_hash': preview.patch_hash}
         _, drive_job = await commit_preview(db, store, 'owner', preview.id, approval=approval)
         assert drive_job is not None and drive_job.status == 'pending'
         assert len((await db.execute(select(SyncJob))).scalars().all()) == 1

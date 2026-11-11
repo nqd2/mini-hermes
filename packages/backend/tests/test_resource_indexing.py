@@ -5,7 +5,8 @@ from types import SimpleNamespace
 import pytest
 import pytest_asyncio
 from fastapi import UploadFile
-from sqlalchemy import func, select
+from openpyxl import Workbook
+from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from open_webui.mini_hermes.models import (
@@ -97,6 +98,46 @@ async def test_upload_queues_indexing_without_parsing_in_request(resource_db):
         assert job.status == 'pending'
         assert job.attempts == 0
         assert chunks == 0
+
+
+@pytest.mark.asyncio
+async def test_xlsx_upload_queues_index_job_when_autoflush_is_disabled():
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+
+    @event.listens_for(engine.sync_engine, 'connect')
+    def enable_sqlite_foreign_keys(connection, _record):
+        cursor = connection.cursor()
+        cursor.execute('PRAGMA foreign_keys=ON')
+        cursor.close()
+
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            lambda sync: Document.metadata.create_all(
+                sync,
+                tables=[Folder.__table__, Document.__table__, Revision.__table__, ResourceIndexJob.__table__],
+            )
+        )
+    sessions = async_sessionmaker(engine, autoflush=False, expire_on_commit=False)
+    workbook = Workbook()
+    workbook.active.append(['Program', 'Language'])
+    workbook.active.append(['Energy Engineering', 'English'])
+    content = BytesIO()
+    workbook.save(content)
+
+    try:
+        async with sessions() as db:
+            document = await create_document(db, MemoryStore(), 'alice', 'M.xlsx', content.getvalue())
+            job = (
+                await db.execute(
+                    select(ResourceIndexJob).where(
+                        ResourceIndexJob.document_id == document.id,
+                        ResourceIndexJob.revision == 1,
+                    )
+                )
+            ).scalar_one()
+            assert job.status == 'pending'
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.parametrize(

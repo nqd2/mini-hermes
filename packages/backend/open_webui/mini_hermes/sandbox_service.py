@@ -125,6 +125,12 @@ def _child_setup(uid: int | None) -> None:
         os.setuid(uid)
 
 
+def _decode_output(output: bytes | str) -> str:
+    if isinstance(output, str):
+        return output[:20_000]
+    return output[:20_000].decode('utf-8', errors='replace')
+
+
 def _authorize(x_mh_sandbox_token: str | None = Header(default=None)) -> None:
     expected = os.getenv('MH_SANDBOX_TOKEN')
     if not expected:
@@ -220,14 +226,15 @@ async def run_workspace(request: RunRequest) -> dict:
     environment = {'PATH': os.getenv('PATH', ''), 'HOME': str(root), 'TMPDIR': str(root),
                    'TEMP': str(root), 'TMP': str(root),
                    'NODE_PATH': os.getenv('NODE_PATH', ''),
-                   'PYTHONDONTWRITEBYTECODE': '1', 'PYTHONUNBUFFERED': '1'}
+                   'PYTHONDONTWRITEBYTECODE': '1', 'PYTHONUNBUFFERED': '1',
+                   'PYTHONIOENCODING': 'utf-8'}
     if os.name == 'nt':
         environment['SYSTEMROOT'] = os.getenv('SYSTEMROOT', '')
     if os.name == 'nt':
         try:
             completed = await asyncio.to_thread(
                 subprocess.run, command, cwd=root, env=environment, capture_output=True,
-                timeout=TIMEOUT_SECONDS + 2, check=False)
+                timeout=TIMEOUT_SECONDS + 2, check=False, encoding='utf-8', errors='replace')
         except subprocess.TimeoutExpired as exc:
             raise HTTPException(408, 'Execution timed out') from exc
         return_code, stdout, stderr = completed.returncode, completed.stdout, completed.stderr
@@ -266,8 +273,8 @@ async def run_workspace(request: RunRequest) -> dict:
                 'input_revisions': request.input_revisions,
             }
     _metadata_path(root).write_text(json.dumps({'outputs': output_metadata}), encoding='utf-8')
-    return {'exit_code': return_code, 'stdout': stdout[:20_000].decode(errors='replace'),
-            'stderr': stderr[:20_000].decode(errors='replace'), 'outputs': outputs,
+    return {'exit_code': return_code, 'stdout': _decode_output(stdout),
+            'stderr': _decode_output(stderr), 'outputs': outputs,
             'input_paths': input_paths}
 
 

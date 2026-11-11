@@ -703,6 +703,14 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     form_data = await convert_url_images_to_base64(form_data, user=user)
 
     event_emitter = await get_event_emitter(metadata)
+    if event_emitter and metadata.get('agent_turn_id'):
+        from open_webui.agent_runtime.runtime import AgentRuntime
+
+        event_emitter = AgentRuntime.configured().wrap_event_emitter(
+            str(metadata['agent_turn_id']),
+            event_emitter,
+            message_id=metadata.get('message_id'),
+        )
     event_caller = await get_event_call(metadata)
 
     extra_params = {
@@ -2631,6 +2639,12 @@ async def streaming_chat_response_handler(response, ctx):
                             'stream': True,
                             'metadata': metadata,
                         }
+                        if metadata.get('resource_summary_task_required'):
+                            from open_webui.utils.chat_runtime.resource_context_preparation import (
+                                apply_resource_summary_tool_choice,
+                            )
+
+                            apply_resource_summary_tool_choice(new_form_data, metadata)
 
                         if ENABLE_RESPONSES_API_STATEFUL and last_response_id:
                             system_message = get_system_message(form_data['messages'])

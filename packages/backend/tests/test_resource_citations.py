@@ -130,6 +130,7 @@ async def test_knowledge_file_reader_emits_provenance_used_by_citations(monkeypa
 
     monkeypatch.setattr(Groups, 'get_groups_by_member_id', get_groups)
     monkeypatch.setattr(Files, 'get_file_by_id', get_file)
+    monkeypatch.setattr(Files, 'get_file_by_id_without_content', get_file)
     monkeypatch.setattr(Knowledges, 'get_knowledges_by_file_id', get_knowledges)
 
     result = JSONCodec.loads(
@@ -169,6 +170,7 @@ async def test_line_number_rendering_does_not_change_the_underlying_evidence_spa
         return file
 
     monkeypatch.setattr(Files, 'get_file_by_id', get_file)
+    monkeypatch.setattr(Files, 'get_file_by_id_without_content', get_file)
     result = JSONCodec.loads(
         await builtin.view_file(
             'file-1',

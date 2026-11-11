@@ -339,6 +339,11 @@ class EventDefinitions(BaseModel):
     FILE_DELETED_ALL: EventDefinition = EventDefinition(
         name='file.deleted_all', description='All files for a scope were deleted.', message='File deleted all'
     )
+    DOCUMENT_REVISION_COMMITTED: EventDefinition = EventDefinition(
+        name='document.revision.committed',
+        description='A new immutable document revision was committed.',
+        message='Document revision committed',
+    )
     FOLDER_CREATED: EventDefinition = EventDefinition(
         name='folder.created', description='A folder was created.', message='Folder created'
     )

@@ -14,6 +14,7 @@ from open_webui.models.files import (
     FileMetadataResponse,
     FileModel,
     FileModelResponse,
+    Files,
 )
 from open_webui.models.groups import Groups
 from open_webui.models.users import User, UserModel, UserResponse, Users
@@ -412,7 +413,10 @@ class KnowledgeTable:
                             # Use ->> (as_string) instead of CAST(-> AS TEXT)
                             # to avoid PostgreSQL "invalid memory alloc request
                             # size" on large extracted-content rows (#24670).
-                            content_text = File.data['content'].as_string()
+                            content_text = func.coalesce(
+                                File.data['content'].as_string(),
+                                File.data['content_search'].as_string(),
+                            )
                             content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
                             search_filter = or_(
                                 File.filename.ilike(f'%{q}%'),
@@ -568,7 +572,10 @@ class KnowledgeTable:
                             # Use ->> (as_string) instead of CAST(-> AS TEXT)
                             # to avoid PostgreSQL memory allocation failures on
                             # large content (#24670).
-                            content_text = File.data['content'].as_string()
+                            content_text = func.coalesce(
+                                File.data['content'].as_string(),
+                                File.data['content_search'].as_string(),
+                            )
                             content_text = func.substr(content_text, 1, RAG_FILE_CONTENT_SEARCH_MAX_CHARS)
                             stmt = stmt.filter(
                                 or_(
@@ -673,7 +680,8 @@ class KnowledgeTable:
                     .filter(KnowledgeFile.knowledge_id == knowledge_id)
                 )
                 files = result.scalars().all()
-                return [FileModel.model_validate(file) for file in files]
+                models = [FileModel.model_validate(file) for file in files]
+                return await Files.hydrate_content_models(models, db=db)
         except Exception:
             return []
 
@@ -1180,7 +1188,8 @@ class KnowledgeTable:
                 .filter(KnowledgeFile.knowledge_id == knowledge_id)
                 .filter(KnowledgeFile.directory_id.in_(directory_ids))
             )
-            return [FileModel.model_validate(file) for file in result.scalars().all()]
+            models = [FileModel.model_validate(file) for file in result.scalars().all()]
+            return await Files.hydrate_content_models(models, db=db)
 
     async def move_file_to_directory(
         self,

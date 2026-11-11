@@ -8,11 +8,11 @@ description: "Use this skill any time a spreadsheet file is the primary input or
 | Task | Approach |
 |---|---|
 | **Create** or **edit** with formulas/formatting | `openpyxl` — see gotchas below |
-| **Bulk data** in or out | `pandas` (`read_excel`, `to_excel`) |
-| **Quick look** at a sheet | `markitdown file.xlsx` — `## SheetName` per sheet; reads `.xlsm` too. No cell coordinates, so don't plan edits from it |
+| **Bulk data** in or out | `openpyxl` read-only/write-only mode; use `pandas` only when it is available in the sandbox |
+| **Quick look** at a workbook | `run_skill_script(skill="xlsx", script="scripts/markitdown.py", args=[document_id])` — returns a bounded Markdown preview for each sheet. No cell coordinates, so don't plan edits from it |
 | **Read** a model (formulas *and* values) | two `load_workbook` passes — see gotchas |
 
-> `openpyxl`, `pandas`, and `markitdown` are preinstalled — do not run `pip install` first; write the script and import directly. Only if an import fails (or the `markitdown` command is missing): `pip install` the missing package.
+> The sandbox includes `openpyxl` for workbook reading and editing. The bundled `scripts/markitdown.py` creates the quick preview without installing a package. Do not try to invoke an external `markitdown` command.
 
 > Script paths below are relative to this skill's directory.
 
@@ -95,4 +95,4 @@ lone edited cell mid-row is the commonest silent error · guard denominators tha
 
 ## Dependencies
 
-`openpyxl`, `pandas`, `markitdown` (pip, preinstalled — install only if an import fails or the command is missing) · LibreOffice (`soffice`, auto-configured for sandboxed environments via `scripts/office/soffice.py`)
+`openpyxl` is available in the sandbox and powers the bundled preview. `pandas` is optional and must already be available to use. LibreOffice (`soffice`) is used for recalculation through `scripts/office/soffice.py`.

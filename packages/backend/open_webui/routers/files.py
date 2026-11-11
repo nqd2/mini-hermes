@@ -531,7 +531,9 @@ async def list_files(
     skip = (page - 1) * PAGE_SIZE
     user_id = None if (user.role == 'admin' and BYPASS_ADMIN_ACCESS_CONTROL) else user.id
 
-    result = await Files.get_file_list(user_id=user_id, skip=skip, limit=PAGE_SIZE, db=db)
+    result = await Files.get_file_list(
+        user_id=user_id, skip=skip, limit=PAGE_SIZE, include_content=content, db=db
+    )
 
     if not content:
         for file in result.items:
@@ -545,7 +547,14 @@ async def list_files(
 
 
 async def _search_files(filename: str, content: bool, skip: int, limit: int, user_id: str | None, db: AsyncSession):
-    files = await Files.search_files(user_id=user_id, filename=filename, skip=skip, limit=limit, db=db)
+    files = await Files.search_files(
+        user_id=user_id,
+        filename=filename,
+        skip=skip,
+        limit=limit,
+        include_content=content,
+        db=db,
+    )
     if not content:
         for file in files:
             if file.data and 'content' in file.data:

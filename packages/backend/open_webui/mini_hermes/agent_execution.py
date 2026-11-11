@@ -156,6 +156,8 @@ def task_checkpoint(state: dict | None) -> dict | None:
         'resource_scope_ids': list(state.get('resource_scope_ids') or []),
         'resource_scope_versions': dict(state.get('resource_scope_versions') or {}),
         'covered_resource_versions': dict(state.get('covered_resource_versions') or {}),
+        'resource_task_ids': list(dict.fromkeys(state.get('resource_task_ids') or [])),
+        'resource_index_job_ids': list(dict.fromkeys(state.get('resource_index_job_ids') or [])),
     }
     for key in ('reason', 'budget'):
         if key in state:

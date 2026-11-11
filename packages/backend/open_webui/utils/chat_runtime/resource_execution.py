@@ -39,7 +39,88 @@ def prepare_resource_tool_result(metadata: dict, tool_name: str, result: Any) ->
 
         # An oversized result is a blocked observation, not evidence.
         record_tool_result(state, tool_name, bounded if supplied else bounded)
+    if supplied:
+        advance_resource_summary_task_phase(metadata, tool_name, content)
     return bounded_content, supplied
+
+
+def advance_resource_summary_task_phase(metadata: dict, tool_name: str, result: Any) -> None:
+    """Advance the forced list → enqueue → status flow for large full summaries."""
+    phase = metadata.get('resource_summary_task_phase')
+    if phase not in {'list', 'start', 'status'}:
+        return
+    if isinstance(result, str):
+        try:
+            from open_webui.utils.json_codec import JSONCodec
+
+            result = JSONCodec.loads(result)
+        except (TypeError, ValueError):
+            result = None
+
+    state = metadata.get('agent_task_state')
+    if not isinstance(state, dict):
+        metadata['resource_summary_task_phase'] = 'failed'
+        return
+
+    if phase == 'list' and tool_name == 'list_editable_documents':
+        # The tool-result adapter wraps native lists for model consumption.
+        if isinstance(result, dict):
+            result = result.get('results')
+        if (
+            isinstance(result, list)
+            and len(result) == 1
+            and isinstance(result[0], dict)
+            and result[0].get('id')
+        ):
+            metadata['resource_summary_task_phase'] = 'start'
+        else:
+            state.update(status='blocked', reason='resource_summary_document_unavailable')
+            metadata['resource_summary_task_phase'] = 'failed'
+        return
+
+    if phase == 'start' and tool_name == 'start_document_summary_task':
+        if (
+            isinstance(result, dict)
+            and result.get('status') == 'pending'
+            and result.get('index_job_ids')
+            and not result.get('task_id')
+        ):
+            index_job_ids = list(state.get('resource_index_job_ids') or [])
+            index_job_ids.extend(
+                job_id for job_id in result['index_job_ids'] if isinstance(job_id, str) and job_id
+            )
+            state['resource_index_job_ids'] = list(dict.fromkeys(index_job_ids))
+            state.update(status='pending', reason='resource_index_pending')
+            metadata['resource_summary_task_phase'] = 'awaiting_index'
+            return
+        if isinstance(result, dict) and isinstance(result.get('task_id'), str) and result['task_id']:
+            task_ids = list(state.get('resource_task_ids') or [])
+            if result['task_id'] not in task_ids:
+                task_ids.append(result['task_id'])
+            state['resource_task_ids'] = task_ids
+            if result.get('status') in {'pending', 'processing', 'queued'}:
+                state.update(status='pending', reason='resource_summary_task_pending')
+            metadata['resource_summary_task_phase'] = 'awaiting'
+        else:
+            state.update(status='blocked', reason='resource_summary_task_failed')
+            metadata['resource_summary_task_phase'] = 'failed'
+        return
+
+    if phase == 'status' and tool_name == 'get_document_task':
+        if isinstance(result, dict) and result.get('status') in {'pending', 'processing', 'queued'}:
+            task_id = result.get('task_id')
+            task_ids = list(state.get('resource_task_ids') or [])
+            if isinstance(task_id, str) and task_id and task_id not in task_ids:
+                task_ids.append(task_id)
+            state['resource_task_ids'] = task_ids
+            state.update(status='pending', reason='resource_summary_task_pending')
+            metadata['resource_summary_task_phase'] = 'awaiting'
+        else:
+            metadata['resource_summary_task_phase'] = 'completed' if (
+                isinstance(result, dict) and result.get('status') == 'completed'
+            ) else 'failed'
+            if metadata['resource_summary_task_phase'] == 'failed':
+                state.update(status='blocked', reason='resource_summary_task_failed')
 
 
 def resource_task_state_metadata(metadata: dict) -> dict:
@@ -96,7 +177,11 @@ class ResourceAnswerGate:
             return output
 
         visible = [deepcopy(item) for item in output if not self._is_hidden_prose_item(item)]
-        text = self.fallback_text(decision.status, decision.reason)
+        task_ids = (self.metadata.get('agent_task_state') or {}).get('resource_task_ids') or []
+        index_job_ids = (self.metadata.get('agent_task_state') or {}).get('resource_index_job_ids') or []
+        text = self.fallback_text(
+            decision.status, decision.reason, task_ids=task_ids, index_job_ids=index_job_ids
+        )
 
         visible.append(
             {
@@ -110,9 +195,29 @@ class ResourceAnswerGate:
         return visible
 
     @staticmethod
-    def fallback_text(status: str, reason: str = '') -> str:
+    def fallback_text(
+        status: str,
+        reason: str = '',
+        *,
+        task_ids: list[str] | None = None,
+        index_job_ids: list[str] | None = None,
+    ) -> str:
         if reason == 'ambiguous_resource_scope':
             return 'Có nhiều tệp có thể phù hợp. Bạn muốn hỏi tệp nào?'
+        if status == 'pending' and reason == 'resource_index_pending':
+            ids = ', '.join(str(job_id) for job_id in (index_job_ids or []) if job_id)
+            job_reference = f' (mã lập chỉ mục: {ids})' if ids else ''
+            return (
+                'Tệp đã được nhận nhưng đang chờ lập chỉ mục trước khi có thể tạo bản tóm tắt'
+                f'{job_reference}. Hãy nhấn “Continue Response” sau khi lập chỉ mục hoàn tất.'
+            )
+        if status == 'pending' and reason == 'resource_summary_task_pending':
+            ids = ', '.join(str(task_id) for task_id in (task_ids or []) if task_id)
+            task_reference = f' (mã tác vụ: {ids})' if ids else ''
+            return (
+                'Tôi đã tìm thấy tệp đính kèm và bắt đầu tác vụ tóm tắt dài'
+                f'{task_reference}. Tác vụ đang xử lý; hãy nhấn “Continue Response” sau ít phút để lấy kết quả.'
+            )
         if status == 'pending':
             return 'Tác vụ đọc tài liệu vẫn đang xử lý; chưa có câu trả lời cuối cùng.'
         if status == 'blocked':
@@ -126,7 +231,13 @@ class ResourceAnswerGate:
 
     def fallback_text_for_current_state(self) -> str:
         decision = ResourceRequestPipeline.decision(self.metadata)
-        return self.fallback_text(decision.status, decision.reason)
+        state = self.metadata.get('agent_task_state') or {}
+        return self.fallback_text(
+            decision.status,
+            decision.reason,
+            task_ids=state.get('resource_task_ids') or [],
+            index_job_ids=state.get('resource_index_job_ids') or [],
+        )
 
     def filter_provider_payload(self, payload: dict) -> dict | None:
         """Suppress raw provider prose for stream paths without the tool loop."""

@@ -45,9 +45,9 @@ def apply_capability_constraints(payload: dict, base_url: str, overrides: dict |
 
 
 def validate_chat_payload(
-    wire_body: str, payload: dict, base_url: str, *, max_chars: int = 95_000
+    wire_body: str, payload: dict, base_url: str, *, max_chars: int = 100_000
 ) -> dict:
-    """Return size metrics; reject requests beyond the 1min.AI operating cap."""
+    """Return size metrics; enforce the serialized request ceiling before provider send."""
     messages = payload.get('messages')
     if messages is None:
         request_input = payload.get('input')
@@ -81,12 +81,17 @@ def validate_provider_payload(
     wire_body: str | bytes, payload: dict, base_url: str, capabilities: dict | None = None
 ) -> dict:
     """Validate any JSON model request using the already-serialized wire body."""
+    from open_webui.agent_runtime.request_budget import RequestBudgetExceeded, RequestBudgetManager
+
     if isinstance(wire_body, bytes):
         serialized = wire_body.decode('utf-8', errors='replace')
     else:
         serialized = wire_body
     metrics = validate_chat_payload(serialized, payload, base_url)
-    metrics['serialized_bytes'] = len(serialized.encode('utf-8'))
+    try:
+        metrics.update(RequestBudgetManager().validate(wire_body))
+    except RequestBudgetExceeded as exc:
+        raise ProviderPayloadTooLarge(exc.detail) from exc
     from .context_budget import validate_context_budget
 
     metrics.update(validate_context_budget(serialized, payload, base_url, capabilities))

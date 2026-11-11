@@ -1,6 +1,9 @@
-# ADR: Resource-aware agent boundaries
+# Superseded ADR: Resource-aware agent boundaries
 
-Status: accepted by the implementation plan.
+This historical ADR is superseded by [ADR-001](ADR-001-agent-runtime-production-path.md)
+and [ADR-002](ADR-002-agent-runtime-contract-domain-boundaries.md). Keep it as
+historical context for the resource-aware execution work; its compatibility and
+migration statements do not override the current production runtime decision.
 
 ## Ownership
 

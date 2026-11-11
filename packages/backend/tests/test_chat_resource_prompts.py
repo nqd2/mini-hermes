@@ -74,6 +74,50 @@ def test_partial_hierarchical_context_discloses_missing_coverage_and_tool_limit(
     assert 'No document tools are available in this request' in instructions
 
 
+def test_large_summary_task_phase_gives_required_tool_step():
+    instructions = build_resource_instructions(
+        {
+            'resource_aware_files': True,
+            'resource_file_tools_available': True,
+            'resource_context_mode': 'HIERARCHICAL',
+            'resource_summary_task_phase': 'start',
+        }
+    )
+
+    assert 'Call start_document_summary_task' in instructions
+    assert 'Do not answer from partial excerpts.' in instructions
+
+
+def test_saved_summary_task_ids_are_named_for_status_lookup():
+    instructions = build_resource_instructions(
+        {
+            'resource_aware_files': True,
+            'resource_file_tools_available': True,
+            'resource_context_mode': 'HIERARCHICAL',
+            'resource_summary_task_phase': 'status',
+            'agent_task_state': {'resource_task_ids': ['task-1']},
+        }
+    )
+
+    assert 'get_document_task' in instructions
+    assert 'task-1' in instructions
+    assert 'if completed, answer from its result' in instructions
+
+
+def test_index_pending_summary_does_not_claim_summary_task_has_started():
+    instructions = build_resource_instructions(
+        {
+            'resource_aware_files': True,
+            'resource_file_tools_available': True,
+            'resource_context_mode': 'HIERARCHICAL',
+            'resource_summary_task_phase': 'awaiting_index',
+        }
+    )
+
+    assert 'no summary task exists yet' in instructions
+    assert 'after indexing finishes' in instructions
+
+
 def test_disabled_resource_aware_mode_does_not_add_instructions():
     assert build_resource_instructions({'resource_aware_files': False}) is None
     assert build_resource_instructions({}) is None

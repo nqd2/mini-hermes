@@ -9,6 +9,9 @@ Plan: Mini-Hermes production: refactor full stack và hoàn thiện agent execut
 - Keep upload/chat/tool contracts, provider guards, PostgreSQL, SeaweedFS and existing worker.
 - Separate behavior-preserving extraction commits from behavior changes.
 - Task memory is chat/branch scoped. Conclusions are released only after evidence checks.
+- Current approved architecture and measurable gates are in [the production implementation plan](production-agent-implementation-plan.md), [ADR-001](../adr/ADR-001-agent-runtime-production-path.md), and [ADR-002](../adr/ADR-002-agent-runtime-contract-domain-boundaries.md). The current AgentRuntime remains the production path; DeerFlow is conditional only.
+- Production audience is 10–20 users in a rolling 30-day window. Enforce 95,000 characters during internal request preparation and 100,000 characters on the final serialized provider JSON body. Never treat either limit as a token count.
+- Do not run production migrations or cut over production traffic without explicit production approval. Preserve user data, Open WebUI notices, and the one-engine-per-conversation binding.
 
 ## Work ledger
 
@@ -29,11 +32,19 @@ Plan: Mini-Hermes production: refactor full stack và hoàn thiện agent execut
 - Tool-less full-document work beyond the foreground evidence budget must use the existing persisted hierarchical summary worker; excerpts or unfinished/cancelled summaries remain partial. The worker path and multi-group evidence retention now have focused regression coverage.
 - GitNexus MCP/CLI is not available in this checkout; caller and dependency impact was checked with targeted `rg` searches before extraction.
 
+## Production AgentRuntime implementation status (2026-11-10)
+
+- Implemented the canonical durable AgentRuntime, pinned conversation/run bindings, owner-scoped runtime operations, idempotent run starts, durable event replay, checkpoints/recovery, bounded tool outputs/artifacts and strict provider request serialization guards. The provider request is rejected above 100,000 serialized JSON characters; preparation is capped at 95,000.
+- Implemented Revision Service publication around immutable staged objects, checksum verification, current authorization and revision/patch preconditions, atomic DB publication/outbox, idempotency, fail-closed integrity reads, and compensating rollback. Approval expiry is fixed at 15 minutes from preview creation and retries do not extend it.
+- Added ADR-001, ADR-002 and the production implementation plan. DeerFlow remains conditional; Open WebUI and the current AgentRuntime retain their agreed roles. No production migration, canary or cutover was run.
+- Verification: current runtime/provider/routes/architecture audit passed (65); document/resource/revision/storage audit passed (52, 10 PostgreSQL-only skips because `MH_TEST_POSTGRES_URL` is unavailable); the revision publication suite passed all 12 tests, including DB commit-failure recovery and abandoned-preview cleanup. Frontend Vitest passed (353 across 67 files); `git diff --check`, Python compile and Alembic migration tests passed. Ruff passes on changed revision files with the existing `C901` complexity rule excluded. `svelte-check` reports existing project-wide errors; none references the changed Svelte components.
+- Staging-only acceptance remains: PostgreSQL concurrency/fault-injection, durable object-store behavior, backup/restore, load/performance baseline, 99.9% operational evidence, and the locked DeerFlow benchmark/canary gates.
+
 ## Verification
 
 - Baseline backend suite on disposable SQLite: `106 passed, 1 skipped`.
-- Current full backend suite on disposable SQLite: `281 passed, 11 skipped`. The PostgreSQL resource-indexing integration file passes all 10 tests against the configured local PostgreSQL service.
-- Current full frontend Vitest suite: `353 passed` across 67 files. `svelte-check` remains at its recorded baseline of 506 errors and 2 warnings across 134 files; no diagnostic names the newly extracted request, response-adoption or composition controllers.
+- Recent backend architecture/runtime/provider/routes audit: `65 passed`; document/resource/revision/storage audit: `52 passed, 10 skipped`. The PostgreSQL-only cases were skipped because `MH_TEST_POSTGRES_URL` is unavailable in this checkout; the 12 revision-publication tests are included in the 52 passing tests.
+- Current full frontend Vitest suite: `353 passed` across 67 files. `svelte-check` reports 491 project-wide errors and 2 warnings across 131 files; none references the changed Svelte components.
 - Focused tool execution tests: `4 passed`; extracted executor and its legacy middleware import preserve argument filtering and resource greeting guards. New module Ruff checks pass.
 - Frontend lifecycle/reducer Vitest: `123 passed` across 24 files, including the FileNav unsaved-buffer save/discard/cancel policy and save-error handling. Prettier passes for the new helper/tests. Svelte-check remains at the baseline of 519 errors and 2 warnings in 134 files; no diagnostic references `FileNav.svelte` or `fileBufferProtection`. Production Vite build passed (2m 1s; existing dependency/chunk warnings). Direct Vitest execution works; `pnpm vitest` attempted dependency relinking and failed on Windows symlink permissions without changing tracked package files. ESLint config resolution is unavailable in this forked frontend package.
 - Task persistence and access regressions: `4 passed`; chat completion route-function and TestClient HTTP integrations exercise real middleware preparation, resource pipeline and answer gate while search and provider transport are mocked. Source-context tests verify bounded evidence IDs and provenance reach the model without private metadata. Ruff's undefined-name check and `git diff --check` pass; full middleware lint still reports complexity/import/line-length findings.

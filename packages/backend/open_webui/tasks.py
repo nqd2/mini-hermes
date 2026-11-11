@@ -166,6 +166,7 @@ async def create_task(redis, coroutine, id=None, task_id=None):
 
     # Give the task a checkout routine before handing it the keys.
     task.add_done_callback(lambda t: asyncio.create_task(cleanup_task(redis, task_id, id)))
+    task.add_done_callback(lambda completed: _observe_task_completion(task_id, completed))
     tasks[task_id] = task
 
     # File this task under its item ID, if it came with a return address.
@@ -179,6 +180,22 @@ async def create_task(redis, coroutine, id=None, task_id=None):
         await redis_save_task(redis, task_id, id)
 
     return task_id, task
+
+
+def _observe_task_completion(task_id: str, task: asyncio.Task) -> None:
+    """Retrieve and log background exceptions so failures do not become unobserved."""
+    if task.cancelled():
+        return
+    try:
+        error = task.exception()
+    except asyncio.CancelledError:
+        return
+    if error is not None:
+        log.error(
+            'Background task failed: task_id=%s',
+            task_id,
+            exc_info=(type(error), error, error.__traceback__),
+        )
 
 
 async def list_tasks(redis):

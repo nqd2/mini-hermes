@@ -19,6 +19,7 @@ from .resource_indexing import (
     resource_index_worker_enabled,
 )
 from .resource_uploads import register_chat_upload
+from .service import get_verified_revision_content
 from .storage import ObjectStore
 
 
@@ -58,7 +59,7 @@ async def ensure_revision_index(db, store, document, revision) -> tuple[int, str
             index_job = await enqueue_resource_index_job(db, document.id, revision.number)
         if index_job.status == 'complete':
             return 0, None, None
-        content = await store.get(revision.object_key)
+        content = await get_verified_revision_content(store, revision)
         await replace_document_chunks(db, document.id, revision.number, document.filename, content)
         index_job.status = 'complete'
         index_job.error = None

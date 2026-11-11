@@ -16,11 +16,26 @@ from open_webui.utils.json_codec import JSONCodec
 
 from .execution.contracts import ResourceIndexFailed, ResourceIndexPending
 from .models import Document, DocumentChunk, ResourceTask, Revision
-from .provider_guard import validate_provider_payload
 
 REDUCE_GROUP_SIZE = 12
 MAX_TASK_CHUNKS = 5000
 log = logging.getLogger(__name__)
+RETRYABLE_PROVIDER_STATUSES = {408, 425, 429}
+
+
+class ProviderRequestError(RuntimeError):
+    """Provider rejection with an explicit retry classification."""
+
+    def __init__(self, *, status_code: int, code: str | None, param: str | None, request_id: str | None):
+        self.status_code = status_code
+        self.code = code
+        self.param = param
+        self.request_id = request_id
+        self.retryable = status_code in RETRYABLE_PROVIDER_STATUSES or status_code >= 500
+        super().__init__(
+            f'Summary provider rejected request: status={status_code}, code={code}, '
+            f'param={param}, request_id={request_id}'
+        )
 
 
 async def pending_tasks_for_chat(chat_id: str | None, owner_id: str) -> list[str]:
@@ -183,8 +198,11 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         'max_tokens': max_tokens,
         'temperature': temperature,
     }
-    wire_body = JSONCodec.dumps(payload)
-    metrics = validate_provider_payload(wire_body, payload, base_url)
+    from open_webui.agent_runtime.gateway import ProviderGateway
+
+    gateway = ProviderGateway()
+    prepared_request = gateway.prepare(payload, base_url)
+    metrics = prepared_request.metrics
     log.info(
         'Resource model request size: model=%s messages=%d serialized_chars=%d estimated_tokens=%d',
         model,
@@ -193,10 +211,14 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         metrics['estimated_input_tokens'],
     )
     async with httpx.AsyncClient(timeout=90) as client:
-        response = await client.post(
+        response = await gateway.send(
+            client,
+            'POST',
             f'{base_url}/chat/completions',
-            content=wire_body,
+            prepared_request,
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            provider_base_url=base_url,
+            body_argument='content',
         )
     if response.status_code >= 400:
         try:
@@ -211,10 +233,11 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
             error.get('code'),
             error.get('param'),
         )
-        raise RuntimeError(
-            f'Summary provider rejected request: status={response.status_code}, '
-            f'code={error.get("code")}, param={error.get("param")}, '
-            f'request_id={response.headers.get("x-request-id")}'
+        raise ProviderRequestError(
+            status_code=response.status_code,
+            code=error.get('code'),
+            param=error.get('param'),
+            request_id=response.headers.get('x-request-id'),
         )
     data = JSONCodec.loads(response.content)
     return str(data['choices'][0]['message'].get('content') or '').strip()[:2000]

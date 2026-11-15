@@ -1,5 +1,6 @@
 import importlib
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -199,7 +200,7 @@ async def test_chat_route_runs_bounded_resource_evidence_before_provider(monkeyp
             'messages': [{'role': 'user', 'content': prompt, 'files': [attachment]}],
             'files': [attachment],
             'user_message': {'id': 'user-message-1', 'content': prompt, 'files': [attachment]},
-            'id': 'assistant-message-1',
+            'id': str(uuid4()),
             'params': {},
             'stream': False,
             'tools': [],
@@ -242,7 +243,7 @@ def test_chat_completion_http_route_binds_user_body_and_resource_files(monkeypat
             'messages': [{'role': 'user', 'content': prompt, 'files': [attachment]}],
             'files': [attachment],
             'user_message': {'id': 'user-message-http', 'content': prompt, 'files': [attachment]},
-            'id': 'assistant-message-http',
+                'id': str(uuid4()),
             'params': {},
             'stream': False,
             'tools': [],

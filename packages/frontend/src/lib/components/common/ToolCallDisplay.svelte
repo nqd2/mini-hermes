@@ -136,13 +136,14 @@
 	}
 
 	export let resultContent: string = '';
+export let workerStatus: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted' | null = null;
 
 	$: result = resultContent || decode(attributes?.result ?? '');
 	$: files = parseJSONString(decode(attributes?.files ?? ''));
 	$: embeds = parseJSONString(decode(attributes?.embeds ?? ''));
 	$: isAskUser = attributes?.name === 'ask_user';
-	$: needsInput = isAskUser && attributes?.status === 'pending';
-	$: needsApproval = !isAskUser && attributes?.status === 'pending' && resolvable;
+	$: needsInput = !workerStatus && isAskUser && attributes?.status === 'pending';
+	$: needsApproval = !workerStatus && !isAskUser && attributes?.status === 'pending' && resolvable;
 	$: args =
 		open || needsApproval || needsInput || (Array.isArray(embeds) && embeds.length > 0)
 			? decode(attributes?.arguments ?? '')
@@ -154,8 +155,10 @@
 		attributes?.status === 'incomplete';
 	$: isExecuting = !isDone && !isRejected && attributes?.status === 'completed';
 	$: isPreparing = !isDone && !isRejected && !needsApproval && !needsInput && !isExecuting;
-	$: isActive = isPreparing || isExecuting;
-	$: isError = attributes?.status === 'failed' || (isDone && isToolResultError(result));
+	$: isActive = workerStatus ? workerStatus === 'running' : isPreparing || isExecuting;
+	$: isError = workerStatus
+		? ['failed', 'interrupted', 'cancelled'].includes(workerStatus)
+		: attributes?.status === 'failed' || (isDone && isToolResultError(result));
 
 	$: parsedArgs = parseArguments(args);
 	$: parsedResult = parseJSONString(result);
@@ -243,7 +246,9 @@
 					<span class="@md:hidden text-black dark:text-white">{attributes.name}</span>
 					<!-- Full label (md and above) -->
 					<span class="hidden @md:inline font-normal">
-						{#if isRejected}
+						{#if workerStatus}
+							{attributes.name}
+						{:else if isRejected}
 							{$i18n.t('Denied {{NAME}}', { NAME: attributes.name })}
 						{:else if isDone}
 							{$i18n.t('View Result from {{NAME}}', { NAME: attributes.name })}
@@ -296,6 +301,9 @@
 				<div
 					class="border border-gray-50 dark:border-gray-850/30 rounded-2xl my-1.5 p-2.5 space-y-2"
 				>
+					{#if $$slots.details}
+						<slot name="details" />
+					{:else}
 					{#if args}
 						<!-- Input -->
 						<div>
@@ -367,6 +375,7 @@
 								{/if}
 							</div>
 						</div>
+					{/if}
 					{/if}
 				</div>
 			</div>

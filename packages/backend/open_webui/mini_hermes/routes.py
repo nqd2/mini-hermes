@@ -471,6 +471,8 @@ async def start_resource_task(document_id: str, request: ResourceTaskRequest,
 
 @router.get('/tasks/{task_id}')
 async def resource_task_status(task_id: str, evidence_offset: int = 0, evidence_limit: int = 100,
+                               include_analysis: bool = True,
+                               trace_after: int | None = None,
                                user=Depends(get_verified_user), db=Depends(get_async_session)):
     result = await get_summary_task(
         db, task_id, user.id, evidence_offset=evidence_offset, evidence_limit=evidence_limit
@@ -479,6 +481,18 @@ async def resource_task_status(task_id: str, evidence_offset: int = 0, evidence_
     task = (await db.execute(select(ResourceTask).where(ResourceTask.id == task_id))).scalar_one()
     if task.chat_id and not await document_in_chat_scope(db, doc, task.chat_id, set()):
         raise HTTPException(404, 'Task not found')
+    if task.kind == 'analysis':
+        from .document_analysis_tasks import paginate_analysis, verify_analysis_scope
+
+        await verify_analysis_scope(db, task)
+        if include_analysis:
+            result['analysis'] = await paginate_analysis(db, task_id, evidence_offset, evidence_limit)
+        if trace_after is not None:
+            from .document_analysis_trace import read_analysis_trace
+
+            if trace_after < 0:
+                raise HTTPException(400, 'trace_after must be non-negative')
+            result['trace'] = await read_analysis_trace(db, task_id, trace_after)
     return result
 
 
@@ -490,6 +504,10 @@ async def cancel_resource_task(task_id: str, user=Depends(get_verified_user), db
     if not task:
         raise HTTPException(404, 'Task not found')
     await accessible_document(db, task.document_id, user.id, 'read', is_admin=user.role == 'admin')
+    if task.kind == 'analysis':
+        from .document_analysis_tasks import verify_analysis_scope
+
+        await verify_analysis_scope(db, task)
     task = await request_task_cancel(db, task_id, user.id)
     return {'task_id': task.id, 'status': task.status, 'cancel_requested': task.cancel_requested}
 
@@ -502,6 +520,10 @@ async def resume_resource_task(task_id: str, user=Depends(get_verified_user), db
     if not task:
         raise HTTPException(404, 'Task not found')
     doc = await accessible_document(db, task.document_id, user.id, 'read', is_admin=user.role == 'admin')
+    if task.kind == 'analysis':
+        from .document_analysis_tasks import verify_analysis_scope
+
+        await verify_analysis_scope(db, task)
     resumed = await resume_summary_task(db, task_id, user.id, doc)
     return {'task_id': resumed.id, 'status': resumed.status,
             'completed_units': resumed.completed_units, 'total_units': resumed.total_units}

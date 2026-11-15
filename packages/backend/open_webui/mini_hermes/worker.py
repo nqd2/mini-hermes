@@ -14,6 +14,7 @@ from sqlalchemy.orm import aliased
 from open_webui.internal.db import AsyncSessionLocal
 
 from .drive import NATIVE_TO_OFFICE, DriveError, Gateway
+from .document_analysis_tasks import process_analysis_step
 from .edits import extract_text
 from .models import Document, Preview, ResourceIndexJob, ResourceTask, Revision, SyncJob, now
 from .oauth import access_token_for
@@ -238,6 +239,9 @@ async def process_resource_task_job(task_id: str):
     async with AsyncSessionLocal() as db:
         task = (await db.execute(select(ResourceTask).where(ResourceTask.id == task_id))).scalar_one_or_none()
         if not task:
+            return
+        if task.kind == 'analysis':
+            await process_analysis_step(db, task)
             return
         try:
             await process_summary_task(db, task)
@@ -474,6 +478,7 @@ async def process_sync(job_id: str):
 
 async def run():
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger('open_webui.mini_hermes').setLevel(logging.INFO)
     next_preview_cleanup = 0.0
     next_resource_index_backfill = 0.0
     while True:

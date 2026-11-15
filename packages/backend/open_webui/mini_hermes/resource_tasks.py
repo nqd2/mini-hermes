@@ -52,6 +52,7 @@ async def pending_tasks_for_chat(chat_id: str | None, owner_id: str) -> list[str
                         .where(
                             ResourceTask.chat_id == chat_id,
                             ResourceTask.owner_id == owner_id,
+                            ResourceTask.kind == 'summary',
                             ResourceTask.status.in_(['pending', 'processing']),
                         )
                         .order_by(ResourceTask.created_at)
@@ -157,7 +158,7 @@ async def request_task_cancel(db, task_id: str, owner_id: str) -> ResourceTask:
     if task.status not in {'pending', 'processing'}:
         raise HTTPException(409, f'Cannot cancel a {task.status} task')
     task.cancel_requested = True
-    if task.status == 'pending':
+    if task.status == 'pending' and task.kind != 'analysis':
         task.status = 'cancelled'
     await db.commit()
     return task
@@ -183,13 +184,27 @@ async def resume_summary_task(db, task_id: str, owner_id: str, doc: Document) ->
     return task
 
 
-async def call_provider(messages: list[dict], *, max_tokens: int, temperature: float = 0.1) -> str:
+async def call_provider(messages: list[dict], *, max_tokens: int, temperature: float = 0.1,
+                        target: dict | None = None) -> str:
     """Call the configured OpenAI-compatible provider with the exact guarded body."""
     from open_webui.config import OPENAI_API_BASE_URLS, OPENAI_API_KEYS
 
     base_url = (OPENAI_API_BASE_URLS or [''])[0].rstrip('/')
     api_key = (OPENAI_API_KEYS or ['not-needed'])[0]
     model = os.getenv('MH_RESOURCE_TASK_MODEL', os.getenv('MH_SMALL_TASK_MODEL', 'gpt-4.1-mini')).strip()
+    api_type = 'chat'
+    if target:
+        from open_webui.routers.openai import get_openai_connection, strip_provider_model_prefix
+
+        base_url, api_key, config = await get_openai_connection(target['index'])
+        base_url = base_url.rstrip('/')
+        api_type = config.get('api_type', 'chat')
+        if (base_url != target['url'] or config.get('enable', True) is False
+                or config.get('azure') or config.get('auth_type', 'bearer') not in {None, 'bearer'}
+                or target.get('api_type', api_type) != api_type
+                or target.get('prefix_id', config.get('prefix_id')) != config.get('prefix_id')):
+            raise RuntimeError('The document analysis model connection changed')
+        model = strip_provider_model_prefix(target['model'], config.get('prefix_id'))
     if not base_url or not model:
         raise RuntimeError('Resource task model provider is not configured')
     payload = {
@@ -198,6 +213,19 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         'max_tokens': max_tokens,
         'temperature': temperature,
     }
+    path = '/chat/completions'
+    if target:
+        from open_webui.routers.openai import (
+            convert_to_responses_payload, is_openai_new_model, openai_reasoning_model_handler,
+        )
+
+        if is_openai_new_model(model):
+            payload = openai_reasoning_model_handler(payload)
+        if api_type == 'responses':
+            path = '/responses'
+            payload = convert_to_responses_payload(payload)
+            payload.pop('temperature', None)
+            payload['store'] = False
     from open_webui.agent_runtime.gateway import ProviderGateway
 
     gateway = ProviderGateway()
@@ -214,7 +242,7 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         response = await gateway.send(
             client,
             'POST',
-            f'{base_url}/chat/completions',
+            f'{base_url}{path}',
             prepared_request,
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
             provider_base_url=base_url,
@@ -222,7 +250,7 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         )
     from open_webui.utils.dev_wire_log import log_llm_json_response
 
-    log_llm_json_response(response, f'{base_url}/chat/completions', response.content)
+    log_llm_json_response(response, f'{base_url}{path}', response.content)
     if response.status_code >= 400:
         try:
             detail = JSONCodec.loads(response.content)
@@ -243,6 +271,10 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
             request_id=response.headers.get('x-request-id'),
         )
     data = JSONCodec.loads(response.content)
+    if api_type == 'responses':
+        from open_webui.routers.openai import convert_responses_result
+
+        data = convert_responses_result(data)
     return str(data['choices'][0]['message'].get('content') or '').strip()[:2000]
 
 

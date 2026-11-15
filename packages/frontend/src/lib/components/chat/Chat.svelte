@@ -36,6 +36,8 @@
 	import { findPendingToolApproval } from './chatToolApproval';
 	import { createToolApprovalModeHandler } from './chatToolApprovalMode';
 	import { createChatTaskLifecycle } from './chatTaskLifecycle';
+	import { createChatDraftController, prepareChatInputDraft } from './chatDraftController';
+	import { fetchAndUploadDriveFile } from './chatDriveUpload';
 	import { createManualContextCompactionController } from './chatManualCompaction';
 	import { syncChatRoom as syncChatRoomWithController } from './chatSocketRoomSynchronizer';
 	import { insertSubmittedUserMessage } from './chatMessageSubmission';
@@ -1473,6 +1475,14 @@
 							updateLastReadAt($chatId);
 						}
 					}
+				} else if (type === 'chat:document-analysis') {
+					if (data?.analysis) {
+						message.meta = { ...(message.meta ?? {}), document_analysis: data.analysis };
+					}
+					if (typeof data?.content === 'string') message.content = data.content;
+					message.done = true;
+					history = { ...history, messages: { ...history.messages, [event.message_id]: message } };
+					autoScrollToBottom();
 				} else if (type === 'response:completion' || type === 'chat:completion') {
 					if (type === 'response:completion') {
 						responseCompletionEventHandler(data, message);
@@ -1891,78 +1901,9 @@
 
 		try {
 			files = [...files, fileItem];
-			console.log('Processing web file with URL:', fileData.url);
-
-			// Configure fetch options with proper headers
-			const fetchOptions = {
-				headers: {
-					Authorization: fileData.headers.Authorization,
-					Accept: '*/*'
-				},
-				method: 'GET'
-			};
-
-			// Attempt to fetch the file
-			console.log('Fetching file content from Google Drive...');
-			const fileResponse = await fetch(fileData.url, fetchOptions);
-
-			if (!fileResponse.ok) {
-				const errorText = await fileResponse.text();
-				throw new Error(`Failed to fetch file (${fileResponse.status}): ${errorText}`);
-			}
-
-			// Get content type from response
-			const contentType = fileResponse.headers.get('content-type') || 'application/octet-stream';
-			console.log('Response received with content-type:', contentType);
-
-			// Convert response to blob
-			console.log('Converting response to blob...');
-			const fileBlob = await fileResponse.blob();
-
-			if (fileBlob.size === 0) {
-				throw new Error('Retrieved file is empty');
-			}
-
-			console.log('Blob created:', {
-				size: fileBlob.size,
-				type: fileBlob.type || contentType
-			});
-
-			// Create File object with proper MIME type
-			const file = new File([fileBlob], fileData.name, {
-				type: fileBlob.type || contentType
-			});
-
-			console.log('File object created:', {
-				name: file.name,
-				size: file.size,
-				type: file.type
-			});
-
-			if (file.size === 0) {
-				throw new Error('Created file is empty');
-			}
-
-			// If the file is an audio file, provide the language for STT.
-			let metadata = null;
-			if (
-				(file.type.startsWith('audio/') || file.type.startsWith('video/')) &&
-				$settings?.audio?.stt?.language
-			) {
-				metadata = {
-					language: $settings?.audio?.stt?.language
-				};
-			}
-
-			// Upload file to server
-			console.log('Uploading file to server...');
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata);
-
-			if (!uploadedFile) {
-				throw new Error('Server returned null response for file upload');
-			}
-
-			console.log('File uploaded successfully:', uploadedFile);
+			const { file, uploadedFile } = await fetchAndUploadDriveFile(
+				fileData, localStorage.token, $settings?.audio?.stt?.language, uploadFile
+			);
 
 			// Update file item with upload results
 			fileItem.status = 'uploaded';
@@ -4378,20 +4319,16 @@
 		if (res && $chatId === id) chat = res;
 	};
 
-	const MAX_DRAFT_LENGTH = 5000;
-	let saveDraftTimeout: ReturnType<typeof setTimeout> | null = null;
+	const draftController = createChatDraftController({
+		setItem: (key, value) => sessionStorage.setItem(key, value),
+		removeItem: (key) => sessionStorage.removeItem(key)
+	});
 	// chatIdProp is empty for chats started from the home page (URL set via replaceState)
 	const getDraftChatId = () => chatIdProp || $chatId || null;
 
-	const getChatInputDraft = () => ({
+	const getChatInputDraft = () => prepareChatInputDraft({
 		prompt,
-		files: files
-			.filter((file) => file.type !== 'image' && !(file.file instanceof File))
-			.map((file) => ({
-				...file,
-				user: undefined,
-				access_grants: undefined
-			})),
+		files,
 		selectedToolIds,
 		selectedSkillIds,
 		selectedFilterIds,
@@ -4399,24 +4336,7 @@
 		webSearchEnabled,
 		codeInterpreterEnabled
 	});
-
-	const saveDraft = async (draft: any, chatId: string | null = null, debounce = true) => {
-		if (saveDraftTimeout) {
-			clearTimeout(saveDraftTimeout);
-		}
-
-		if (draft.prompt !== null && draft.prompt.length < MAX_DRAFT_LENGTH) {
-			const key = `chat-input${chatId ? `-${chatId}` : ''}`;
-			const write = () => sessionStorage.setItem(key, JSON.stringify(draft));
-			if (debounce) {
-				saveDraftTimeout = setTimeout(write, 500);
-			} else {
-				write();
-			}
-		} else {
-			sessionStorage.removeItem(`chat-input${chatId ? `-${chatId}` : ''}`);
-		}
-	};
+	const saveDraft = draftController.save;
 
 	const oauthRedirectHandler = async (
 		tool: {
@@ -4432,12 +4352,7 @@
 		initiateOAuthRedirect(tool);
 	};
 
-	const clearDraft = async (chatId: string | null = null) => {
-		if (saveDraftTimeout) {
-			clearTimeout(saveDraftTimeout);
-		}
-		await sessionStorage.removeItem(`chat-input${chatId ? `-${chatId}` : ''}`);
-	};
+	const clearDraft = draftController.clear;
 
 	const moveChatHandler = async (chatId, folderId) => {
 		if (chatId && folderId) {

@@ -71,6 +71,7 @@
 	import { flyAndScale } from '$lib/utils/transitions';
 	import RegenerateMenu from './ResponseMessage/RegenerateMenu.svelte';
 	import StatusHistory from './ResponseMessage/StatusHistory.svelte';
+	import DocumentAnalysisStatus from './ResponseMessage/DocumentAnalysisStatus.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
 	import MCPApp from '$lib/components/chat/Messages/MCPApp.svelte';
 	import OutputEditView from './OutputEditView.svelte';
@@ -127,6 +128,7 @@
 			load_duration?: number;
 			usage?: unknown;
 		};
+		meta?: { document_analysis?: import('./ResponseMessage/documentAnalysis').AnalysisReceipt };
 		annotation?: { type: string; rating: number };
 	}
 
@@ -730,6 +732,32 @@
 					<div>
 						{#if model?.info?.meta?.capabilities?.status_updates ?? true}
 							<StatusHistory statusHistory={message?.statusHistory} />
+						{/if}
+						{#if message.meta?.document_analysis}
+							{#key message.meta.document_analysis.task_id}
+								<DocumentAnalysisStatus
+									receipt={message.meta.document_analysis}
+									onResult={(task) => {
+										const current = history.messages[messageId];
+										if (current?.meta?.document_analysis?.task_id !== task.task_id) return;
+										history.messages[messageId] = {
+											...current,
+											content: task.result ?? '',
+											output: [],
+											meta: {
+												...current.meta,
+												document_analysis: {
+													...current.meta.document_analysis,
+													status: task.status,
+													phase: task.phase,
+													progress: task.progress
+												}
+											}
+										};
+										history = { ...history };
+									}}
+								/>
+							{/key}
 						{/if}
 
 						{#if message?.files && message.files?.filter( (f) => ['image', 'file'].includes(f.type) ).length > 0}
@@ -1416,7 +1444,7 @@
 										</Tooltip>
 									{/if}
 
-									{#if isLastMessage && ($user?.role === 'admin' || ($user?.permissions?.chat?.continue_response ?? true))}
+									{#if isLastMessage && !message.meta?.document_analysis && ($user?.role === 'admin' || ($user?.permissions?.chat?.continue_response ?? true))}
 										<Tooltip content={$i18n.t('Continue Response')} placement="bottom">
 											<button
 												aria-label={$i18n.t('Continue Response')}

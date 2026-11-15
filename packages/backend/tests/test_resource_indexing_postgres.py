@@ -25,6 +25,9 @@ from open_webui.mini_hermes.models import (
     Folder,
     Preview,
     ResourceIndexJob,
+    ResourceAnalysis,
+    ResourceAnalysisEvidence,
+    ResourceAnalysisTrace,
     ResourceTask,
     Revision,
     RevisionApproval,
@@ -75,6 +78,9 @@ async def postgres_resource_db():
                         DocumentChunk.__table__,
                         ResourceIndexJob.__table__,
                         ResourceTask.__table__,
+                        ResourceAnalysis.__table__,
+                        ResourceAnalysisEvidence.__table__,
+                        ResourceAnalysisTrace.__table__,
                         Preview.__table__,
                         RevisionApproval.__table__,
                         RevisionOutbox.__table__,
@@ -100,6 +106,176 @@ async def postgres_resource_db():
         async with admin_engine.begin() as connection:
             await connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         await admin_engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', [None, 'cancel', 'cancel_survey', 'revision', 'revoke', 'newer_message', 'during_publish', 'ocr', 'ocr_failed', 'lease'])
+async def test_chat_analysis_atomic_publication_and_scope(postgres_resource_db, monkeypatch, change):
+    from io import BytesIO
+    from types import SimpleNamespace
+    from openpyxl import Workbook
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import document_analysis_tasks as analysis, worker
+    from open_webui.mini_hermes.document_analysis_trace import read_analysis_trace
+    from open_webui.mini_hermes.resource_tasks import request_task_cancel
+    from open_webui.models.chats import Chat
+    from open_webui.models.chat_messages import ChatMessage
+
+    sessions = postgres_resource_db
+    async with sessions() as db:
+        conn = await db.connection()
+        await conn.run_sync(lambda sync: Chat.__table__.create(sync, checkfirst=True))
+        await conn.run_sync(lambda sync: ChatMessage.__table__.create(sync, checkfirst=True))
+        db.add(Document(
+            id='analysis-doc', owner_id='owner-1', filename='scan.pdf' if change in {'ocr', 'ocr_failed'} else 'sample.xlsx',
+            mime_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', current_revision=1,
+        ))
+        await db.flush()
+        db.add(ChatResource(id='grant', chat_id='analysis-chat', document_id='analysis-doc', granted_by='owner-1'))
+        db.add(Chat(id='analysis-chat', user_id='owner-1', title='Test', created_at=1, updated_at=1, chat={
+            'history': {'messages': {'response': {
+                'id': 'response', 'role': 'assistant', 'user_id': 'owner-1', 'content': '', 'timestamp': 1,
+            }}}
+        }))
+        await db.commit()
+
+    @asynccontextmanager
+    async def test_db():
+        async with sessions() as session:
+            yield session
+
+    workbook = Workbook()
+    workbook.active.append(['Programs', 'Program Code'])
+    workbook.active.append(['Engineering', '001234'])
+    buffer = BytesIO()
+    if change in {'ocr', 'ocr_failed'}:
+        from PIL import Image
+
+        Image.new('RGB', (64, 64), 'white').save(buffer, format='PDF')
+    else:
+        workbook.save(buffer)
+
+    async def source(*args):
+        return buffer.getvalue()
+
+    lease_expired = False
+
+    async def provider(messages, **kwargs):
+        nonlocal lease_expired
+        if change == 'lease' and not lease_expired:
+            lease_expired = True
+            async with sessions() as db:
+                (await db.get(ResourceTask, task_id)).lease_until = now() - dt.timedelta(seconds=1)
+                await db.commit()
+        if change == 'during_publish' and 'Combine these evidence' in messages[0]['content']:
+            async with sessions() as db:
+                (await db.get(Document, 'analysis-doc')).current_revision = 2
+                await db.commit()
+        return '- Kỹ thuật [E1]'
+
+    async def target(*args):
+        return {'index': 0, 'url': 'https://provider.example', 'model': 'test'}
+
+    monkeypatch.setattr(internal_db, 'get_async_db', test_db)
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
+    monkeypatch.setattr(worker, 'AsyncSessionLocal', sessions)
+    monkeypatch.setattr(analysis, '_source', source)
+    monkeypatch.setattr(analysis, 'call_provider', provider)
+    monkeypatch.setattr(analysis, '_provider_target', target)
+    if change == 'ocr':
+        monkeypatch.setattr(analysis, 'ocr_unit', lambda raw, unit: ('Scanned text', [0.97]))
+    elif change == 'ocr_failed':
+        def fail_ocr(raw, unit):
+            raise ValueError('secret=never-publish')
+        monkeypatch.setattr(analysis, 'ocr_unit', fail_ocr)
+    elif change == 'cancel_survey':
+        async def cancel_and_flush(db, trace, raw, filename):
+            trace.emit('stdout', 'Starting workbook scan.\n')
+            async with sessions() as other:
+                await request_task_cancel(other, task_id, 'owner-1')
+                await other.commit()
+            await trace.flush(db)
+            return await real_survey(db, trace, raw, filename)
+
+        real_survey = analysis._survey_with_trace
+        monkeypatch.setattr(analysis, '_survey_with_trace', cancel_and_flush)
+    user = SimpleNamespace(id='owner-1', role='user')
+    metadata = {'chat_id': 'analysis-chat', 'message_id': 'response', 'resource_aware_files': True}
+    first = await analysis.queue_chat_analysis(metadata, user, 'Tóm tắt file đi')
+    repeated = await analysis.queue_chat_analysis(metadata, user, 'Tóm tắt file đi')
+    task_id = first['analysis']['task_id']
+    assert repeated['analysis']['task_id'] == task_id
+    assert await worker.claim_resource_task() == task_id
+    await worker.process_resource_task_job(task_id)
+
+    # Every subsequent step uses a new session, including after our checkpoint.
+    async with sessions() as db:
+        saved = await db.get(ResourceTask, task_id)
+        if change == 'cancel_survey':
+            message = await db.get(ChatMessage, 'analysis-chat-response')
+            trace = await read_analysis_trace(db, task_id, 0)
+            assert saved.status == 'cancelled'
+            assert message.meta['document_analysis']['status'] == 'cancelled'
+            assert trace['events'][-1]['data']['status'] == 'cancelled'
+            return
+        assert saved.phase == ('ocr' if change in {'ocr', 'ocr_failed'} else 'summarize')
+        trace = await read_analysis_trace(db, task_id, 0, limit=1)
+        assert trace['has_more']
+        start = trace['events'][0]
+        assert start['kind'] == 'started'
+        assert 'def survey_document(' in start['data']['code']
+        followup = await read_analysis_trace(db, task_id, trace['next_after'])
+        assert all(event['sequence'] > trace['next_after'] for event in followup['events'])
+        assert any(event['kind'] == 'stdout' for event in followup['events'])
+        if change == 'cancel':
+            await request_task_cancel(db, task_id, user.id)
+        elif change == 'revision':
+            (await db.get(Document, 'analysis-doc')).current_revision = 2
+        elif change == 'revoke':
+            await db.delete(await db.get(ChatResource, 'grant'))
+        elif change == 'newer_message':
+            from open_webui.models.chats import Chats
+
+            async with Chats.edit_message_output('analysis-chat', 'response', db=db) as message:
+                message['meta']['document_analysis']['task_id'] = 'newer-run'
+                message['content'] = 'Newer answer'
+        await db.commit()
+    if change == 'newer_message':
+        stale = await analysis.queue_chat_analysis(metadata, user, 'Tóm tắt file đi')
+        assert stale == {'skip_event': True}
+
+    for _ in range(9):
+        claimed = await worker.claim_resource_task()
+        if not claimed:
+            break
+        assert claimed == task_id
+        await worker.process_resource_task_job(claimed)
+
+    async with sessions() as db:
+        task = await db.get(ResourceTask, task_id)
+        message = await db.get(ChatMessage, 'analysis-chat-response')
+        if change in {None, 'newer_message', 'ocr', 'lease'}:
+            assert task.status == 'completed'
+            assert 'Kỹ thuật [E1]' in task.result
+            first_page = await analysis.paginate_analysis(db, task_id, 0, 1)
+            unit = first_page['evidence'][0]
+            if change == 'ocr':
+                assert unit['text'] == 'Scanned text' and unit['confidence'] == [0.97]
+            else:
+                assert '001234' in unit['text']
+            assert message.content == ('Newer answer' if change == 'newer_message' else task.result)
+        else:
+            assert task.status == ('cancelled' if change == 'cancel' else 'failed')
+            assert not message.content
+        if change == 'ocr_failed':
+            trace = await read_analysis_trace(db, task_id, 0)
+            assert any(event['kind'] == 'stderr' and 'ValueError' in event['data']['text'] for event in trace['events'])
+            assert 'never-publish' not in str(trace)
+        if change == 'lease':
+            trace = await read_analysis_trace(db, task_id, 0)
+            interrupted = next(event for event in trace['events'] if event['data'].get('status') == 'interrupted')
+            assert not any(event['kind'] == 'stdout' and event['step_id'] == interrupted['step_id']
+                           for event in trace['events'])
 
 
 async def _seed_pending_jobs(session_factory, count: int = 2) -> list[str]:

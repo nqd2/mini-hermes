@@ -7,7 +7,7 @@ import re
 
 _COMMAND = re.compile(r'(?<!\S)/(stop-tool|tool)(?![\w-])', re.IGNORECASE)
 _ACTION = re.compile(
-    r'\b(edit|update|change|create|generate|fill|replace|convert|export|download|save|'
+    r'\b(edit|update|change|create|generate|fill|replace|convert|export|download|save|summari[sz]e|'
     r'sửa|chỉnh|đổi|thay|tạo|làm|cập nhật|điền|thêm|xóa|xoá|xuất|lưu|tải|'
     r'đọc|xem|phân tích|tóm tắt)\b', re.IGNORECASE
 )

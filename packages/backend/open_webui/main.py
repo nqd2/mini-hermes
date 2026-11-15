@@ -1085,6 +1085,52 @@ async def _set_direct_model(request: Request, model_item: dict, user) -> None:
     request.state.model = model_item
 
 
+async def _resolve_chat_model(request: Request, user, model_id: str | None, model_item: dict):
+    model_info = None
+    fallback_model = None
+    missing_base_model = False
+    if not model_item.get('direct', False):
+        if model_id not in request.app.state.MODELS:
+            raise Exception('Model not found')
+
+        model = request.app.state.MODELS[model_id]
+        model_info = await Models.get_model_by_id(model_id)
+        missing_base_model = bool(
+            model_info and model_info.base_model_id and model_info.base_model_id not in request.app.state.MODELS
+        )
+
+        if missing_base_model and ENABLE_CUSTOM_MODEL_FALLBACK:
+            fallback_model_id = next(
+                (
+                    model_id.strip()
+                    for model_id in ((await Config.get('ui.default_models')) or '').split(',')
+                    if model_id.strip()
+                ),
+                None,
+            )
+            if fallback_model_id:
+                fallback_model = request.app.state.MODELS.get(fallback_model_id)
+
+        # Check if user has access to the model
+        if not BYPASS_MODEL_ACCESS_CONTROL and (user.role != 'admin' or not BYPASS_ADMIN_ACCESS_CONTROL):
+            try:
+                access_model_info = (
+                    model_info.model_copy(update={'base_model_id': None})
+                    if fallback_model is not None
+                    else model_info
+                )
+                await check_model_access(user, model, model_info=access_model_info)
+                if fallback_model is not None:
+                    await check_model_access(user, fallback_model)
+            except Exception as e:
+                raise e
+    else:
+        model = model_item
+        await _set_direct_model(request, model, user)
+
+    return model, model_info, fallback_model, missing_base_model
+
+
 @app.post('/api/chat/completions')
 @app.post('/api/v1/chat/completions')  # Experimental: Compatibility with OpenAI API
 async def chat_completion(
@@ -1102,47 +1148,9 @@ async def chat_completion(
 
     metadata = {}
     try:
-        model_info = None
-        fallback_model = None
-        missing_base_model = False
-        if not model_item.get('direct', False):
-            if model_id not in request.app.state.MODELS:
-                raise Exception('Model not found')
-
-            model = request.app.state.MODELS[model_id]
-            model_info = await Models.get_model_by_id(model_id)
-            missing_base_model = bool(
-                model_info and model_info.base_model_id and model_info.base_model_id not in request.app.state.MODELS
-            )
-
-            if missing_base_model and ENABLE_CUSTOM_MODEL_FALLBACK:
-                fallback_model_id = next(
-                    (
-                        model_id.strip()
-                        for model_id in ((await Config.get('ui.default_models')) or '').split(',')
-                        if model_id.strip()
-                    ),
-                    None,
-                )
-                if fallback_model_id:
-                    fallback_model = request.app.state.MODELS.get(fallback_model_id)
-
-            # Check if user has access to the model
-            if not BYPASS_MODEL_ACCESS_CONTROL and (user.role != 'admin' or not BYPASS_ADMIN_ACCESS_CONTROL):
-                try:
-                    access_model_info = (
-                        model_info.model_copy(update={'base_model_id': None})
-                        if fallback_model is not None
-                        else model_info
-                    )
-                    await check_model_access(user, model, model_info=access_model_info)
-                    if fallback_model is not None:
-                        await check_model_access(user, fallback_model)
-                except Exception as e:
-                    raise e
-        else:
-            model = model_item
-            await _set_direct_model(request, model, user)
+        model, model_info, fallback_model, missing_base_model = await _resolve_chat_model(
+            request, user, model_id, model_item
+        )
 
         # Read before the fallback below can rebind model to a different one.
         model_capabilities = ((model.get('info') or {}).get('meta') or {}).get('capabilities') or {}
@@ -1632,6 +1640,31 @@ async def chat_completion(
                 )
                 if paused:
                     return {'status': True, 'chat_id': metadata.get('chat_id'), 'paused': True}
+
+                if metadata.get('resource_aware_files') and is_saved_chat_id(metadata.get('chat_id')):
+                    from open_webui.mini_hermes.document_analysis_tasks import queue_chat_analysis
+
+                    user_content = (metadata.get('user_message') or {}).get('content')
+                    if not isinstance(user_content, str):
+                        user_content = ''
+                    analysis = await queue_chat_analysis(metadata, user, user_content, request, model)
+                    if analysis:
+                        if 'content' in analysis:
+                            await Chats.upsert_message_to_chat_by_id_and_message_id(
+                                metadata['chat_id'], metadata['message_id'],
+                                {'content': analysis['content'], 'output': [], 'done': True},
+                            )
+                        emitter = await get_event_emitter(metadata, update_db=False)
+                        if emitter and not analysis.get('skip_event'):
+                            if metadata.get('agent_turn_id'):
+                                from open_webui.agent_runtime.runtime import AgentRuntime
+
+                                emitter = AgentRuntime.configured().wrap_event_emitter(
+                                    metadata['agent_turn_id'], emitter, message_id=metadata['message_id'],
+                                    run_attempt=metadata.get('agent_turn_attempt', 0),
+                                )
+                            await emitter({'type': 'chat:document-analysis', 'data': analysis})
+                        return {'status': True, 'document_analysis': analysis.get('analysis')}
 
                 if metadata.get('resource_execution_requested'):
                     from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline

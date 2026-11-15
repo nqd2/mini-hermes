@@ -4,6 +4,7 @@
 **/node_modules/
 **/build/
 **/.svelte-kit/
+packages/frontend/vite.config.ts.timestamp-*.mjs
 **/__pycache__/
 **/.pytest_cache/
 **/.ruff_cache/

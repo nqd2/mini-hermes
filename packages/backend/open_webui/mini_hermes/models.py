@@ -149,6 +149,33 @@ class ResourceTask(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
 
+class ResourceAnalysis(Base):
+    __tablename__ = 'mh_resource_analysis'
+    task_id: Mapped[str] = mapped_column(ForeignKey('mh_resource_task.id', ondelete='CASCADE'), primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True)
+    message_id: Mapped[str] = mapped_column(String(255))
+    prompt: Mapped[str] = mapped_column(Text)
+    profile: Mapped[dict | None] = mapped_column(JSONField)
+    gaps: Mapped[list | None] = mapped_column(JSONField)
+
+
+class ResourceAnalysisEvidence(Base):
+    __tablename__ = 'mh_resource_analysis_evidence'
+    task_id: Mapped[str] = mapped_column(ForeignKey('mh_resource_analysis.task_id', ondelete='CASCADE'), primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    unit: Mapped[dict] = mapped_column(JSONField)
+
+
+class ResourceAnalysisTrace(Base):
+    __tablename__ = 'mh_resource_analysis_trace'
+    task_id: Mapped[str] = mapped_column(ForeignKey('mh_resource_analysis.task_id', ondelete='CASCADE'), primary_key=True)
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True)
+    step_id: Mapped[str] = mapped_column(String(36))
+    kind: Mapped[str] = mapped_column(String(16))
+    data: Mapped[dict] = mapped_column(JSONField)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Preview(Base):
     __tablename__ = 'mh_preview'
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

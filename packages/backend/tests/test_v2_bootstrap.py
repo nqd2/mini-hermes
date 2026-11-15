@@ -170,7 +170,7 @@ def test_alembic_v2_migrations_upgrade_and_downgrade(disposable_pg_schema):
 
     run_v2_migrations(schema_url, "head")
 
-    assert get_v2_current_revision(schema_url) == "0002_v2_document_search"
+    assert get_v2_current_revision(schema_url) == "0004_v2_analysis_trace"
     assert check_v2_migrations_up_to_date(schema_url) is True
 
     from sqlalchemy import create_engine

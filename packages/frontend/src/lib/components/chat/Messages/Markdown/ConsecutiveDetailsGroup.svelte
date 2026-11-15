@@ -40,6 +40,8 @@
 	export let compactPreview = false;
 	export let resolvable = false;
 	export let resolvingCallId = '';
+	export let heading = '';
+	export let workerState: 'running' | 'failed' | 'complete' | null = null;
 	export let onResolve: (callId: string, approved: boolean) => void = () => {};
 
 	let open = $settings?.expandDetails ?? false;
@@ -190,7 +192,7 @@
 			class="flex-1 min-w-0 py-0.5 text-left {compactPreview
 				? 'text-xs'
 				: 'text-[0.9375rem]'} text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer"
-			aria-label={$i18n.t('Toggle details')}
+			aria-label={heading || $i18n.t('Toggle details')}
 			aria-expanded={open}
 			on:click={() => {
 				open = !open;
@@ -204,11 +206,11 @@
 		>
 			<div class="flex items-center gap-1.5 min-w-0">
 				<!-- Status icon -->
-				{#if hasActiveDetails}
+				{#if workerState === 'running' || hasActiveDetails}
 					<div>
 						<Spinner className="size-4" />
 					</div>
-				{:else if hasRejected}
+				{:else if workerState === 'failed' || hasRejected}
 					<div class="text-red-400 dark:text-red-500">
 						<XMark className="size-4" strokeWidth="2.5" />
 					</div>
@@ -216,7 +218,7 @@
 					<div class="text-red-500 dark:text-red-400">
 						<XMark className="size-4" strokeWidth="2.5" />
 					</div>
-				{:else if toolCallCount > 0}
+				{:else if workerState === 'complete' || toolCallCount > 0}
 					<div class="text-emerald-500 dark:text-emerald-400">
 						<CheckCircle className="size-4" strokeWidth="2" />
 					</div>
@@ -229,9 +231,9 @@
 				<!-- Summary text -->
 				<div class="flex-1 line-clamp-1">
 					<span class="text-gray-600 dark:text-gray-300 {hasActiveDetails ? 'shimmer' : ''}"
-						>{prefixText}</span
+						>{heading || prefixText}</span
 					>
-					{#if summaryText}
+					{#if summaryText && !heading}
 						<span class="text-gray-400 dark:text-gray-500">{summaryText}</span>
 					{/if}
 				</div>

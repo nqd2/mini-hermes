@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 
 class Notification(Base):
-    __tablename__ = 'notification'
+    __tablename__ = 'mh_ow_notification'
     id = Column(Text, primary_key=True)
     user_id = Column(Text, nullable=False)
     event_type = Column(Text, nullable=False)

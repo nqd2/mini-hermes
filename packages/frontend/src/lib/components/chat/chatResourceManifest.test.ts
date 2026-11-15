@@ -22,6 +22,16 @@ const createHarness = (overrides: Partial<Dependencies> = {}) => {
 };
 
 describe("chat resource manifest preparation", () => {
+  it("deduplicates an uploaded file when UI metadata changes on Continue", () => {
+    const tracked = { id: "upload", type: "file", name: "M.xlsx", status: "uploaded" };
+    const current = { ...tracked, itemId: "ui-item", file: { id: "upload" } };
+    const { result } = createHarness({
+      chatFiles: [tracked], messages: [{ files: [current] }], userFiles: [current],
+    });
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0].id).toBe("upload");
+  });
+
   it("keeps only history-referenced chat files and excludes image-only attachments", () => {
     const doc = { id: "doc-1", type: "doc", name: "project brief" };
     const note = { id: "note-1", type: "note", name: "meeting notes" };

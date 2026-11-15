@@ -302,9 +302,9 @@ async def search_workspace(  # noqa: C901 — keep permission scoping and source
             matched_folders = await Folders.search_folders_by_names(user.id, folder_names, db=db)
             stmt = stmt.where(Chat.folder_id.in_([folder.id for folder in matched_folders]))
         tags, tag = (
-            ("json_each(chat.meta, '$.tags') AS tag", 'tag.value')
+            ("json_each(mh_ow_chat.meta, '$.tags') AS tag", 'tag.value')
             if dialect == 'sqlite'
-            else ("json_array_elements_text(chat.meta->'tags') AS tag", 'tag')
+            else ("json_array_elements_text(mh_ow_chat.meta->'tags') AS tag", 'tag')
         )
         for index, tag_id in enumerate(tag_ids):
             key = f'tag_{index}'

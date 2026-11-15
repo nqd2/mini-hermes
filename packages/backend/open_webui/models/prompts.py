@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class Prompt(Base):  # versioned template
     """Slash-command prompt with history tracking and access control."""
 
-    __tablename__ = 'prompt'
+    __tablename__ = 'mh_ow_prompt'
 
     id = Column(Text, primary_key=True)
     command = Column(String, unique=True, index=True)
@@ -337,11 +337,11 @@ class PromptsTable:
                     if dialect_name == 'sqlite':
                         tag_lower = tag.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
                         tag_clause = text(
-                            "EXISTS (SELECT 1 FROM json_each(prompt.tags) t WHERE t.value LIKE :tag_val ESCAPE '\\')"
+                            "EXISTS (SELECT 1 FROM json_each(mh_ow_prompt.tags) t WHERE t.value LIKE :tag_val ESCAPE '\\')"
                         )
                     elif dialect_name == 'postgresql':
                         tag_clause = text(
-                            'EXISTS (SELECT 1 FROM json_array_elements_text(prompt.tags) t WHERE LOWER(t) = :tag_val)'
+                            'EXISTS (SELECT 1 FROM json_array_elements_text(mh_ow_prompt.tags) t WHERE LOWER(t) = :tag_val)'
                         )
                     else:
                         # Fallback for dialects with no JSON array function: LIKE on the text.
@@ -497,7 +497,7 @@ class PromptsTable:
                     prompt.name != form_data.name
                     or prompt.command != form_data.command
                     or prompt.content != form_data.content
-                    or (form_data.tags is not None and prompt.tags != form_data.tags)
+                    or (form_data.tags is not None and mh_ow_prompt.tags != form_data.tags)
                 )
 
                 # Update prompt fields
@@ -510,7 +510,7 @@ class PromptsTable:
                     prompt.meta = form_data.meta or prompt.meta
 
                     if form_data.tags is not None:
-                        prompt.tags = form_data.tags
+                        mh_ow_prompt.tags = form_data.tags
 
                 prompt.updated_at = int(time.time())
 
@@ -524,7 +524,7 @@ class PromptsTable:
                         'command': prompt.command,
                         'data': form_data.data or {},
                         'meta': form_data.meta or {},
-                        'tags': form_data.tags if form_data.tags is not None else (prompt.tags or []),
+                        'tags': form_data.tags if form_data.tags is not None else (mh_ow_prompt.tags or []),
                         'access_grants': [grant.model_dump() for grant in current_access_grants],
                     }
 
@@ -566,7 +566,7 @@ class PromptsTable:
                 prompt.command = command
 
                 if tags is not None:
-                    prompt.tags = tags
+                    mh_ow_prompt.tags = tags
 
                 prompt.updated_at = int(time.time())
                 await session.commit()
@@ -602,7 +602,7 @@ class PromptsTable:
                     prompt.content = snapshot.get('content', prompt.content)
                     prompt.data = snapshot.get('data', prompt.data)
                     prompt.meta = snapshot.get('meta', prompt.meta)
-                    prompt.tags = snapshot.get('tags', prompt.tags)
+                    mh_ow_prompt.tags = snapshot.get('tags', mh_ow_prompt.tags)
                     # Note: command and access_grants are not restored from snapshot
 
                 prompt.version_id = version_id

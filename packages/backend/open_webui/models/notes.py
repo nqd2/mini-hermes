@@ -390,7 +390,7 @@ def matching_page(data: dict, query: str = '') -> dict:
 
 
 class Note(Base):
-    __tablename__ = 'note'
+    __tablename__ = 'mh_ow_note'
 
     id = Column(Text, primary_key=True, unique=True)
     user_id = Column(Text)
@@ -452,11 +452,11 @@ class NoteModel(BaseModel):
 
 
 class PinnedNote(Base):
-    __tablename__ = 'pinned_note'
+    __tablename__ = 'mh_ow_pinned_note'
 
     id = Column(Text, primary_key=True)
     user_id = Column(Text, nullable=False)
-    note_id = Column(Text, ForeignKey('note.id', ondelete='CASCADE'), nullable=False)
+    note_id = Column(Text, ForeignKey('mh_ow_note.id', ondelete='CASCADE'), nullable=False)
     created_at = Column(BigInteger, nullable=False)
 
 

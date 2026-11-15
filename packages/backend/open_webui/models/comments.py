@@ -13,7 +13,7 @@ ResourceType = Literal['model', 'knowledge', 'prompt', 'skill', 'tool', 'note', 
 
 
 class Comment(Base):
-    __tablename__ = 'comment'
+    __tablename__ = 'mh_ow_comment'
     id = Column(Text, primary_key=True)
     user_id = Column(Text, nullable=True)
     resource_type = Column(Text, nullable=False)
@@ -35,7 +35,7 @@ class Comment(Base):
 
 
 class CommentReaction(Base):
-    __tablename__ = 'comment_reaction'
+    __tablename__ = 'mh_ow_comment_reaction'
     id = Column(Text, primary_key=True)
     user_id = Column(Text, nullable=False)
     comment_id = Column(Text, nullable=False, index=True)

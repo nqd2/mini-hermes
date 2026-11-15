@@ -27,7 +27,7 @@ def utcnow() -> dt.datetime:
 
 
 class AgentSession(Base):
-    __tablename__ = 'agent_session'
+    __tablename__ = 'mh_agent_session'
     __table_args__ = (
         UniqueConstraint('owner_id', 'chat_id', name='uq_agent_session_owner_chat'),
         Index('ix_agent_session_owner_updated', 'owner_id', 'updated_at'),
@@ -37,7 +37,7 @@ class AgentSession(Base):
     owner_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     chat_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     parent_session_id: Mapped[str | None] = mapped_column(
-        ForeignKey('agent_session.id', ondelete='SET NULL'), nullable=True, index=True
+        ForeignKey('mh_agent_session.id', ondelete='SET NULL'), nullable=True, index=True
     )
     engine_type: Mapped[str] = mapped_column(String(96), nullable=False, default=CURRENT_ENGINE_TYPE)
     engine_version: Mapped[str] = mapped_column(String(96), nullable=False, default=CURRENT_ENGINE_VERSION)
@@ -51,7 +51,7 @@ class AgentSession(Base):
 
 
 class AgentTurn(Base):
-    __tablename__ = 'agent_turn'
+    __tablename__ = 'mh_agent_turn'
     __table_args__ = (
         UniqueConstraint('session_id', 'sequence', name='uq_agent_turn_session_sequence'),
         UniqueConstraint('session_id', 'source_message_id', name='uq_agent_turn_session_source_message'),
@@ -66,7 +66,7 @@ class AgentTurn(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(
-        ForeignKey('agent_session.id', ondelete='CASCADE'), nullable=False, index=True
+        ForeignKey('mh_agent_session.id', ondelete='CASCADE'), nullable=False, index=True
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default='queued', index=True)
@@ -98,7 +98,7 @@ class AgentTurn(Base):
 
 
 class AgentEvent(Base):
-    __tablename__ = 'agent_event'
+    __tablename__ = 'mh_agent_event'
     __table_args__ = (
         UniqueConstraint('turn_id', 'sequence', name='uq_agent_event_turn_sequence'),
         Index('ix_agent_event_outbox', 'published_at', 'created_at'),
@@ -106,9 +106,9 @@ class AgentEvent(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(
-        ForeignKey('agent_session.id', ondelete='CASCADE'), nullable=False, index=True
+        ForeignKey('mh_agent_session.id', ondelete='CASCADE'), nullable=False, index=True
     )
-    turn_id: Mapped[str] = mapped_column(ForeignKey('agent_turn.id', ondelete='CASCADE'), nullable=False, index=True)
+    turn_id: Mapped[str] = mapped_column(ForeignKey('mh_agent_turn.id', ondelete='CASCADE'), nullable=False, index=True)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     event_type: Mapped[str] = mapped_column(String(96), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONField, nullable=False)
@@ -117,7 +117,7 @@ class AgentEvent(Base):
 
 
 class AgentCheckpoint(Base):
-    __tablename__ = 'agent_checkpoint'
+    __tablename__ = 'mh_agent_checkpoint'
     __table_args__ = (
         UniqueConstraint('turn_id', 'version', name='uq_agent_checkpoint_turn_version'),
         Index('ix_agent_checkpoint_session_created', 'session_id', 'created_at'),
@@ -125,9 +125,9 @@ class AgentCheckpoint(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(
-        ForeignKey('agent_session.id', ondelete='CASCADE'), nullable=False, index=True
+        ForeignKey('mh_agent_session.id', ondelete='CASCADE'), nullable=False, index=True
     )
-    turn_id: Mapped[str] = mapped_column(ForeignKey('agent_turn.id', ondelete='CASCADE'), nullable=False, index=True)
+    turn_id: Mapped[str] = mapped_column(ForeignKey('mh_agent_turn.id', ondelete='CASCADE'), nullable=False, index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(32), nullable=False, default='turn')
     data: Mapped[dict] = mapped_column(JSONField, nullable=False)
@@ -135,7 +135,7 @@ class AgentCheckpoint(Base):
 
 
 class AgentToolInvocation(Base):
-    __tablename__ = 'agent_tool_invocation'
+    __tablename__ = 'mh_agent_tool_invocation'
     __table_args__ = (
         UniqueConstraint('turn_id', 'call_id', name='uq_agent_tool_turn_call'),
         CheckConstraint(
@@ -147,9 +147,9 @@ class AgentToolInvocation(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(
-        ForeignKey('agent_session.id', ondelete='CASCADE'), nullable=False, index=True
+        ForeignKey('mh_agent_session.id', ondelete='CASCADE'), nullable=False, index=True
     )
-    turn_id: Mapped[str] = mapped_column(ForeignKey('agent_turn.id', ondelete='CASCADE'), nullable=False, index=True)
+    turn_id: Mapped[str] = mapped_column(ForeignKey('mh_agent_turn.id', ondelete='CASCADE'), nullable=False, index=True)
     call_id: Mapped[str] = mapped_column(String(255), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(255), nullable=False)
     arguments: Mapped[dict] = mapped_column(JSONField, nullable=False)
@@ -171,7 +171,7 @@ class AgentToolInvocation(Base):
 
 
 class AgentArtifact(Base):
-    __tablename__ = 'agent_artifact'
+    __tablename__ = 'mh_agent_artifact'
     __table_args__ = (
         UniqueConstraint('object_key', name='uq_agent_artifact_object_key'),
         Index('ix_agent_artifact_owner_created', 'owner_id', 'created_at'),
@@ -180,8 +180,8 @@ class AgentArtifact(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     owner_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    session_id: Mapped[str | None] = mapped_column(ForeignKey('agent_session.id', ondelete='SET NULL'), nullable=True)
-    turn_id: Mapped[str | None] = mapped_column(ForeignKey('agent_turn.id', ondelete='SET NULL'), nullable=True)
+    session_id: Mapped[str | None] = mapped_column(ForeignKey('mh_agent_session.id', ondelete='SET NULL'), nullable=True)
+    turn_id: Mapped[str | None] = mapped_column(ForeignKey('mh_agent_turn.id', ondelete='SET NULL'), nullable=True)
     object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -194,7 +194,7 @@ class AgentArtifact(Base):
 class AgentFileContent(Base):
     """Verified object-store copy of extracted file text with sparse seek indexes."""
 
-    __tablename__ = 'agent_file_content'
+    __tablename__ = 'mh_agent_file_content'
     __table_args__ = (Index('ix_agent_file_content_owner_created', 'owner_id', 'created_at'),)
 
     file_id: Mapped[str] = mapped_column(String(255), primary_key=True)

@@ -5,7 +5,13 @@ from typing import Optional
 from contextlib import asynccontextmanager
 
 from open_webui.env import DEFAULT_GROUP_SHARE_PERMISSION
-from open_webui.internal.db import Base, JSONField, get_async_db_context, get_async_db
+from open_webui.internal.db import (
+    Base,
+    JSONField,
+    get_async_db_context,
+    get_async_db,
+    lock_document_authorization,
+)
 from open_webui.models.access_grants import AccessGrant
 from open_webui.models.files import FileMetadataResponse
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -34,10 +40,10 @@ log = logging.getLogger(__name__)
 
 
 class Group(Base):
-    __tablename__ = 'group'
+    __tablename__ = 'mh_ow_group'
 
     parent_group_id = Column(
-        Text, ForeignKey('group.id', name='fk_group_parent', ondelete='SET NULL'), nullable=True, index=True
+        Text, ForeignKey('mh_ow_group.id', name='fk_group_parent', ondelete='SET NULL'), nullable=True, index=True
     )
 
     id = Column(Text, unique=True, primary_key=True)
@@ -75,14 +81,14 @@ class GroupModel(BaseModel):
 
 
 class GroupMember(Base):
-    __tablename__ = 'group_member'
+    __tablename__ = 'mh_ow_group_member'
     # The table's (group_id, user_id) unique constraint cannot serve user_id lookups.
     __table_args__ = (Index('ix_group_member_user_id_group_id', 'user_id', 'group_id'),)
 
     id = Column(Text, unique=True, primary_key=True)
     group_id = Column(
         Text,
-        ForeignKey('group.id', ondelete='CASCADE'),
+        ForeignKey('mh_ow_group.id', ondelete='CASCADE'),
         nullable=False,
     )
     user_id = Column(Text, nullable=False)
@@ -232,6 +238,7 @@ async def hierarchy_transaction():
             if db.bind.dialect.name == 'sqlite':
                 await db.execute(text('BEGIN IMMEDIATE'))
             elif db.bind.dialect.name == 'postgresql':
+                await lock_document_authorization(db, exclusive=True)
                 await db.execute(text('SELECT pg_advisory_xact_lock(731947205)'))
             else:
                 raise RuntimeError('Group hierarchy requires SQLite or PostgreSQL')

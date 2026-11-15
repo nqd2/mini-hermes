@@ -29,6 +29,7 @@ export type ChatRequestPayloadDependencies = {
   regenerationPrompt?: string | null;
   regenerationMessageId?: string | null;
   continueResponse: boolean;
+  continuationId?: string;
   backgroundTasks: Record<string, any>;
 };
 
@@ -124,6 +125,7 @@ export const buildChatRequestPayload = ({
   regenerationPrompt,
   regenerationMessageId,
   continueResponse,
+  continuationId,
   backgroundTasks,
 }: ChatRequestPayloadDependencies) => ({
   stream,
@@ -163,5 +165,6 @@ export const buildChatRequestPayload = ({
     ? { regeneration_message_id: regenerationMessageId }
     : {}),
   ...(continueResponse ? { assistant_message_id: responseMessageId } : {}),
+  ...(continueResponse && continuationId ? { continuation_id: continuationId } : {}),
   background_tasks: backgroundTasks,
 });

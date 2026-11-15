@@ -97,6 +97,12 @@ class ResourceRequestPipeline:
         state = metadata.setdefault('agent_task_state', initialize_task_state(prompt))
         state.setdefault('schema_version', 1)
         state.setdefault('budget', ExecutionBudget().as_dict())
+        # A user-requested continuation is a new admitted run, not a retry of
+        # the expired execution. Preserve evidence, but budget this run once.
+        run_id = metadata.get('agent_turn_id')
+        if metadata.get('continuation_id') and run_id and state.get('budget_run_id') != run_id:
+            state['budget'] = ExecutionBudget().as_dict()
+            state['budget_run_id'] = run_id
         metadata.setdefault('_resource_task_started_at', time.monotonic())
         checkpoint_active, task_prompt, scope_ids, ambiguous_scope = _resolve_task_scope(
             state,

@@ -12,7 +12,7 @@ from sqlalchemy import JSON, BigInteger, Column, Text, select, update
 
 
 class ToolHistory(Base):
-    __tablename__ = 'tool_history'
+    __tablename__ = 'mh_ow_tool_history'
     id = Column(Text, primary_key=True)
     tool_id = Column(Text, nullable=False, index=True)
     parent_id = Column(Text, nullable=True)

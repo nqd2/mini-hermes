@@ -1,0 +1,128 @@
+{
+  "package": "mini-hermes-v2-phase0-locked",
+  "status": "LOCKED_ACCEPTED",
+  "repo": "https://github.com/nqd2/mini-hermes",
+  "branch": "feature/agent-runtime-production-refinement",
+  "local_checkout_available": true,
+  "tests_executed": true,
+  "phase0_gate_passed": true,
+  "phase1_authorized": true,
+  "deliverables": [
+    {
+      "id": "D01",
+      "file": "01-adr-v2.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D02",
+      "file": "02-architecture-spec.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D03",
+      "file": "03-contract-catalog.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D04",
+      "file": "04-data-model-spec.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D05",
+      "file": "05-coverage-semantics.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D06",
+      "file": "06-format-capability-matrix.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D07",
+      "file": "07-open-webui-compatibility-manifest.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D08",
+      "file": "08-test-plan.md",
+      "state": "LOCKED_ACCEPTED"
+    },
+    {
+      "id": "D09",
+      "file": "09-agent-work-breakdown.md",
+      "state": "LOCKED_ACCEPTED"
+    }
+  ],
+  "blockers": [],
+  "fixture_synthetic_created": true,
+  "fixture_synthetic_sha256": "e85ad43cf67e3cb70576e6ad19e0f07452d00a1e9f1c7dc169dc1c9b248248be",
+  "original_xlsx_fixture_available": false,
+  "checkout_commit": "3d1eeedfeed8124706bf666d4da5b0380e7ff9c1",
+  "test_evidence": "40 runtime/fixture, 2 mocked ASGI session, 31 document route/service, 10 coverage schema checks, and 366 frontend tests passed; see 08-test-plan.md",
+  "fixture_verified": true,
+  "later_phase_gates": [
+    "Phase 2: implement and test V2 parsing/coverage against supplemental fixtures"
+  ],
+  "frontend_discovery": "544 direct fetch candidates, 24 api-wrapper candidates, 1 parser warning; not a complete compatibility inventory",
+  "backend_discovery": "678 backend route candidates; 231 exact and 211 parameterized frontend pairing candidates, 94 unresolved; not a complete compatibility audit",
+  "revision_replay_evidence": "19 SQLite revision and route checks passed; sequential grant revocation tested with session sharing enabled and group lookup stubbed",
+  "hash_profile_evidence": "Proposed domain-separated hash vectors checked in Python and Node; V2 implementation and operation-specific semantics remain unverified",
+  "postgres_evidence": "Baseline 6 PostgreSQL authorization race cases failed; current checkout passes those tested paths after a transaction gate. This does not prove the full V2 authority-writer or staging gate.",
+  "postgres_gate_prototype_evidence": "4 test-only gate serialization cases passed; 23 runtime/resource PostgreSQL checks passed with the 2 known P0 regressions deselected. Production gate remains unimplemented.",
+  "admin_demotion_evidence": "2 PostgreSQL regression cases failed at baseline and now pass under the current-checkout transaction gate and live role read; route and authentication middleware are not exercised.",
+  "runtime_postgres_approval_evidence": "12 runtime characterization cases passed on disposable PostgreSQL, including process kill, emitter failure and oversized event marker. Full server restart, snapshot adequacy and live transport remain unverified.",
+  "model_management_evidence": "Four mocked frontend cases and 3 ASGI producer cases passed; full frontend Vitest 71 files, 370 passed. Identity, RBAC decisions and DB lookups were mocked; live RBAC and V2 producer integration remain unproven.",
+  "format_fixture_evidence": "Synthetic DOCX/PPTX/PDF fixtures and checksums created; 9 fixture/characterization tests passed. V2 format parsing and completeness remain untested.",
+  "format_parser_baseline": "7 V1 parser and synthetic fixture checks passed; observed DOCX header/footer and PPTX group omissions, and PDF image-only page without image metadata. V2 implementation unverified.",
+  "mfa_consumer_evidence": "Eight MFA wrapper paths manually paired; 10 mocked frontend cases and 4 mocked-service ASGI cases passed. Actual MFA/session security remains unverified.",
+  "fragment_vectors_evidence": "18 proposed synthetic fragment vectors checked by a test-only oracle; 30 vector/schema tests passed. No V2 implementation or provenance verification.",
+  "runtime_replay_wire_evidence": "2 mocked-runtime ASGI replay route cases passed. Source search found no frontend references to runtime event sequence or replay cursor; UI gap/replay remains unverified.",
+  "runtime_replay_cursor_fix": "Fixed cursor skipping unreturned events after a gap; 31 runtime tests and 2 focused PostgreSQL regressions passed. Snapshot adequacy and frontend handling remain open.",
+  "runtime_replay_oversized_marker_fix": "Replay page now signals snapshot_required for oversized client-event markers; 34 runtime/API tests passed. Status snapshot does not restore omitted content; UI handling unverified.",
+  "excel_v1_pagination_evidence": "2 SQLite synthetic XLSX parser/chunker/reader/adapter characterization cases passed: 6000 page exceeds 5952 serialized budget; 4000 pages reconstruct rendered fixture in >8 calls. Auth/index readiness mocked; no LLM or V2.",
+  "excel_v1_coverage_gate_evidence": "38 tests passed including full synthetic rendered-page reconstruction through the evidence adapter; V1 full-coverage gate remains partial. Citation/result consistency is an implementation requirement, not yet a fix.",
+  "excel_citation_evidence": "16 tests passed including V1 fitting-page citation matching serialized text, evidence and offsets; adaptive pagination and durable runtime boundaries not yet implemented/tested.",
+  "provider_passthrough_limit_fix": "Optional OpenAI passthrough checks valid non-object JSON and bodies with JSON inbound or effective outbound media type against exact hard limits; 28 related tests passed with mocked provider. JSON syntax is not validated by this guard.",
+  "runtime_snapshot_watermark_fix": "Runtime rechecks owner/status after pages needing snapshot; controlled SQLite and PostgreSQL tests passed. Status/page are not atomic and content recovery remains open.",
+  "runtime_replay_page_watermark_fix": "Replay queries are bounded by their captured watermark; controlled SQLite and PostgreSQL tests passed. Atomic content snapshot and UI recovery remain unverified.",
+  "runtime_replay_postgres_watermarks": "39 runtime/replay tests passed including controlled PostgreSQL snapshot and page watermark races. Atomic chat-content snapshot and UI recovery remain unverified.",
+  "postgres_gate_isolation_evidence": "8 prototype tests passed; REPEATABLE READ can retain revoked grant even when first SELECT waits on unchanged gate row. Isolation protocol and production authorization remain unresolved.",
+  "postgres_gate_identity_map_evidence": "9 prototype cases passed; READ COMMITTED role lookup may return a previously cached ORM user after role revocation. Future checks require refreshed transaction-bound state; production gate unimplemented.",
+  "fixture_exact_57765_synthetic_sha256": "3c424996b97a435b4b6b2a9f9c63b2fd4888bc7f4d3dee154fb33575f6faec37",
+  "excel_exact_length_evidence": "12 SQLite characterization tests passed across synthetic fixtures; exact 57,765-character V1 rendering reconstructs in 15 pages of 4,000. Authorization and index readiness mocked; no live runtime, LLM, original workbook, or V2.",
+  "owner_deactivation_evidence": "2 PostgreSQL regressions failed at baseline and now pass under the current-checkout transaction gate and live role read; SCIM route and authentication middleware are not exercised.",
+  "approval_expiry_enqueue_fix": "18 SQLite revision tests passed; expired approval after queued or inline indexing triggers rollback, even if caller subsequently commits. Commit-time delay and PostgreSQL/staging semantics remain unverified.",
+  "preview_metadata_revocation_fix": "40 SQLite route/publication/sandbox tests passed; preview detail and chat listing check document read access, including limit after filtering. Group lookup/chat ownership mocked; PostgreSQL, concurrent revocation and live authentication unverified.",
+  "preview_group_access_evidence": "1 SQLite test passed with real inherited-group and folder-grant reads; sequential direct-SQL membership deletion denied preview routes. Chat ownership mocked; group mutation API, concurrent revocation, PostgreSQL, and real authentication unverified.",
+  "content_integrity_route_evidence": "3 SQLite ASGI tests passed for missing object, checksum and size mismatch: 503 plus critical log; in-memory store and mocked principal. Real storage and alert delivery unverified.",
+  "runtime_json_identity_fix": "31 SQLite runtime tests passed; run, tool invocation and tool approval reject nested boolean/number mismatches. PostgreSQL tests added but unavailable: disposable Docker daemon not running; V2 canonical hashing and external idempotency unverified.",
+  "runtime_late_failure_guard": "33 SQLite runtime tests passed; fail_tool_call cannot overwrite a completed invocation. Old-worker versus newer running attempt fencing and PostgreSQL concurrency remain unverified.",
+  "runtime_attempt_fencing_evidence": "39 SQLite runtime tests passed; claimed attempt number is checked before completion, failure and release. PostgreSQL concurrency, lock ordering, external effects and artifact cleanup remain unverified.",
+  "runtime_tool_attempt_path_evidence": "2 SQLite controlled-concurrency tests passed through tool_execution for stale success and exception after retry; tool implementation stubbed. PostgreSQL, external effects and artifacts remain unverified.",
+  "runtime_output_race_evidence": "1 SQLite controlled race passed: recovery after preflight but before output processing finishes rejects stale result at ledger write. Artifact cleanup, PostgreSQL and process concurrency unverified.",
+  "runtime_lock_order_fix": "18 SQLite repository and 32 related runtime/tool tests passed; tool completion/failure/release now lock turn before invocation, matching recovery. PostgreSQL barrier tests added but Docker Desktop was not ready; wider deadlock coverage unverified.",
+  "runtime_cancel_before_tool_fix": "49 SQLite runtime/tool tests passed; a committed cancellation request blocks later tool claims. Side effects already claimed, PostgreSQL concurrency and lost-worker fencing remain unverified.",
+  "runtime_stale_executor_regression": "Fixed stale-generation tool claim in SQLite: 50 runtime/tool tests passed plus focused valid/invalid generation test. Expired leases before recovery and other run mutations, PostgreSQL/process concurrency and external effects remain unverified.",
+  "runtime_expired_lease_fix": "51 SQLite runtime/tool tests passed; expired lease blocks new tool claim and heartbeat renewal, with focused owner/boundary test. Cross-host clock, same-worker generation, other run writes and PostgreSQL remain unverified.",
+  "runtime_heartbeat_generation_fix": "53 SQLite runtime/tool tests passed; heartbeat requires the currently claimed run generation as well as worker ID and live lease. PostgreSQL, clock synchronization and other run mutations remain unverified.",
+  "runtime_completion_fence": "55 SQLite runtime/tool tests passed; stale-generation and expired run completion rejected under lock, with non-streaming handler recovery test. Streaming race and other run mutation fencing, PostgreSQL, and cross-host clocks unverified.",
+  "runtime_failure_cancel_fence": "56 SQLite runtime/tool tests plus 2 focused stale-error/cancel tests passed. State transition and tool interruption check run generation/lease. Streaming, task state, checkpoints, approvals, PostgreSQL and cross-host time remain unverified.",
+  "runtime_handler_approval_fence": "58 SQLite runtime/tool tests passed; stale handler cannot record an approval under a newer generation. Owner-driven approval remains separate. Live auth, PostgreSQL concurrency and other run mutations unverified.",
+  "runtime_client_event_fence": "62 SQLite runtime/context/tool tests passed; persisted wrapped client events check run generation and lease. Unpersisted events, other appenders, persist-to-emit race, live transport and PostgreSQL remain unverified.",
+  "runtime_provider_checkpoint_fence": "59 SQLite runtime/gateway tests passed; provider binding, context checkpoint and compaction event require current generation and live lease. Real provider, separate-transaction races, other callers and PostgreSQL unverified.",
+  "runtime_session_task_state_fence": "61 SQLite runtime/tool tests passed; old run generation cannot overwrite recovered session task state. PostgreSQL and live streaming races unverified.",
+  "authorization_gate_followup": "6 PostgreSQL race cases failed before the current-checkout shared/exclusive transaction gate and passed afterward; group-membership regression failed 2 cases without its writer lock and passed with it; REPEATABLE READ rejection regression failed without the guard and passed with it; inherited-folder-grant variants passed. Full PostgreSQL module 33 passed; SQLite revision 24 passed and document library 7 passed. V2/staging gate remains false.",
+  "authorization_writer_audit_followup": "D04c inventories current-checkout effective-document-permission writers. A stale-admin document move regression failed before live role recheck under the exclusive gate and passed afterward; 41 related PostgreSQL/SQLite tests passed with 5 warnings. Full V2 writer protocol, concurrent move, live auth, external identity and staging remain unverified.",
+  "openai_proxy_direct_inventory_evidence": "D07e classifies five statically unresolved OpenAI adapter calls into proxy and direct-provider paths. Four mocked frontend cases and two mocked-dependency ASGI cases passed; full frontend Vitest 76 files/394 tests passed. Live provider, direct browser credentials/CORS, real RBAC, completion stream, external side effects and V2 integration remain unverified.",
+  "human_session_dependency_evidence": "D07f records bearer/cookie and human-session boundaries. Five auth ASGI cases passed; three used real signed JWTs through actual auth dependencies with user/MFA/database records substituted. Sign-out without Redis cleared the cookie but the bearer JWT remained valid. Real login, Redis revocation, cookie deployment, browser, OAuth and V2 integration remain unverified.",
+  "auth_revocation_contract_draft": "D03e proposes an Auth-owned PostgreSQL per-token JTI revocation ledger for V2, with Redis as optional acceleration and fail-closed errors. P0-15 Auth/DB review and executable disposable PostgreSQL concurrency/recovery/browser tests are required; no V2 implementation exists.",
+  "runtime_postgres_generation_followup": "23 disposable PostgreSQL runtime tests passed, including stale run generation rejection for recovered session task state and turn-before-invocation lock order. Live transport, multi-process clocks, external side effects and V2 persistence remain unverified.",
+  "runtime_status_event_durability": "Status event regression failed before broadening durable client events and passed afterward; 62 related SQLite runtime/context/socket tests and 24 disposable PostgreSQL runtime tests passed. Legacy non-dictionary events, live transport, emit-after-commit race, frontend deduplication and V2 remain unverified.",
+  "terminal_gateway_contract_evidence": "Scoped D07b terminal inventory added: 3 mocked-fetch frontend tests and 2 mocked-upstream ASGI tests passed; full frontend Vitest 73 files/383 tests passed. External direct-server calls, live auth/RBAC, streaming, WebSockets, browser relay and external idempotency unverified.",
+  "cursor_contract_draft_evidence": "D03c proposes HMAC cursor encoding, scope binding, 15-minute TTL, 5-minute key/build retention margin and lossless codepoint positions; 10 structural schema tests passed. No V2 codec, adapter or authorization integration is implemented; owner review and contract tests remain required.",
+  "unresolved_route_triage": "94 static unresolved frontend calls classified by source: 23 terminal/Git, 16 Ollama outside V2 target, 5 OpenAI proxy/direct and 50 other computed/wrapped calls. D07 compatibility inventory remains incomplete.",
+  "file_upload_contract_evidence": "D07c records V1 upload/status SSE/original-byte boundaries and best-effort Mini-Hermes adoption; 4 mocked-fetch frontend cases and 3 mocked-dependency ASGI cases passed. Real storage, live auth, revoked access during open stream, worker recovery and V2 ingestion remain unverified.",
+  "ingestion_contract_draft_evidence": "D03d proposes initial revision publication, durable idempotency, separate source/index states and authorization/recovery rules; 10 structural status-schema checks passed. No V2 ingestion worker, PostgreSQL mapping, object-store proof or UI vertical slice exists; API/DB owner review and executable integration contracts remain required.",
+  "chat_transport_inventory_evidence": "D07d maps chat JSON acceptance, Socket.IO event delivery, saved/temporary task reconnect and owner-scoped AgentRuntime replay. 3 frontend mocked-fetch cases and 5 backend mocked ASGI cases passed; full frontend Vitest 75 files/390 tests passed. UI currently has no runtime sequence or replay endpoint consumer; live reconnect, turn association and dedup/gap handling remain unverified."
+}

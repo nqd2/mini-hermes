@@ -1,0 +1,39 @@
+[
+  {
+    "kind": "patch",
+    "domain": "mhv2:patch:v1\n",
+    "payload": {
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "base_revision": 7,
+      "base_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "document_id": "doc-1",
+      "operations": [
+        {
+          "cell": "A1",
+          "op": "set_cell",
+          "sheet": "Khảo sát",
+          "value": "dòng 1\ndòng 2"
+        }
+      ],
+      "schema": "mhv2.patch.v1"
+    },
+    "canonical_json": "{\"artifact_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"base_revision\":7,\"base_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"document_id\":\"doc-1\",\"operations\":[{\"cell\":\"A1\",\"op\":\"set_cell\",\"sheet\":\"Khảo sát\",\"value\":\"dòng 1\\ndòng 2\"}],\"schema\":\"mhv2.patch.v1\"}",
+    "sha256": "58096751eb68fd9ae77d787ef3c052c4fd057078f6542093df19aea0a5b595ff"
+  },
+  {
+    "kind": "request",
+    "domain": "mhv2:request:v1\n",
+    "payload": {
+      "operation": "document.preview",
+      "principal_id": "user-1",
+      "request": {
+        "base_revision": 7,
+        "document_id": "doc-1",
+        "patch_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "schema": "mhv2.request.v1"
+    },
+    "canonical_json": "{\"operation\":\"document.preview\",\"principal_id\":\"user-1\",\"request\":{\"base_revision\":7,\"document_id\":\"doc-1\",\"patch_hash\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"schema\":\"mhv2.request.v1\"}",
+    "sha256": "7433d1767805a1d395937b94faa441f402b406b3b6770dd8fbea2129bc287ea8"
+  }
+]

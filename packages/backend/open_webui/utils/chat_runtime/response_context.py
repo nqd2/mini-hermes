@@ -30,8 +30,24 @@ async def resolve_response_event_handlers(metadata: dict, adapters: ResponseCont
             event_emitter = AgentRuntime.configured().wrap_event_emitter(
                 str(metadata['agent_turn_id']),
                 event_emitter,
+                run_attempt=metadata.get('agent_turn_attempt'),
                 message_id=metadata.get('message_id'),
             )
+            durable_emitter = event_emitter
+
+            async def track_response_error(event):
+                # A handler may report an error to the UI and then return normally.
+                # Keep the run outcome in sync with that terminal response error.
+                if event.get('type') == 'chat:message:error':
+                    error = (event.get('data') or {}).get('error') or {}
+                    content = error.get('content', error) if isinstance(error, dict) else error
+                    metadata['agent_error'] = (
+                        copy.deepcopy(content) if isinstance(content, dict)
+                        else {'code': 'chat_response_error', 'message': str(content)[:2000]}
+                    )
+                return await durable_emitter(event)
+
+            event_emitter = track_response_error
     if metadata.get('session_id') and metadata.get('chat_id') and metadata.get('message_id'):
         event_caller = await adapters.get_event_call(metadata)
     return event_emitter, event_caller

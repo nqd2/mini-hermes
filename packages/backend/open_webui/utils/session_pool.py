@@ -126,12 +126,19 @@ async def stream_wrapper(response, session=None, passthrough=False):
     lines: byte-identical output without a buffer scan, slice and copy per
     line. Only for streams no internal consumer parses line-by-line.
     """
+    from open_webui.utils.dev_wire_log import create_sse_wire_tap
+
+    tap = create_sse_wire_tap(response)
     try:
         if passthrough:
             stream = response.content.iter_any()
         else:
             stream = stream_chunks_handler(response.content)
         async for chunk in stream:
+            if tap is not None:
+                tap.feed(chunk)
             yield chunk
     finally:
+        if tap is not None:
+            tap.finalize()
         await cleanup_response(response, session)

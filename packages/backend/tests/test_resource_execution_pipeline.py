@@ -3,6 +3,35 @@ import pytest
 from open_webui.mini_hermes.model_capabilities import ModelCapabilities
 
 
+@pytest.mark.parametrize('admitted', [False, True])
+def test_continuation_budget_is_fresh_only_once_per_admitted_run(admitted):
+    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from open_webui.mini_hermes.execution.contracts import ExecutionBudget
+
+    metadata = {'resource_history_files': [{'type': 'file', 'id': 'file-1'}],
+                'continuation_id': 'continue-1'}
+    pipeline = ResourceRequestPipeline()
+    pipeline.resolve(metadata, 'summarize this file', ModelCapabilities(), pending_task_ids=[])
+    state = metadata['agent_task_state']
+    state['budget'] = ExecutionBudget(deadline=0, model_calls=8).as_dict()
+    if admitted:
+        metadata['agent_turn_id'] = 'new-run'
+    pipeline.resolve(metadata, 'summarize this file', ModelCapabilities(), pending_task_ids=[])
+    assert pipeline.consume_model_call(metadata) is admitted
+    if admitted:
+        assert state['budget']['model_calls'] == 1
+        pipeline.resolve(metadata, 'summarize this file', ModelCapabilities(), pending_task_ids=[])
+        assert state['budget']['model_calls'] == 1
+        state['budget']['deadline'] = 0
+        from open_webui.mini_hermes.agent_execution import task_checkpoint
+        metadata['agent_task_state'] = task_checkpoint(state)
+        pipeline.resolve(metadata, 'summarize this file', ModelCapabilities(), pending_task_ids=[])
+        assert pipeline.consume_model_call(metadata) is False
+        metadata['agent_turn_id'] = 'another-run'
+        pipeline.resolve(metadata, 'summarize this file', ModelCapabilities(), pending_task_ids=[])
+        assert pipeline.consume_model_call(metadata) is True
+
+
 @pytest.mark.asyncio
 async def test_new_file_request_resolves_state_before_read_and_answer():
     from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline

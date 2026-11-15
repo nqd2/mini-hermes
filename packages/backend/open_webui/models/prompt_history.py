@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PromptHistory(Base):
-    __tablename__ = 'prompt_history'
+    __tablename__ = 'mh_ow_prompt_history'
 
     id = Column(Text, primary_key=True)
     prompt_id = Column(Text, nullable=False, index=True)

@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 
 class Folder(Base):
-    __tablename__ = 'folder'
+    __tablename__ = 'mh_ow_folder'
     id = Column(Text, primary_key=True, unique=True)
     parent_id = Column(Text, nullable=True)
     user_id = Column(Text)

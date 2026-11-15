@@ -8,6 +8,7 @@ import asyncio
 import datetime as dt
 import hashlib
 import os
+import sys
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -33,6 +34,15 @@ from open_webui.mini_hermes.models import (
 )
 from open_webui.mini_hermes.resource_indexing import enqueue_missing_resource_index_jobs
 from open_webui.mini_hermes.revision_service import compute_patch_hash
+from open_webui.models.users import User
+
+
+@pytest.fixture(scope='module')
+def event_loop_policy():
+    """psycopg async requires a selector loop on Windows, independent of DATABASE_URL."""
+    if sys.platform == 'win32':
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.get_event_loop_policy()
 
 
 @pytest_asyncio.fixture
@@ -72,6 +82,16 @@ async def postgres_resource_db():
                     ],
                 )
             )
+            await connection.run_sync(lambda sync: User.__table__.create(sync, checkfirst=True))
+
+        seed_sessions = async_sessionmaker(test_engine, expire_on_commit=False)
+        async with seed_sessions() as seed:
+            seed.add_all([
+                User(id=user_id, email=f'{user_id}@example.invalid', name=user_id,
+                     role='user', created_at=1, updated_at=1, last_active_at=1)
+                for user_id in ('owner-1', 'collaborator', 'postgres-test')
+            ])
+            await seed.commit()
 
         yield async_sessionmaker(test_engine, expire_on_commit=False)
     finally:
@@ -586,3 +606,831 @@ async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgr
         assert document.current_revision == 2
         assert missing_preview.status == 'ready'
         assert sorted(revision.number for revision in revisions) == [1, 2]
+
+
+async def _seed_revision_previews(session_factory, *, count=1):
+    """Create immutable base/staged bytes and ready previews in the disposable schema."""
+    base = b'postgres-base'
+    base_hash = hashlib.sha256(base).hexdigest()
+    objects = {'base-key': base}
+    previews = []
+    async with session_factory() as db:
+        db.add(Document(id='race-doc', owner_id='owner-1', filename='race.txt',
+                        mime_type='text/plain', current_revision=1))
+        db.add(Revision(id='race-base', document_id='race-doc', number=1,
+                        object_key='base-key', sha256=base_hash, size=len(base)))
+        for index in range(count):
+            content = f'approved-{index}'.encode()
+            artifact_hash = hashlib.sha256(content).hexdigest()
+            key = f'stage-{index}'
+            objects[key] = content
+            operations = [{'op': 'replace_text', 'find': 'base', 'replace': str(index)}]
+            patch_hash = compute_patch_hash(
+                base_revision=1, base_sha256=base_hash, operations=operations, artifact_sha256=artifact_hash,
+            )
+            preview = Preview(id=f'race-preview-{index}', document_id='race-doc', owner_id='owner-1',
+                              base_revision=1, base_sha256=base_hash, artifact_sha256=artifact_hash,
+                              patch_hash=patch_hash, operations=operations, status='ready', preview_key=key)
+            db.add(preview)
+            previews.append((preview.id, {
+                'base_revision': 1, 'base_sha256': base_hash,
+                'artifact_sha256': artifact_hash, 'patch_hash': patch_hash,
+            }))
+        await db.commit()
+    return objects, previews
+
+
+@pytest.mark.asyncio
+async def test_concurrent_preview_commits_publish_only_one_revision_in_postgres(postgres_resource_db, monkeypatch):
+    from fastapi import HTTPException
+    from open_webui.mini_hermes.revision_service import commit_preview
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    objects, previews = await _seed_revision_previews(postgres_resource_db, count=2)
+
+    class MemoryStore:
+        async def get(self, key):
+            return objects[key]
+
+    async def commit(index):
+        preview_id, approval = previews[index]
+        async with postgres_resource_db() as db:
+            return await commit_preview(
+                db, MemoryStore(), 'owner-1', preview_id,
+                approval=approval, idempotency_key=f'concurrent-{index}',
+            )
+
+    results = await asyncio.gather(commit(0), commit(1), return_exceptions=True)
+    successes = [result for result in results if not isinstance(result, BaseException)]
+    failures = [result for result in results if isinstance(result, BaseException)]
+    assert len(successes) == len(failures) == 1
+    assert successes[0][0].number == 2
+    assert isinstance(failures[0], HTTPException) and failures[0].status_code == 409
+    async with postgres_resource_db() as db:
+        assert (await db.get(Document, 'race-doc')).current_revision == 2
+        assert len(list((await db.scalars(select(Revision))).all())) == 2
+        assert len(list((await db.scalars(select(RevisionApproval))).all())) == 1
+        assert len(list((await db.scalars(select(RevisionOutbox))).all())) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('session_sharing', [True, False])
+async def test_permission_revocation_during_commit_blocks_publication_in_postgres(
+    postgres_resource_db, monkeypatch, session_sharing
+):
+    from fastapi import HTTPException
+    from sqlalchemy import delete
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.mini_hermes.revision_service import commit_preview
+    from open_webui.models.access_grants import AccessGrant
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
+    # With sharing disabled the access-grant helper opens its own session; keep
+    # that session in the same disposable database/schema as the publication.
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    objects, previews = await _seed_revision_previews(postgres_resource_db)
+    async with postgres_resource_db() as db:
+        await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
+        db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='race-doc',
+                           principal_type='user', principal_id='collaborator', permission='write', created_at=1))
+        await db.commit()
+
+    staged_read_started = asyncio.Event()
+    allow_staged_read = asyncio.Event()
+
+    class PausedStore:
+        async def get(self, key):
+            if key == 'stage-0':
+                staged_read_started.set()
+                await allow_staged_read.wait()
+            return objects[key]
+
+    async def commit():
+        async with postgres_resource_db() as db:
+            return await commit_preview(
+                db, PausedStore(), 'collaborator', previews[0][0],
+                approval=previews[0][1], idempotency_key='revoked-during-commit',
+            )
+
+    task = asyncio.create_task(commit())
+    try:
+        await asyncio.wait_for(staged_read_started.wait(), timeout=10)
+        async with postgres_resource_db() as db:
+            await db.execute(delete(AccessGrant).where(AccessGrant.id == 'grant-1'))
+            await db.commit()
+    except BaseException:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        raise
+    finally:
+        allow_staged_read.set()
+    with pytest.raises(HTTPException) as error:
+        await asyncio.wait_for(task, timeout=10)
+    assert error.value.status_code == 404
+    async with postgres_resource_db() as db:
+        assert (await db.get(Document, 'race-doc')).current_revision == 1
+        assert len(list((await db.scalars(select(Revision))).all())) == 1
+        assert list((await db.scalars(select(RevisionApproval))).all()) == []
+        assert list((await db.scalars(select(RevisionOutbox))).all()) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('session_sharing', [True, False])
+@pytest.mark.parametrize('grant_scope', ['mh_document', 'mh_folder'])
+async def test_permission_revoked_after_final_check_must_prevent_commit_in_postgres(
+    postgres_resource_db, monkeypatch, session_sharing, grant_scope
+):
+    """A committed revocation before publication must not authorize a later commit."""
+    from fastapi import HTTPException
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.mini_hermes.revision_service import commit_preview
+    from open_webui.models.access_grants import AccessGrant, AccessGrants
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    objects, previews = await _seed_revision_previews(postgres_resource_db)
+    grant_resource_id = 'shared-folder' if grant_scope == 'mh_folder' else 'race-doc'
+    async with postgres_resource_db() as db:
+        await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
+        if grant_scope == 'mh_folder':
+            db.add(Folder(id='shared-folder', owner_id='owner-1', name='Shared'))
+            document = await db.get(Document, 'race-doc')
+            document.folder_id = 'shared-folder'
+        db.add(AccessGrant(id='grant-1', resource_type=grant_scope, resource_id=grant_resource_id,
+                           principal_type='user', principal_id='collaborator', permission='write', created_at=1))
+        await db.commit()
+
+    last_check_passed = asyncio.Event()
+    allow_publication = asyncio.Event()
+    original_accessible = library.accessible_document
+    checks = 0
+
+    async def pause_after_final_check(*args, **kwargs):
+        nonlocal checks
+        document = await original_accessible(*args, **kwargs)
+        checks += 1
+        if checks == 2:
+            last_check_passed.set()
+            await allow_publication.wait()
+        return document
+
+    monkeypatch.setattr(library, 'accessible_document', pause_after_final_check)
+
+    class MemoryStore:
+        async def get(self, key):
+            return objects[key]
+
+    async def commit():
+        async with postgres_resource_db() as db:
+            return await commit_preview(
+                db, MemoryStore(), 'collaborator', previews[0][0],
+                approval=previews[0][1], idempotency_key='revoked-after-check',
+            )
+
+    async def revoke():
+        async with postgres_resource_db() as db:
+            await AccessGrants.set_access_grants(grant_scope, grant_resource_id, [], db=db)
+
+    task = asyncio.create_task(commit())
+    revocation = None
+    revoked_before_release = False
+    try:
+        await asyncio.wait_for(last_check_passed.wait(), timeout=10)
+        revocation = asyncio.create_task(revoke())
+        done, _ = await asyncio.wait({revocation}, timeout=1)
+        if done:
+            await revocation
+            revoked_before_release = True
+    except BaseException:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        if revocation is not None:
+            revocation.cancel()
+            await asyncio.gather(revocation, return_exceptions=True)
+        raise
+    finally:
+        allow_publication.set()
+
+    if not revoked_before_release:
+        # A correct locking protocol may serialize publication before revoke.
+        revision, _ = await asyncio.wait_for(task, timeout=10)
+        assert revision.number == 2
+        await asyncio.wait_for(revocation, timeout=10)
+        return
+
+    with pytest.raises(HTTPException) as error:
+        await asyncio.wait_for(task, timeout=10)
+    assert error.value.status_code == 404
+    async with postgres_resource_db() as db:
+        assert (await db.get(Document, 'race-doc')).current_revision == 1
+        assert len(list((await db.scalars(select(Revision))).all())) == 1
+        assert list((await db.scalars(select(RevisionApproval))).all()) == []
+        assert list((await db.scalars(select(RevisionOutbox))).all()) == []
+
+
+async def _seed_prototype_authorization_gate(session_factory):
+    """Test-only gate: this does not install or enable any production authorization protocol."""
+    from open_webui.models.access_grants import AccessGrant
+
+    objects, previews = await _seed_revision_previews(session_factory)
+    async with session_factory() as db:
+        await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
+        await db.execute(text('CREATE TABLE phase0_auth_gate (id INTEGER PRIMARY KEY)'))
+        await db.execute(text('INSERT INTO phase0_auth_gate (id) VALUES (1)'))
+        db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='race-doc',
+                           principal_type='user', principal_id='collaborator', permission='write', created_at=1))
+        await db.commit()
+    return objects, previews
+
+
+async def _wait_for_database_lock(session_factory, pid):
+    """Observe a live PostgreSQL lock wait instead of assuming a fixed scheduling delay."""
+    deadline = asyncio.get_running_loop().time() + 10
+    while asyncio.get_running_loop().time() < deadline:
+        async with session_factory() as db:
+            wait_type = await db.scalar(
+                text('SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid'), {'pid': pid}
+            )
+        if wait_type == 'Lock':
+            return
+        await asyncio.sleep(0.02)
+    raise AssertionError('Expected PostgreSQL lock wait was not observed')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('session_sharing', [True, False])
+async def test_prototype_publication_gate_serializes_revocation_after_commit(
+    postgres_resource_db, monkeypatch, session_sharing
+):
+    from sqlalchemy import delete
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.mini_hermes.revision_service import commit_preview
+    from open_webui.models.access_grants import AccessGrant
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    objects, previews = await _seed_prototype_authorization_gate(postgres_resource_db)
+    checked = asyncio.Event()
+    allow_publish = asyncio.Event()
+    revoker_pid = asyncio.Future()
+    original = library.accessible_document
+    checks = 0
+
+    async def pause_after_final_check(*args, **kwargs):
+        nonlocal checks
+        document = await original(*args, **kwargs)
+        checks += 1
+        if checks == 2:
+            checked.set()
+            await allow_publish.wait()
+        return document
+
+    monkeypatch.setattr(library, 'accessible_document', pause_after_final_check)
+
+    class Store:
+        async def get(self, key):
+            return objects[key]
+
+    async def publish():
+        async with postgres_resource_db() as db:
+            await db.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR SHARE'))
+            return await commit_preview(
+                db, Store(), 'collaborator', previews[0][0], approval=previews[0][1],
+                idempotency_key='prototype-publish-first',
+            )
+
+    async def revoke():
+        async with postgres_resource_db() as db:
+            revoker_pid.set_result(await db.scalar(text('SELECT pg_backend_pid()')))
+            await db.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR UPDATE'))
+            revision_before_revoke = (await db.get(Document, 'race-doc')).current_revision
+            await db.execute(delete(AccessGrant).where(AccessGrant.id == 'grant-1'))
+            await db.commit()
+            return revision_before_revoke
+
+    publisher = asyncio.create_task(publish())
+    revoker = None
+    try:
+        await asyncio.wait_for(checked.wait(), timeout=10)
+        revoker = asyncio.create_task(revoke())
+        await _wait_for_database_lock(postgres_resource_db, await asyncio.wait_for(revoker_pid, timeout=10))
+        allow_publish.set()
+        revision, _ = await asyncio.wait_for(publisher, timeout=10)
+        assert revision.number == 2
+        assert await asyncio.wait_for(revoker, timeout=10) == 2
+    finally:
+        allow_publish.set()
+        tasks = [task for task in (publisher, revoker) if task is not None]
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('session_sharing', [True, False])
+async def test_prototype_revocation_gate_serializes_publication_after_revoke(
+    postgres_resource_db, monkeypatch, session_sharing
+):
+    from fastapi import HTTPException
+    from sqlalchemy import delete
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.mini_hermes.revision_service import commit_preview
+    from open_webui.models.access_grants import AccessGrant
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    objects, previews = await _seed_prototype_authorization_gate(postgres_resource_db)
+    revoke_ready = asyncio.Event()
+    allow_revoke = asyncio.Event()
+    publisher_pid = asyncio.Future()
+
+    class Store:
+        async def get(self, key):
+            return objects[key]
+
+    async def revoke():
+        async with postgres_resource_db() as db:
+            await db.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR UPDATE'))
+            await db.execute(delete(AccessGrant).where(AccessGrant.id == 'grant-1'))
+            revoke_ready.set()
+            await allow_revoke.wait()
+            await db.commit()
+
+    async def publish():
+        async with postgres_resource_db() as db:
+            publisher_pid.set_result(await db.scalar(text('SELECT pg_backend_pid()')))
+            await db.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR SHARE'))
+            return await commit_preview(
+                db, Store(), 'collaborator', previews[0][0], approval=previews[0][1],
+                idempotency_key='prototype-revoke-first',
+            )
+
+    revoker = asyncio.create_task(revoke())
+    publisher = None
+    try:
+        await asyncio.wait_for(revoke_ready.wait(), timeout=10)
+        publisher = asyncio.create_task(publish())
+        await _wait_for_database_lock(postgres_resource_db, await asyncio.wait_for(publisher_pid, timeout=10))
+        allow_revoke.set()
+        await asyncio.wait_for(revoker, timeout=10)
+        with pytest.raises(HTTPException) as error:
+            await asyncio.wait_for(publisher, timeout=10)
+        assert error.value.status_code == 404
+        async with postgres_resource_db() as db:
+            assert (await db.get(Document, 'race-doc')).current_revision == 1
+            assert len(list((await db.scalars(select(Revision))).all())) == 1
+            assert list((await db.scalars(select(RevisionApproval))).all()) == []
+            assert list((await db.scalars(select(RevisionOutbox))).all()) == []
+    finally:
+        allow_revoke.set()
+        tasks = [task for task in (publisher, revoker) if task is not None]
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('session_sharing', [True, False])
+async def test_admin_demoted_during_commit_must_prevent_publication_in_postgres(
+    postgres_resource_db, monkeypatch, session_sharing
+):
+    """An authenticated role snapshot cannot outlive a committed demotion."""
+    from fastapi import HTTPException
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.mini_hermes.revision_service import commit_preview
+    from open_webui.models.access_grants import AccessGrant
+    from open_webui.models.users import User, Users
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    objects, previews = await _seed_revision_previews(postgres_resource_db)
+    async with postgres_resource_db() as db:
+        await db.run_sync(lambda sync: User.__table__.create(sync.connection(), checkfirst=True))
+        await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
+        db.add(User(id='former-admin', email='admin@example.invalid', name='Test admin', role='admin',
+                    created_at=1, updated_at=1, last_active_at=1))
+        await db.commit()
+
+    async with postgres_resource_db() as db:
+        authenticated_role = (await db.get(User, 'former-admin')).role
+    assert authenticated_role == 'admin'
+    staged_read_started = asyncio.Event()
+    allow_staged_read = asyncio.Event()
+
+    class PausedStore:
+        async def get(self, key):
+            if key == 'stage-0':
+                staged_read_started.set()
+                await allow_staged_read.wait()
+            return objects[key]
+
+    async def commit():
+        async with postgres_resource_db() as db:
+            return await commit_preview(
+                db, PausedStore(), 'former-admin', previews[0][0],
+                is_admin=authenticated_role == 'admin', approval=previews[0][1],
+                idempotency_key='demoted-admin',
+            )
+
+    async def demote():
+        async with postgres_resource_db() as db:
+            updated = await Users.update_user_role_by_id('former-admin', 'user', db=db)
+            assert updated.role == 'user'
+
+    task = asyncio.create_task(commit())
+    demotion = None
+    demoted_before_release = False
+    try:
+        await asyncio.wait_for(staged_read_started.wait(), timeout=10)
+        demotion = asyncio.create_task(demote())
+        done, _ = await asyncio.wait({demotion}, timeout=1)
+        if done:
+            await demotion
+            demoted_before_release = True
+    except BaseException:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        if demotion is not None:
+            demotion.cancel()
+            await asyncio.gather(demotion, return_exceptions=True)
+        raise
+    finally:
+        allow_staged_read.set()
+
+    if not demoted_before_release:
+        # A correct implementation can serialize publication before demotion.
+        revision, _ = await asyncio.wait_for(task, timeout=10)
+        assert revision.number == 2
+        await asyncio.wait_for(demotion, timeout=10)
+        return
+
+    with pytest.raises(HTTPException) as error:
+        await asyncio.wait_for(task, timeout=10)
+    assert error.value.status_code == 404
+    async with postgres_resource_db() as db:
+        assert (await db.get(User, 'former-admin')).role == 'user'
+        assert (await db.get(Document, 'race-doc')).current_revision == 1
+        assert len(list((await db.scalars(select(Revision))).all())) == 1
+        assert list((await db.scalars(select(RevisionApproval))).all()) == []
+        assert list((await db.scalars(select(RevisionOutbox))).all()) == []
+
+
+@pytest.mark.asyncio
+async def test_document_move_rechecks_admin_role_after_demotion_in_postgres(postgres_resource_db, monkeypatch):
+    """A route's old admin flag must not authorize a later folder move."""
+    from fastapi import HTTPException
+    from open_webui.mini_hermes import library
+    from open_webui.models.access_grants import AccessGrant
+    from open_webui.models.users import User, Users
+
+    from open_webui.internal import db as internal_db
+
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    async with postgres_resource_db() as db:
+        await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
+        db.add(User(id='former-admin', email='admin@example.invalid', name='Former admin', role='admin',
+                    created_at=1, updated_at=1, last_active_at=1))
+        db.add(Folder(id='move-source', owner_id='owner-1', name='Source', is_personal_root=False))
+        db.add(Folder(id='move-target', owner_id='owner-1', name='Private', is_personal_root=False))
+        await db.flush()
+        db.add(Document(id='move-doc', owner_id='owner-1', folder_id='move-source',
+                        filename='report.xlsx', mime_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        current_revision=1))
+        await db.commit()
+
+    async with postgres_resource_db() as db:
+        authenticated_is_admin = (await db.get(User, 'former-admin')).role == 'admin'
+    assert authenticated_is_admin
+
+    async with postgres_resource_db() as db:
+        updated = await Users.update_user_role_by_id('former-admin', 'user', db=db)
+        assert updated.role == 'user'
+
+    async with postgres_resource_db() as db:
+        with pytest.raises(HTTPException) as error:
+            await library.move_document(db, 'move-doc', 'former-admin', 'move-target',
+                                        is_admin=authenticated_is_admin)
+        assert error.value.status_code == 404
+        await db.rollback()
+        assert (await db.get(Document, 'move-doc')).folder_id == 'move-source'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('isolation', 'expected_count'), [
+    ('READ COMMITTED', 0),
+    ('REPEATABLE READ', 1),
+])
+async def test_prototype_gate_does_not_refresh_an_existing_repeatable_read_snapshot(
+    postgres_resource_db, isolation, expected_count
+):
+    """A gate row lock alone cannot refresh an earlier transaction snapshot."""
+    from sqlalchemy import delete, func
+    from open_webui.models.access_grants import AccessGrant
+
+    await _seed_prototype_authorization_gate(postgres_resource_db)
+    async with postgres_resource_db() as reader:
+        await reader.execute(text(f'SET TRANSACTION ISOLATION LEVEL {isolation}'))
+        assert await reader.scalar(select(func.count()).select_from(AccessGrant)) == 1
+        async with postgres_resource_db() as writer:
+            await writer.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR UPDATE'))
+            await writer.execute(delete(AccessGrant).where(AccessGrant.id == 'grant-1'))
+            await writer.commit()
+        # Writer has committed before the reader acquires the proposed gate.
+        await reader.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR SHARE'))
+        assert await reader.scalar(select(func.count()).select_from(AccessGrant)) == expected_count
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('isolation', 'expected_count'), [
+    ('READ COMMITTED', 0),
+    ('REPEATABLE READ', 1),
+])
+async def test_prototype_gate_first_query_waits_on_revoker_with_transaction_snapshot(
+    postgres_resource_db, isolation, expected_count
+):
+    """Under repeatable read, a waiting first lock query can pin a stale snapshot."""
+    from sqlalchemy import delete, func
+    from open_webui.models.access_grants import AccessGrant
+
+    await _seed_prototype_authorization_gate(postgres_resource_db)
+    reader_pid = asyncio.get_running_loop().create_future()
+    async with postgres_resource_db() as writer:
+        await writer.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR UPDATE'))
+        await writer.execute(delete(AccessGrant).where(AccessGrant.id == 'grant-1'))
+
+        async def read_after_gate():
+            async with postgres_resource_db() as reader:
+                await reader.execute(text(f'SET TRANSACTION ISOLATION LEVEL {isolation}'))
+                connection = await reader.connection()
+                raw = await connection.get_raw_connection()
+                reader_pid.set_result(raw.driver_connection.info.backend_pid)
+                # This is the first SELECT in the reader transaction.
+                await reader.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR SHARE'))
+                return await reader.scalar(select(func.count()).select_from(AccessGrant))
+
+        task = asyncio.create_task(read_after_gate())
+        try:
+            await _wait_for_database_lock(postgres_resource_db, await asyncio.wait_for(reader_pid, timeout=10))
+            await writer.commit()
+            assert await asyncio.wait_for(task, timeout=10) == expected_count
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_prototype_gate_requires_fresh_orm_role_read_in_read_committed(postgres_resource_db, monkeypatch):
+    """A reused identity-map entry can outlive a committed role change."""
+    from sqlalchemy import update
+    from open_webui.internal import db as internal_db
+    from open_webui.models.users import User, Users
+
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+    await _seed_prototype_authorization_gate(postgres_resource_db)
+    async with postgres_resource_db() as db:
+        await db.run_sync(lambda sync: User.__table__.create(sync.connection(), checkfirst=True))
+        db.add(User(id='former-admin', email='admin@example.invalid', name='Test admin', role='admin',
+                    created_at=1, updated_at=1, last_active_at=1))
+        await db.commit()
+
+    async with postgres_resource_db() as reader:
+        await reader.execute(text('SET TRANSACTION ISOLATION LEVEL READ COMMITTED'))
+        cached = await reader.get(User, 'former-admin')
+        assert cached.role == 'admin'
+        async with postgres_resource_db() as writer:
+            await writer.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR UPDATE'))
+            await writer.execute(update(User).where(User.id == 'former-admin').values(role='user'))
+            await writer.commit()
+        await reader.execute(text('SELECT id FROM phase0_auth_gate WHERE id = 1 FOR SHARE'))
+        stale = await Users.get_user_by_id('former-admin', db=reader)
+        assert stale.role == 'admin'
+        fresh = await reader.scalar(select(User).where(User.id == 'former-admin').execution_options(populate_existing=True))
+        assert fresh.role == 'user'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('session_sharing', [True, False])
+async def test_owner_deactivated_during_commit_must_prevent_publication_in_postgres(
+    postgres_resource_db, monkeypatch, session_sharing
+):
+    """An authenticated owner cannot publish after the account is deactivated."""
+    from fastapi import HTTPException
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.mini_hermes.revision_service import commit_preview
+    from open_webui.models.access_grants import AccessGrant
+    from open_webui.models.users import User, Users
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    objects, previews = await _seed_revision_previews(postgres_resource_db)
+    async with postgres_resource_db() as db:
+        await db.run_sync(lambda sync: User.__table__.create(sync.connection(), checkfirst=True))
+        await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
+
+    async with postgres_resource_db() as db:
+        authenticated_role = (await db.get(User, 'owner-1')).role
+    assert authenticated_role == 'user'
+    staged_read_started = asyncio.Event()
+    allow_staged_read = asyncio.Event()
+
+    class PausedStore:
+        async def get(self, key):
+            if key == 'stage-0':
+                staged_read_started.set()
+                await allow_staged_read.wait()
+            return objects[key]
+
+    async def commit():
+        async with postgres_resource_db() as db:
+            return await commit_preview(
+                db, PausedStore(), 'owner-1', previews[0][0],
+                is_admin=False, approval=previews[0][1],
+                idempotency_key='deactivated-owner',
+            )
+
+    async def demote():
+        async with postgres_resource_db() as db:
+            updated = await Users.update_user_by_id('owner-1', {'role': 'pending'}, db=db)
+            assert updated.role == 'pending'
+
+    task = asyncio.create_task(commit())
+    demotion = None
+    demoted_before_release = False
+    try:
+        await asyncio.wait_for(staged_read_started.wait(), timeout=10)
+        demotion = asyncio.create_task(demote())
+        done, _ = await asyncio.wait({demotion}, timeout=1)
+        if done:
+            await demotion
+            demoted_before_release = True
+    except BaseException:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        if demotion is not None:
+            demotion.cancel()
+            await asyncio.gather(demotion, return_exceptions=True)
+        raise
+    finally:
+        allow_staged_read.set()
+
+    if not demoted_before_release:
+        # A correct implementation can serialize publication before demotion.
+        revision, _ = await asyncio.wait_for(task, timeout=10)
+        assert revision.number == 2
+        await asyncio.wait_for(demotion, timeout=10)
+        return
+
+    with pytest.raises(HTTPException) as error:
+        await asyncio.wait_for(task, timeout=10)
+    assert error.value.status_code in (401, 403, 404)
+    async with postgres_resource_db() as db:
+        assert (await db.get(User, 'owner-1')).role == 'pending'
+        assert (await db.get(Document, 'race-doc')).current_revision == 1
+        assert len(list((await db.scalars(select(Revision))).all())) == 1
+        assert list((await db.scalars(select(RevisionApproval))).all()) == []
+        assert list((await db.scalars(select(RevisionOutbox))).all()) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('session_sharing', [True, False])
+async def test_group_membership_revoked_after_check_serializes_publication_in_postgres(
+    postgres_resource_db, monkeypatch, session_sharing
+):
+    from fastapi import HTTPException
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.mini_hermes.revision_service import commit_preview
+    from open_webui.models.access_grants import AccessGrant
+    from open_webui.models.groups import Group, GroupMember, Groups
+
+    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
+    monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
+    objects, previews = await _seed_revision_previews(postgres_resource_db)
+    async with postgres_resource_db() as db:
+        await db.run_sync(lambda sync: Group.__table__.create(sync.connection(), checkfirst=True))
+        await db.run_sync(lambda sync: GroupMember.__table__.create(sync.connection(), checkfirst=True))
+        await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
+        db.add_all([
+            Group(id='writers', user_id='owner-1', name='Writers', description='',
+                  created_at=1, updated_at=1),
+            GroupMember(id='member-1', group_id='writers', user_id='collaborator',
+                        created_at=1, updated_at=1),
+            AccessGrant(id='group-grant', resource_type='mh_document', resource_id='race-doc',
+                        principal_type='group', principal_id='writers', permission='write', created_at=1),
+        ])
+        await db.commit()
+
+    checked = asyncio.Event()
+    release = asyncio.Event()
+    original = library.accessible_document
+    calls = 0
+
+    async def pause_after_final_check(*args, **kwargs):
+        nonlocal calls
+        document = await original(*args, **kwargs)
+        calls += 1
+        if calls == 2:
+            checked.set()
+            await release.wait()
+        return document
+
+    monkeypatch.setattr(library, 'accessible_document', pause_after_final_check)
+
+    class Store:
+        async def get(self, key):
+            return objects[key]
+
+    async def publish():
+        async with postgres_resource_db() as db:
+            return await commit_preview(
+                db, Store(), 'collaborator', previews[0][0], approval=previews[0][1],
+                idempotency_key='group-revoke-race',
+            )
+
+    publisher = asyncio.create_task(publish())
+    revocation = None
+    revoked_first = False
+    try:
+        await asyncio.wait_for(checked.wait(), timeout=10)
+        revocation = asyncio.create_task(Groups.set_group_user_ids_by_id('writers', []))
+        done, _ = await asyncio.wait({revocation}, timeout=1)
+        if done:
+            await revocation
+            revoked_first = True
+    finally:
+        release.set()
+
+    if revoked_first:
+        with pytest.raises(HTTPException) as error:
+            await asyncio.wait_for(publisher, timeout=10)
+        assert error.value.status_code == 404
+    else:
+        revision, _ = await asyncio.wait_for(publisher, timeout=10)
+        assert revision.number == 2
+        await asyncio.wait_for(revocation, timeout=10)
+
+    async with postgres_resource_db() as db:
+        assert (await db.scalar(select(Document.current_revision).where(Document.id == 'race-doc'))) == (
+            1 if revoked_first else 2
+        )
+
+
+@pytest.mark.asyncio
+async def test_authorization_gate_rejects_repeatable_read_snapshot(postgres_resource_db):
+    from open_webui.internal.db import lock_document_authorization
+
+    async with postgres_resource_db() as db:
+        await db.execute(text('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ'))
+        with pytest.raises(RuntimeError, match='READ COMMITTED'):
+            await lock_document_authorization(db, exclusive=False)

@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class OAuthSession(Base):
-    __tablename__ = 'oauth_session'
+    __tablename__ = 'mh_ow_oauth_session'
 
     id = Column(Text, primary_key=True, unique=True)
     user_id = Column(Text, nullable=False)

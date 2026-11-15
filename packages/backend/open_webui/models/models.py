@@ -189,7 +189,7 @@ class ModelMeta(BaseModel):
 class Model(Base):
     """Workspace model entry — wraps an upstream LLM with custom params and metadata."""
 
-    __tablename__ = 'model'
+    __tablename__ = 'mh_ow_model'
 
     id = Column(Text, primary_key=True, unique=True)  # API model identifier; overrides built-in when matching
     user_id = Column(Text)  # owner

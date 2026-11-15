@@ -12,6 +12,9 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from open_webui.internal.db import lock_document_authorization
+from open_webui.models.users import User
+
 from .models import (
     Preview,
     Revision,
@@ -134,6 +137,16 @@ async def commit_preview(
 ) -> tuple[Revision, SyncJob | None]:
     """Commit the exact approved staged object at one database visibility point."""
     from .library import accessible_document
+
+    await lock_document_authorization(db, exclusive=False)
+    if db.bind.dialect.name == 'postgresql':
+        # Authentication happened earlier in the request. Read live authority
+        # under the publication lock, without consulting the ORM identity map.
+        role = await db.scalar(select(User.role).where(User.id == user_id))
+        if role not in {'admin', 'user'}:
+            raise HTTPException(status_code=404, detail='Document not found')
+        is_admin = is_admin and role == 'admin'
+        db.expire_all()
 
     commit_key = _commit_key(idempotency_key, f'preview:{preview_id}')
     existing = (
@@ -294,6 +307,12 @@ async def commit_preview(
         from .chunks import replace_document_chunks
 
         await replace_document_chunks(db, doc.id, next_revision_number, doc.filename, content)
+
+    # Index preparation can take long enough for the approval to expire.
+    # Roll back all pending publication records if that happens.
+    if approval_expires_at <= now():
+        await db.rollback()
+        raise HTTPException(status_code=409, detail='Preview approval expired')
 
     # The database commit atomically publishes the revision pointer, approval,
     # revision metadata, index/sync jobs and durable outbox event. The staged

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from open_webui.internal.db import lock_document_authorization
 from open_webui.models.access_grants import AccessGrants
 from open_webui.models.groups import Groups
 
@@ -236,12 +237,20 @@ async def move_document(
     folder_id: str | None,
     is_admin: bool = False,
 ) -> Document:
-    document = await accessible_document(db, document_id, user_id, 'write', is_admin=is_admin)
-    target = (
-        await ensure_personal_folder(db, user_id)
-        if folder_id is None
-        else await accessible_folder(db, folder_id, user_id, 'write', is_admin=is_admin)
-    )
+    # Personal-root creation may commit, so finish it before taking the
+    # transaction-scoped authorization lock.
+    target_id = (await ensure_personal_folder(db, user_id)).id if folder_id is None else folder_id
+    await lock_document_authorization(db, exclusive=True)
+    if db.bind.dialect.name == 'postgresql':
+        from open_webui.models.users import User
+
+        role = await db.scalar(select(User.role).where(User.id == user_id))
+        if role not in {'admin', 'user'}:
+            raise HTTPException(status_code=404, detail='Document not found')
+        is_admin = is_admin and role == 'admin'
+        db.expire_all()
+    document = await accessible_document(db, document_id, user_id, 'write', is_admin=is_admin, lock=True)
+    target = await accessible_folder(db, target_id, user_id, 'write', is_admin=is_admin)
     document.folder_id = target.id
     await db.commit()
     return document

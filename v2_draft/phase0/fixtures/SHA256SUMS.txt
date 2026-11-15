@@ -1,0 +1,2 @@
+e85ad43cf67e3cb70576e6ad19e0f07452d00a1e9f1c7dc169dc1c9b248248be  xlsx-f05-synthetic.xlsx
+20be40841820b69d9701100e975c5cdca3f3c7a75a7f36bbf3f07c8bd2370486  xlsx-f01-f03-hidden-missing-cache.xlsx

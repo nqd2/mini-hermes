@@ -42,6 +42,7 @@ from open_webui.utils.access_control import check_model_access, has_connection_a
 from open_webui.utils.anthropic import ANTHROPIC_VERSION, get_anthropic_models, is_anthropic_url
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.headers import get_headers_and_cookies, include_user_info_headers
+from open_webui.utils.dev_wire_log import log_llm_json_response
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.misc import convert_logit_bias_input_to_json, get_provider_function
 from open_webui.utils.model_ids import strip_provider_model_prefix
@@ -75,6 +76,16 @@ def _log_provider_error(status: int, headers, response_data) -> None:
         error.get('type'),
         error.get('param'),
     )
+
+
+async def _read_provider_response(response, url: str):
+    """Read a non-streaming provider response as JSON or text and emit dev wire log if enabled."""
+    try:
+        data = await response.json(loads=JSONCodec.loads)
+    except Exception:
+        data = await response.text()
+    log_llm_json_response(response, url, data)
+    return data
 
 
 # Utility functions
@@ -453,7 +464,7 @@ async def count_anthropic_tokens(request: Request, form_data: dict, user: UserMo
 
     provider_gateway = ProviderGateway()
     prepared_request = provider_gateway.prepare(payload, url)
-    await provider_gateway.checkpoint(request, prepared_request)
+    await provider_gateway.checkpoint(request, prepared_request, metadata={})
     response = None
 
     try:
@@ -470,10 +481,7 @@ async def count_anthropic_tokens(request: Request, form_data: dict, user: UserMo
             provider_base_url=url,
         )
 
-        try:
-            response_data = await response.json(loads=JSONCodec.loads)
-        except Exception:
-            response_data = await response.text()
+        response_data = await _read_provider_response(response, request_url)
 
         if response.status >= 400:
             await publish_model_provider_request_failed(
@@ -1624,7 +1632,7 @@ async def generate_chat_completion(
 
     provider_gateway = ProviderGateway()
     prepared_request = provider_gateway.prepare(payload, url, capability_overrides)
-    await provider_gateway.checkpoint(request, prepared_request)
+    await provider_gateway.checkpoint(request, prepared_request, metadata=metadata or {})
     payload = prepared_request.payload
     serialized_payload = prepared_request.wire_body
     payload_metrics = prepared_request.metrics
@@ -1672,6 +1680,7 @@ async def generate_chat_completion(
             if r.status >= 400:
                 retry_headers = {k: v for k, v in r.headers.items() if k.lower() in ('retry-after', 'retry-after-ms')}
                 error_body = await r.text()
+                log_llm_json_response(r, request_url, error_body)
                 log.error(
                     'Provider returned HTTP %d with SSE content-type',
                     r.status,
@@ -1713,11 +1722,7 @@ async def generate_chat_completion(
                 headers=_clean_proxy_headers(r.headers),
             )
         else:
-            try:
-                response = await r.json(loads=JSONCodec.loads)
-            except Exception as e:
-                log.error(e)
-                response = await r.text()
+            response = await _read_provider_response(r, request_url)
 
             if r.status >= 400:
                 _log_provider_error(r.status, r.headers, response)
@@ -1836,10 +1841,7 @@ async def embeddings(request: Request, form_data: dict, user):
                 headers=_clean_proxy_headers(r.headers),
             )
         else:
-            try:
-                response_data = await r.json(loads=JSONCodec.loads)
-            except Exception:
-                response_data = await r.text()
+            response_data = await _read_provider_response(r, embeddings_url)
 
             if r.status >= 400:
                 _log_provider_error(r.status, r.headers, response_data)
@@ -1987,10 +1989,7 @@ async def responses(
                 headers=_clean_proxy_headers(r.headers),
             )
         else:
-            try:
-                response_data = await r.json(loads=JSONCodec.loads)
-            except Exception:
-                response_data = await r.text()
+            response_data = await _read_provider_response(r, request_url)
 
             if r.status >= 400:
                 _log_provider_error(r.status, r.headers, response_data)
@@ -2095,8 +2094,10 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
         # Prepare after provider-specific URL and payload transformations.
         try:
             validation_payload = JSONCodec.loads(body)
+            is_json_body = True
         except Exception:
             validation_payload = None
+            is_json_body = False
         prepared_request = None
         if isinstance(validation_payload, dict):
             from open_webui.agent_runtime.gateway import ProviderGateway
@@ -2111,6 +2112,16 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
                 prepared_request.payload.get('model'), payload_metrics['message_count'],
                 payload_metrics['serialized_chars'],
             )
+        elif body:
+            content_types = [request.headers.get('content-type', '')]
+            content_types.extend(value for key, value in headers.items() if key.lower() == 'content-type')
+            media_types = [str(value).split(';', 1)[0].strip().lower() for value in content_types]
+            if is_json_body or any(value == 'application/json' or value.endswith('+json') for value in media_types):
+                # Non-object JSON and malformed bodies sent or declared as JSON
+                # are unchanged, so check the exact bytes sent to the provider.
+                from open_webui.agent_runtime.request_budget import RequestBudgetManager
+
+                RequestBudgetManager().validate(body)
 
         session = await get_session()
         if prepared_request is not None:
@@ -2149,10 +2160,7 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
                 headers=_clean_proxy_headers(r.headers),
             )
         else:
-            try:
-                response_data = await r.json(loads=JSONCodec.loads)
-            except Exception:
-                response_data = await r.text()
+            response_data = await _read_provider_response(r, request_url)
 
             if r.status >= 400:
                 retry_headers = {k: v for k, v in r.headers.items() if k.lower() in ('retry-after', 'retry-after-ms')}

@@ -7,7 +7,8 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_schemas(monkeypatch):
+@pytest.mark.parametrize('configured', [True, False])
+async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_schemas(monkeypatch, configured):
     config_module = types.ModuleType('open_webui.models.config')
     config_module.Config = type('Config', (), {})
     monkeypatch.setitem(sys.modules, 'open_webui.models.config', config_module)
@@ -28,7 +29,7 @@ async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_
     monkeypatch.setattr(
         tool_search,
         'get_tool_search_config',
-        AsyncMock(return_value={'defer_threshold': 1, 'always_loaded': [], 'defer_builtin_tools': True}),
+        AsyncMock(return_value={'defer_threshold': 1, 'always_loaded': [], 'defer_builtin_tools': True} if configured else None),
     )
 
     builtin_module = types.ModuleType('open_webui.tools.builtin')
@@ -44,6 +45,7 @@ async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_
         name: {'type': 'builtin', 'spec': {'name': name, 'description': 'Large schema' * 10}}
         for name in required_tools | {'other_large_tool'}
     }
+    tools['other_large_tool']['spec']['description'] = 'Unrelated scheduling capability. ' * 600
     # Tool resolution runs before evidence retrieval sets resource_summary_task_required.
     metadata = {
         'resource_aware_files': True,
@@ -61,4 +63,5 @@ async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_
 
     assert deferred == {'other_large_tool'}
     assert not required_tools.intersection(deferred)
+    assert 'strict' not in tools['call_tool']['spec']
     sys.modules.pop('open_webui.utils.tool_search', None)

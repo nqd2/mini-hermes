@@ -8,7 +8,7 @@ from sqlalchemy import JSON, BigInteger, Column, Text, select, update
 
 
 class SkillHistory(Base):
-    __tablename__ = 'skill_history'
+    __tablename__ = 'mh_ow_skill_history'
     id = Column(Text, primary_key=True)
     skill_id = Column(Text, nullable=False, index=True)
     parent_id = Column(Text, nullable=True)

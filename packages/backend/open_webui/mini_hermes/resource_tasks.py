@@ -220,6 +220,9 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
             provider_base_url=base_url,
             body_argument='content',
         )
+    from open_webui.utils.dev_wire_log import log_llm_json_response
+
+    log_llm_json_response(response, f'{base_url}/chat/completions', response.content)
     if response.status_code >= 400:
         try:
             detail = JSONCodec.loads(response.content)

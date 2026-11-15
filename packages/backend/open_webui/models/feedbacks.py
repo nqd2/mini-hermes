@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 class Feedback(Base):
-    __tablename__ = 'feedback'
+    __tablename__ = 'mh_ow_feedback'
     id = Column(Text, primary_key=True, unique=True)
     user_id = Column(Text)
     version = Column(BigInteger, default=0)

@@ -23,6 +23,12 @@ RESOURCE_SUMMARY_TOOLS = {
     'start_document_summary_task',
     'get_document_task',
 }
+RESOURCE_DOCUMENT_TOOLS = RESOURCE_SUMMARY_TOOLS | {
+    'ask_user', 'list_chat_files', 'view_file', 'grep_chat_files', 'display_file',
+    'read_editable_document', 'search_editable_document', 'read_document_skill',
+    'run_document_code', 'run_skill_script', 'publish_document_output',
+    'propose_document_edit', 'read_agent_artifact', 'cancel_document_task', 'resume_document_task',
+}
 
 
 def _resource_summary_tools_required(metadata: dict) -> bool:
@@ -110,6 +116,18 @@ async def apply_tool_search(
     """Add discovery and dispatch when tools can be deferred; return names to omit from provider tools."""
     names = set(tools_dict) | {(tool.get('function') or tool).get('name') for tool in extra_tools or []}
     config = not names.intersection({SEARCH_TOOL_NAME, CALL_TOOL_NAME}) and await get_tool_search_config()
+    budget_deferral = (
+        not config
+        and not names.intersection({SEARCH_TOOL_NAME, CALL_TOOL_NAME})
+        and metadata.get('resource_aware_files')
+        and metadata.get('resource_execution_requested')
+        and len(JSONCodec.dumps([tool.get('spec') or {} for tool in tools_dict.values()]))
+        > max(12_000, int(metadata.get('resource_file_context_char_budget') or 6000) * 2)
+    )
+    if budget_deferral:
+        # Reuse discovery/dispatch for unrelated capabilities rather than crowding
+        # the active document turn with their schemas. Permissions are unchanged.
+        config = {'defer_threshold': 0, 'always_loaded': [], 'defer_builtin_tools': True}
     summary_phase = metadata.get('resource_summary_task_phase')
     protected_names = (
         RESOURCE_SUMMARY_TOOLS
@@ -117,6 +135,8 @@ async def apply_tool_search(
         or (metadata.get('resource_summary_task_required') and summary_phase in {'list', 'start', 'status'})
         else set()
     )
+    if budget_deferral:
+        protected_names = protected_names | RESOURCE_DOCUMENT_TOOLS
     deferred = select_deferred_tools(tools_dict, config, protected_names=protected_names) if config else []
     if not deferred:
         return set()
@@ -152,7 +172,6 @@ async def apply_tool_search(
                 'Invoke a tool found by search_tools. Use its exact name and encode its arguments as a JSON '
                 'object string matching the returned definition. Use "{}" for a tool without arguments.'
             ),
-            'strict': True,
             'parameters': {
                 'type': 'object',
                 'properties': {

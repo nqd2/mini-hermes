@@ -6,7 +6,7 @@ import datetime
 import time
 from typing import Literal, Optional
 from open_webui.env import DATABASE_USER_ACTIVE_STATUS_UPDATE_INTERVAL
-from open_webui.internal.db import Base, JSONField, get_async_db_context
+from open_webui.internal.db import Base, JSONField, get_async_db_context, lock_document_authorization
 from open_webui.utils.misc import throttle
 from open_webui.utils.validate import validate_image_url
 from pydantic import (
@@ -140,7 +140,7 @@ class UserSettings(BaseModel):
 class User(Base):  # identity & profile
     """One row per registered account — profile, role, and settings."""
 
-    __tablename__: str = 'user'  # Identity & Credentials
+    __tablename__: str = 'mh_ow_user'  # Identity & Credentials
     id = Column(String, primary_key=True, unique=True)  # unique user id
     email = Column(String, unique=True)  # user email address
     username = Column(String(50), nullable=True)  # custom handle
@@ -235,7 +235,7 @@ class UserStatusModel(UserModel):
 
 
 class ApiKey(Base):
-    __tablename__ = 'api_key'
+    __tablename__ = 'mh_ow_api_key'
 
     id = Column(Text, primary_key=True, unique=True)
     user_id = Column(Text, nullable=False)
@@ -722,6 +722,7 @@ class UsersTable:
 
     async def update_user_role_by_id(self, id: str, role: str, db: AsyncSession | None = None) -> UserModel | None:
         async with get_async_db_context(db) as session:
+            await lock_document_authorization(session, exclusive=True)
             user = await session.get(User, id)
             if not user:
                 return None
@@ -805,6 +806,8 @@ class UsersTable:
 
     async def update_user_by_id(self, id: str, updated: dict, db: AsyncSession | None = None) -> UserModel | None:
         async with get_async_db_context(db) as session:
+            if 'role' in updated:
+                await lock_document_authorization(session, exclusive=True)
             user = await session.get(User, id)
             if not user:
                 return None
@@ -860,6 +863,7 @@ class UsersTable:
             from open_webui.models.notifications import delete_user_notifications
 
             await delete_user_notifications(id, db=session)
+            await lock_document_authorization(session, exclusive=True)
             await session.execute(delete(User).where(User.id == id))
             await session.commit()
             return True

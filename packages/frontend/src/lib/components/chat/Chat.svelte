@@ -3893,12 +3893,14 @@
 			messageIdsList,
 			regenerationPrompt,
 			regenerationMessageId,
-			continueResponse = false
+			continueResponse = false,
+			continuationId
 		}: {
 			messageIdsList?: Array<{ model_id: string; message_id: string }>;
 			regenerationPrompt?: string | null;
 			regenerationMessageId?: string | null;
 			continueResponse?: boolean;
+			continuationId?: string;
 		} = {}
 	) => {
 		const responseMessage = _history.messages[responseMessageId];
@@ -3996,6 +3998,7 @@
 			regenerationPrompt,
 			regenerationMessageId,
 			continueResponse,
+			continuationId,
 			backgroundTasks: {
 				...(!$temporaryChatEnabled &&
 				(!_chatId ||
@@ -4224,7 +4227,7 @@
 					history,
 					responseMessage.id,
 					_chatId,
-					{ continueResponse: true }
+					{ continueResponse: true, continuationId: uuidv4() }
 				);
 			}
 		}

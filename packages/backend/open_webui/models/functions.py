@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class Function(Base):  # database table mapping
-    __tablename__ = 'function'
+    __tablename__ = 'mh_ow_function'
 
     id = Column(String, primary_key=True, unique=True)
     version_id = Column(Text, nullable=True)

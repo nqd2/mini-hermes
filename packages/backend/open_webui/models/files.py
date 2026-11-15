@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 class File(Base):  # uploaded file record
-    __tablename__ = 'file'
+    __tablename__ = 'mh_ow_file'
     id = Column(String, primary_key=True, unique=True)
     user_id = Column(String, index=True)  # owner user id
     hash = Column(Text, nullable=True)

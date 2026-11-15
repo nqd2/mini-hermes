@@ -218,6 +218,7 @@ from open_webui.utils.access_control.folders import has_folder_write_access
 from open_webui.utils.actions import chat_action as chat_action_handler
 from open_webui.utils.asgi_middleware import AppHTTPMiddleware, BrowserCORSMiddleware
 from open_webui.utils.audit import AuditLevel, AuditLoggingMiddleware
+from open_webui.utils.dev_wire_log import DevJsonWireMiddleware
 from open_webui.utils.auth import (
     create_admin_user,
     decode_token,
@@ -376,6 +377,13 @@ async def lifespan(app: FastAPI):
 
     app.state.instance_id = INSTANCE_ID
     start_logger()
+
+    # Mini-Hermes V2 fail-closed persistence and storage validation
+    from open_webui.mini_hermes.v2.environment import validate_async_startup_or_exit
+    from open_webui.mini_hermes.v2.storage import validate_storage_startup_or_exit
+
+    await validate_async_startup_or_exit()
+    validate_storage_startup_or_exit()
 
     if RESET_CONFIG_ON_START:
         await async_reset_config()
@@ -832,6 +840,8 @@ if audit_level != AuditLevel.NONE:
         max_body_size=MAX_BODY_LOG_SIZE,
     )
 
+app.add_middleware(DevJsonWireMiddleware)
+
 if ENABLE_COMPRESSION_MIDDLEWARE:
     app.add_middleware(CompressMiddleware)
 
@@ -891,8 +901,10 @@ app.include_router(folders.router, prefix='/api/v1/folders', tags=['folders'])
 app.include_router(groups.router, prefix='/api/v1/groups', tags=['groups'])
 app.include_router(files.router, prefix='/api/v1/files', tags=['files'])
 from open_webui.mini_hermes.routes import router as document_router
+from open_webui.mini_hermes.v2.routes import router as v2_document_router
 
 app.include_router(document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents'])
+app.include_router(v2_document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents-v2'])
 app.include_router(functions.router, prefix='/api/v1/functions', tags=['functions'])
 app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['evaluations'])
 if ENABLE_ADMIN_ANALYTICS:
@@ -1255,6 +1267,7 @@ async def chat_completion(
             'user_message': user_message,
             'user_message_id': user_message.get('id') if user_message else None,
             'assistant_message_id': form_data.pop('assistant_message_id', None),
+            'continuation_id': form_data.pop('continuation_id', None),
             'regeneration_message_id': form_data.pop('regeneration_message_id', None),
             'session_id': form_data.pop('session_id', None),
             'automation_id': automation_id,
@@ -1676,6 +1689,11 @@ async def chat_completion(
                     raise
             finally:
                 if error_detail is not None:
+                    if metadata.get('agent_turn_id') and not metadata.get('agent_error'):
+                        metadata['agent_error'] = {
+                            'code': 'chat_response_error',
+                            'message': str(error_detail)[:2000],
+                        }
                     log.error('Error processing chat payload: %s', error_detail)
                     if metadata.get('chat_id') and metadata.get('message_id'):
                         if is_saved_chat_id(metadata['chat_id']):
@@ -1877,11 +1895,14 @@ async def chat_completion(
                     session_id = turn_metadata.get('agent_session_id')
                     if run_id:
                         try:
-                            await agent_runtime._fail_turn(run_id, error_data)
+                            await agent_runtime._fail_turn(
+                                run_id, error_data, run_attempt=turn_metadata.get('agent_turn_attempt')
+                            )
                             current = await agent_runtime.repository.get_turn(run_id)
                             if current and session_id:
                                 await agent_runtime._update_task_status(
-                                    session_id, user.id, run_id, current.status
+                                    session_id, user.id, run_id, current.status,
+                                    run_attempt=turn_metadata.get('agent_turn_attempt'),
                                 )
                         except Exception:
                             log.exception('Could not persist terminal state for agent run %s', run_id)

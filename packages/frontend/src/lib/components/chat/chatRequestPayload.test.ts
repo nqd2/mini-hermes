@@ -43,6 +43,15 @@ const createInput = (overrides: Record<string, any> = {}) => ({
 });
 
 describe('buildChatRequestPayload', () => {
+  it('keeps continuation identity stable across retries and distinct from message identity', () => {
+    const input = createInput({ continueResponse: true, continuationId: 'operation-1' });
+    const first = buildChatRequestPayload(input);
+    const retry = buildChatRequestPayload(input);
+    expect(first.continuation_id).toBe('operation-1');
+    expect(retry.continuation_id).toBe(first.continuation_id);
+    expect(first.assistant_message_id).toBe(input.responseMessageId);
+    expect(buildChatRequestPayload(createInput()).continuation_id).toBeUndefined();
+  });
   it('preserves provider payload fields while filtering null model params', () => {
     const input = createInput({ messages: [] });
 

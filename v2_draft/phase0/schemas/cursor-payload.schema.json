@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mini-hermes.invalid/v2/draft/cursor-payload.schema.json",
+  "title": "Proposed V2 document cursor payload",
+  "description": "Structural checks only; MAC, scope digest, timestamps, position and authorization require semantic validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "principal_id", "tenant_id", "operation", "document_id", "revision", "source_sha256", "build_id", "scope_sha256", "position", "iat", "exp"],
+  "properties": {
+    "v": {"const": 1},
+    "principal_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "operation": {"enum": ["read_document_range", "read_spreadsheet_range", "search_document"]},
+    "document_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "source_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "build_id": {"type": "string", "minLength": 1},
+    "scope_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_ordinal", "fragment"],
+      "properties": {
+        "item_ordinal": {"type": "integer", "minimum": 0},
+        "fragment": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["field", "codepoint_offset"],
+              "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "codepoint_offset": {"type": "integer", "minimum": 0}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "iat": {"type": "integer", "minimum": 0},
+    "exp": {"type": "integer", "minimum": 1}
+  }
+}

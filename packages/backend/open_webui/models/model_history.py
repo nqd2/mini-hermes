@@ -26,7 +26,7 @@ def model_snapshot(model) -> dict:
 
 
 class ModelHistory(Base):
-    __tablename__ = 'model_history'
+    __tablename__ = 'mh_ow_model_history'
     id = Column(Text, primary_key=True)
     model_id = Column(Text, nullable=False, index=True)
     parent_id = Column(Text, nullable=True)

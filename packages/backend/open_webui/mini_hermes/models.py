@@ -48,7 +48,7 @@ class Document(Base):
 class Folder(Base):
     __tablename__ = 'mh_folder'
     __table_args__ = (
-        Index('uq_mh_folder_personal_root', 'owner_id', unique=True,
+        Index('uq_mh_doc_folder_personal_root', 'owner_id', unique=True,
               postgresql_where=text('is_personal_root = true'), sqlite_where=text('is_personal_root = 1')),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

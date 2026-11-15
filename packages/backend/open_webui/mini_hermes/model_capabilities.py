@@ -42,6 +42,8 @@ _COMMON_PROFILES = {
     'o3': _profile(True, True),
     'o3-mini': _profile(True, True),
     'o4-mini': _profile(True, True),
+    'gpt-5.4': _profile(True),
+    'gpt-5.4-2026-03-05': _profile(True),
     'gpt-5.6': _profile(True),
     'gpt-6-sol': _profile(True),
     'gpt-6-luna': _profile(True),

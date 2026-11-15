@@ -159,11 +159,11 @@ def _extract_tool_names(value: Any) -> list[str]:
 
 
 class ChatMessage(Base):
-    __tablename__ = 'chat_message'
+    __tablename__ = 'mh_ow_chat_message'
 
     # Identity
     id = Column(Text, primary_key=True)
-    chat_id = Column(Text, ForeignKey('chat.id', ondelete='CASCADE'), nullable=False, index=True)
+    chat_id = Column(Text, ForeignKey('mh_ow_chat.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(Text, index=True)
 
     # Structure

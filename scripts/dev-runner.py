@@ -70,6 +70,8 @@ def start(name: str, command: list[str], cwd: Path) -> None:
         if not token or token.startswith('replace-'):
             raise RuntimeError('Set MH_SANDBOX_TOKEN in packages/backend/.env before starting the dev stack')
         child_env['MH_SANDBOX_TOKEN'] = token
+        child_env.setdefault('MH_DEV_JSON_WIRE_LOG', '1')
+        child_env.setdefault('PYTHONIOENCODING', 'utf-8')
     process = subprocess.Popen(
         command,
         cwd=cwd,

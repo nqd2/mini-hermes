@@ -1,0 +1,28 @@
+# V2 human-session revocation contract — proposal for Auth owner review
+
+**Status:** Proposed Phase 0 contract, not implemented or accepted. It addresses the current-checkout sign-out gap documented in [D07f](07f-auth-session-boundary-inventory.md). Open WebUI/Auth Service remains the sole owner of identity, sessions and RBAC; AgentRuntime and Document/Revision services consume an authenticated principal and recheck current resource authorization.
+
+## Decision candidate and alternatives
+
+For the V2 fresh PostgreSQL baseline, propose a durable per-token revocation ledger owned by Auth Service. `create_token` already issues a random `jti`, while every JWT request already consults current auth account state. The ledger adds a bounded lookup and makes successful sign-out durable without Redis. Redis may cache revocation but cannot be the only authority.
+
+| Choice | Effect | Phase 0 disposition |
+| --- | --- | --- |
+| PostgreSQL revocation ledger | One durable, transactionally acknowledged revocation per JWT; preserves other sessions | Proposed choice; review query/retention and availability gates. |
+| Require Redis and fail closed if absent | Simpler code path, but auth availability and recovery depend on Redis persistence/configuration | Alternative if operations owner proves durability, startup validation and failure behavior. |
+| Rotate account `session_stamp` at every sign-out | Durable with existing state but logs out every device and tab | Reject as default because it changes the existing per-token intent. Keep for explicit account-wide revocation. |
+
+## Proposed contract
+
+1. New V2 human sessions contain `typ=session`, `id`, random `jti`, issue/expiry times and the current `session_stamp`. Automation/subagent and API keys cannot call human-session endpoints. V2 rejects a session token without a valid `jti`; the production transition must specify re-login for old tokens rather than import V1 privileged session state.
+2. `POST /api/v1/auths/signout` keeps its public request and `{status:true}` success shape. Auth Service identifies the bearer token first, then the cookie. For a valid still-usable session token, it validates signature/account binding and commits a revocation for that token's `jti` before returning success. Repeating sign-out for the same token is idempotent. Missing, expired or invalid credentials may still return success after clearing cookies because they cannot authorize a request; this branch must be tested and must not claim a revocation record was written. The frontend clears local session state.
+3. A revocation record is keyed by a one-way digest of the random `jti`, bound to `user_id`, with `revoked_at` and token `expires_at`. The digest is unique. A revoked token remains denied until it could no longer be valid by expiry; cleanup occurs after a safety margin and never before expiry. The table is in the V2 Open WebUI/Auth persistence namespace, not the document store, and is excluded from user import/export.
+4. Every request that accepts a session JWT checks signature/expiry, current account `session_stamp` and per-token revocation using authoritative V2 persistence before returning a principal. This includes HTTP, Socket.IO handshake/reconnect, task/run controls and document approval/commit entry points. A cached negative result cannot outlive a concurrent revocation. Redis is optional acceleration only with an invalidation/version protocol; the initial correctness path queries PostgreSQL.
+5. If the Auth database cannot confirm revocation status, authentication fails closed. If sign-out's revocation commit fails or its outcome is unknown, the endpoint must not claim server-side logout success; return a typed retry/reconciliation error and avoid interpreting cookie deletion as proof of invalidation. A client can still discard its local credential, but must not report a confirmed server-side revoke until status is known.
+6. Account-wide password/role/security changes continue to rotate `session_stamp` when their policy requires it. AgentRuntime never receives a token as durable authority; it stores principal identity and reauthorizes on resume/replay. Revision Service checks current permissions at publication under its transaction protocol.
+
+## Persistence and concurrency requirements
+
+Proposed table `v2_auth_revoked_session_jtis`: `jti_digest` primary key, `user_id`, `expires_at`, `revoked_at`, `reason`; index `expires_at` for safe retention. Auth Service performs `INSERT ... ON CONFLICT DO NOTHING` in a committed transaction, then returns 200. The same token presented concurrently at a protected endpoint must have a defined linearization order: if revocation commits first, authorization denies; if the request's authorization point is first, a previously accepted operation may complete only under its own current-permission/side-effect protocol. An already-running document commit must still recheck resource access at its publication boundary. The exact session authorization boundary and isolation/lock strategy require Auth/DB owner review before freeze.
+
+Use a disposable PostgreSQL database to prove: duplicate sign-out, crash after DB commit before ACK, same token denied without Redis, two different tokens where one sign-out preserves the other, account-wide stamp rotation, DB outage fail closed, concurrent request/revocation ordering, Socket.IO reconnect, and no privileged token data in V2 import/export. Add response/cookie consumer tests before changing the public wire behavior. The current no-Redis ASGI characterization must be replaced by a V2 regression that expects denial after successful sign-out; it is not evidence the proposal is implemented.

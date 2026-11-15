@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mini-hermes.invalid/v2/draft/coverage-proof.schema.json",
+  "title": "Proposed V2 coverage proof",
+  "description": "Structural constraints only. Source provenance and interval semantics require independent validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "coverage_type", "scope", "enumerated_total", "processed_intervals", "processed_count",
+    "failed_units", "unsupported_units", "excluded_units", "complete", "proof_id", "verified_at"
+  ],
+  "properties": {
+    "coverage_type": {
+      "enum": [
+        "parser_coverage", "index_coverage", "retrieval_coverage", "analysis_coverage",
+        "summary_coverage", "llm_context_coverage"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["document_id", "revision", "source_sha256", "index_build_id", "unit_type", "scope_id"],
+      "properties": {
+        "document_id": {"type": "string", "minLength": 1},
+        "revision": {"type": "integer", "minimum": 1},
+        "source_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "index_build_id": {"type": ["string", "null"], "minLength": 1},
+        "unit_type": {"type": "string", "minLength": 1},
+        "scope_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "enumerated_total": {"type": ["integer", "null"], "minimum": 0},
+    "processed_intervals": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {"type": "integer", "minimum": 0},
+          {"type": "integer", "minimum": 0}
+        ],
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
+    "processed_count": {"type": "integer", "minimum": 0},
+    "failed_units": {"$ref": "#/$defs/unit_ids"},
+    "unsupported_units": {"$ref": "#/$defs/unit_ids"},
+    "excluded_units": {"$ref": "#/$defs/unit_ids"},
+    "complete": {"type": "boolean"},
+    "proof_id": {"type": "string", "minLength": 1},
+    "verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "$defs": {
+    "unit_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"complete": {"const": true}}, "required": ["complete"]},
+      "then": {
+        "properties": {
+          "enumerated_total": {"type": "integer", "minimum": 0},
+          "failed_units": {"maxItems": 0},
+          "unsupported_units": {"maxItems": 0},
+          "excluded_units": {"maxItems": 0}
+        }
+      }
+    }
+  ]
+}

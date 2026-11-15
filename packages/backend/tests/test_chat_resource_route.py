@@ -143,6 +143,39 @@ def _build_request(app) -> Request:
 
 
 @pytest.mark.asyncio
+async def test_provider_http_error_marks_runtime_metadata_before_return(monkeypatch):
+    from starlette.responses import JSONResponse
+    from open_webui.agent_runtime.runtime import AgentRuntime
+    main = importlib.import_module('open_webui.main')
+    model = _build_model('model')
+    _install_model_configuration(monkeypatch, main, 'model', model)
+    captured = {}
+
+    async def prepare(request, form_data, user, metadata, model):
+        return form_data, metadata, [], False
+
+    async def provider(*args):
+        return JSONResponse({'error': {'message': 'Insufficient credits'}}, status_code=402)
+
+    async def run(**kwargs):
+        metadata = kwargs['metadata']
+        metadata['agent_turn_id'] = 'run-1'
+        result = await kwargs['handler']()
+        captured.update(metadata)
+        return result
+
+    monkeypatch.setattr(main, 'process_chat_payload', prepare)
+    monkeypatch.setattr(main, 'chat_completion_handler', provider)
+    monkeypatch.setattr(AgentRuntime, 'configured', classmethod(lambda cls: SimpleNamespace(run_chat_turn=run)))
+    result = await main.chat_completion(_build_request(main.app), {
+        'model': 'model', 'model_item': model, 'messages': [{'role': 'user', 'content': 'hello'}],
+        'id': 'assistant-1', 'params': {}, 'stream': False,
+    }, SimpleNamespace(id='alice', role='admin', name='Alice'))
+    assert result.status_code == 402
+    assert captured['agent_error']['message'] == 'Insufficient credits'
+
+
+@pytest.mark.asyncio
 async def test_chat_route_runs_bounded_resource_evidence_before_provider(monkeypatch):
     main = importlib.import_module('open_webui.main')
     middleware = importlib.import_module('open_webui.utils.middleware')

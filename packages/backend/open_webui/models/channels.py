@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class Channel(Base):
-    __tablename__ = 'channel'
+    __tablename__ = 'mh_ow_channel'
 
     id = Column(Text, primary_key=True, unique=True)
     user_id = Column(Text)
@@ -95,7 +95,7 @@ class ChannelModel(BaseModel):
 
 
 class ChannelMember(Base):
-    __tablename__ = 'channel_member'
+    __tablename__ = 'mh_ow_channel_member'
 
     id = Column(Text, primary_key=True, unique=True)
     channel_id = Column(Text, nullable=False)
@@ -162,14 +162,14 @@ class ChannelMemberModel(BaseModel):
 
 
 class ChannelFile(Base):
-    __tablename__ = 'channel_file'
+    __tablename__ = 'mh_ow_channel_file'
 
     id = Column(Text, unique=True, primary_key=True)
     user_id = Column(Text, nullable=False)
 
-    channel_id = Column(Text, ForeignKey('channel.id', ondelete='CASCADE'), nullable=False)
-    message_id = Column(Text, ForeignKey('message.id', ondelete='CASCADE'), nullable=True)
-    file_id = Column(Text, ForeignKey('file.id', ondelete='CASCADE'), nullable=False)
+    channel_id = Column(Text, ForeignKey('mh_ow_channel.id', ondelete='CASCADE'), nullable=False)
+    message_id = Column(Text, ForeignKey('mh_ow_message.id', ondelete='CASCADE'), nullable=True)
+    file_id = Column(Text, ForeignKey('mh_ow_file.id', ondelete='CASCADE'), nullable=False)
 
     created_at = Column(BigInteger, nullable=False)
     updated_at = Column(BigInteger, nullable=False)
@@ -191,7 +191,7 @@ class ChannelFileModel(BaseModel):
 
 
 class ChannelWebhook(Base):
-    __tablename__ = 'channel_webhook'
+    __tablename__ = 'mh_ow_channel_webhook'
 
     id = Column(Text, primary_key=True, unique=True)
     channel_id = Column(Text, nullable=False)

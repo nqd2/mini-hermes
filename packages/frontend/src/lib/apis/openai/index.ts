@@ -4,6 +4,10 @@ export const getErrorMessage = (err: any, fallback = 'Server connection failed')
 	if (Array.isArray(err)) return fallback;
 	return (
 		[
+			err?.detail?.error?.content?.message,
+			err?.detail?.content?.message,
+			err?.error?.content?.message,
+			err?.content?.message,
 			err?.detail?.error?.message,
 			err?.detail?.message,
 			err?.detail?.content,

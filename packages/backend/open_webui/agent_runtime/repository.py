@@ -23,6 +23,35 @@ from .models import (
 from .contracts import ConversationEngineBinding, RunBinding
 
 
+def _utc_datetime(value: dt.datetime) -> dt.datetime:
+    # SQLite drops timezone information from stored UTC timestamps.
+    return value.replace(tzinfo=dt.timezone.utc) if value.tzinfo is None else value
+
+
+class StaleRunError(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=409, detail='Agent run claim is no longer current.')
+
+
+def _require_current_run(turn: AgentTurn, run_attempt: int) -> None:
+    if (
+        type(run_attempt) is not int or turn.attempts != run_attempt or turn.status != 'running'
+        or turn.cancel_requested or turn.lease_until is None or _utc_datetime(turn.lease_until) <= utcnow()
+    ):
+        raise StaleRunError()
+
+
+def _same_json_value(left: Any, right: Any) -> bool:
+    """Compare JSON values without treating booleans as numbers."""
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(_same_json_value(left[key], right[key]) for key in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(_same_json_value(a, b) for a, b in zip(left, right))
+    return left == right
+
+
 class AgentRepository:
     """Store durable agent state. Every public mutation commits before returning."""
 
@@ -109,18 +138,23 @@ class AgentRepository:
         owner_id: str,
         turn_id: str,
         status: str,
+        run_attempt: int,
         objective: str | None = None,
         user_message_id: str | None = None,
     ) -> bool:
         async with self._session_factory() as db:
             async with db.begin():
+                turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 session = await db.scalar(
                     select(AgentSession)
                     .where(AgentSession.id == session_id, AgentSession.owner_id == owner_id)
                     .with_for_update()
                 )
-                if session is None:
+                if session is None or turn is None or turn.session_id != session_id:
                     return False
+                expected_status = 'running' if status == 'in_progress' else status
+                if type(run_attempt) is not int or turn.attempts != run_attempt or turn.status != expected_status:
+                    raise StaleRunError()
                 state = dict(session.task_state) if isinstance(session.task_state, dict) else {}
                 active = set(state.get('active_turn_ids') or [])
                 if status == 'in_progress':
@@ -152,6 +186,7 @@ class AgentRepository:
         idempotency_key: str | None = None,
         tool_contract_version: str = 'pending',
         skill_snapshot_version: str = 'pending',
+        continuation: bool = False,
     ) -> AgentTurn:
         if not isinstance(request_payload, dict):
             raise ValueError('request_payload must be an object')
@@ -171,14 +206,16 @@ class AgentRepository:
                     )
                     if existing is not None:
                         same_request = (
-                            existing.request_payload == request_payload
+                            _same_json_value(existing.request_payload, request_payload)
                             and existing.model_id == model_id
                             and existing.chat_message_id == chat_message_id
                             and existing.user_message_id == user_message_id
                             and existing.engine_type == session.engine_type
                             and existing.engine_version == session.engine_version
-                            and existing.tool_contract_version == tool_contract_version
-                            and existing.skill_snapshot_version == skill_snapshot_version
+                            and (tool_contract_version == 'pending'
+                                 or existing.tool_contract_version == tool_contract_version)
+                            and (skill_snapshot_version == 'pending'
+                                 or existing.skill_snapshot_version == skill_snapshot_version)
                         )
                         if not same_request:
                             raise HTTPException(
@@ -198,6 +235,18 @@ class AgentRepository:
                 if duplicate:
                     pass
                 else:
+                    if continuation:
+                        previous = await db.scalar(
+                            select(AgentTurn).where(
+                                AgentTurn.session_id == session_id,
+                                AgentTurn.chat_message_id == chat_message_id,
+                            ).order_by(AgentTurn.sequence.desc()).limit(1)
+                        )
+                        if previous is None or previous.status not in {'completed', 'failed', 'cancelled'}:
+                            raise HTTPException(status_code=409, detail={
+                                'code': 'continuation_not_allowed',
+                                'message': 'Only a terminal response can be continued. Resume or reconcile the existing run first.',
+                            })
                     sequence = session.next_turn_sequence
                     session.next_turn_sequence += 1
                     session.updated_at = utcnow()
@@ -304,6 +353,7 @@ class AgentRepository:
         turn_id: str,
         status: str,
         *,
+        run_attempt: int,
         event_type: str,
         payload: dict | None = None,
         error: dict | None = None,
@@ -317,6 +367,11 @@ class AgentRepository:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
                 if turn.status in {'completed', 'failed', 'cancelled'}:
                     raise HTTPException(status_code=409, detail='Terminal turn state cannot be changed.')
+                if (
+                    turn.status != 'running' or type(run_attempt) is not int or turn.attempts != run_attempt
+                    or turn.lease_until is None or _utc_datetime(turn.lease_until) <= utcnow()
+                ):
+                    raise StaleRunError()
                 turn.status = status
                 turn.worker_id = None
                 turn.lease_until = None
@@ -451,7 +506,9 @@ class AgentRepository:
                 },
             }
 
-    async def append_event(self, turn_id: str, event_type: str, payload: dict) -> AgentEvent:
+    async def append_event(
+        self, turn_id: str, event_type: str, payload: dict, *, run_attempt: int | None = None
+    ) -> AgentEvent:
         if not event_type or len(event_type) > 96:
             raise ValueError('event_type must contain 1 to 96 characters')
         if not isinstance(payload, dict):
@@ -461,6 +518,11 @@ class AgentRepository:
                 turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 if turn is None:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
+                if run_attempt is not None and (
+                    type(run_attempt) is not int or turn.attempts != run_attempt or turn.status != 'running'
+                    or turn.lease_until is None or _utc_datetime(turn.lease_until) <= utcnow()
+                ):
+                    raise StaleRunError()
                 event = self._append_event_in_transaction(db, turn, event_type, payload)
             await db.refresh(event)
             return event
@@ -503,11 +565,17 @@ class AgentRepository:
                 raise HTTPException(status_code=404, detail='Agent turn not found.')
             latest_sequence = max(0, turn.next_event_sequence - 1)
             first_sequence = await db.scalar(
-                select(func.min(AgentEvent.sequence)).where(AgentEvent.turn_id == turn_id)
+                select(func.min(AgentEvent.sequence)).where(
+                    AgentEvent.turn_id == turn_id, AgentEvent.sequence <= latest_sequence
+                )
             )
             result = await db.scalars(
                 select(AgentEvent)
-                .where(AgentEvent.turn_id == turn_id, AgentEvent.sequence > cursor)
+                .where(
+                    AgentEvent.turn_id == turn_id,
+                    AgentEvent.sequence > cursor,
+                    AgentEvent.sequence <= latest_sequence,
+                )
                 .order_by(AgentEvent.sequence)
                 .limit(limit)
             )
@@ -526,7 +594,9 @@ class AgentRepository:
             'events': events,
             'first_available_sequence': first_sequence,
             'latest_sequence': latest_sequence,
-            'next_after_sequence': latest_sequence if gap_detected else last_sequence,
+            # A status snapshot does not contain unreturned client events. Never
+            # advance the cursor past events this page did not return.
+            'next_after_sequence': last_sequence,
             'has_more': last_sequence < latest_sequence,
             'gap_detected': gap_detected,
             'snapshot_required': gap_detected,
@@ -543,7 +613,8 @@ class AgentRepository:
             return RunBinding.from_records(session, turn)
 
     async def bind_run_contract(
-        self, turn_id: str, *, tool_contract_version: str, skill_snapshot_version: str
+        self, turn_id: str, *, tool_contract_version: str, skill_snapshot_version: str,
+        run_attempt: int | None = None,
     ) -> RunBinding:
         if not tool_contract_version or not skill_snapshot_version:
             raise ValueError('tool and skill snapshot versions are required')
@@ -554,6 +625,8 @@ class AgentRepository:
                 turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 if turn is None:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
+                if run_attempt is not None:
+                    _require_current_run(turn, run_attempt)
                 session = await db.get(AgentSession, turn.session_id)
                 if session is None:
                     raise HTTPException(status_code=404, detail='Agent session not found.')
@@ -592,7 +665,9 @@ class AgentRepository:
                 )
                 return result.rowcount == 1
 
-    async def save_checkpoint(self, turn_id: str, data: dict, *, kind: str = 'turn') -> AgentCheckpoint:
+    async def save_checkpoint(
+        self, turn_id: str, data: dict, *, kind: str = 'turn', run_attempt: int | None = None
+    ) -> AgentCheckpoint:
         if not isinstance(data, dict):
             raise ValueError('checkpoint data must be an object')
         async with self._session_factory() as db:
@@ -600,6 +675,8 @@ class AgentRepository:
                 turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 if turn is None:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
+                if run_attempt is not None:
+                    _require_current_run(turn, run_attempt)
                 turn.checkpoint_version += 1
                 turn.updated_at = utcnow()
                 checkpoint = AgentCheckpoint(
@@ -662,24 +739,25 @@ class AgentRepository:
         turn_id: str,
         worker_id: str,
         *,
+        run_attempt: int,
         lease_seconds: int = 60,
         now: dt.datetime | None = None,
     ) -> bool:
         if lease_seconds < 1:
             raise ValueError('lease_seconds must be positive')
-        current_time = now or utcnow()
         async with self._session_factory() as db:
-            result = await db.execute(
-                update(AgentTurn)
-                .where(
-                    AgentTurn.id == turn_id,
-                    AgentTurn.status == 'running',
-                    AgentTurn.worker_id == worker_id,
-                )
-                .values(lease_until=current_time + dt.timedelta(seconds=lease_seconds), updated_at=current_time)
-            )
-            await db.commit()
-            return bool(result.rowcount)
+            async with db.begin():
+                turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
+                current_time = now or utcnow()
+                if (
+                    turn is None or turn.status != 'running' or turn.worker_id != worker_id
+                    or type(run_attempt) is not int or turn.attempts != run_attempt
+                    or turn.lease_until is None or _utc_datetime(turn.lease_until) <= current_time
+                ):
+                    return False
+                turn.lease_until = current_time + dt.timedelta(seconds=lease_seconds)
+                turn.updated_at = current_time
+                return True
 
     async def recover_expired_turns(self, *, now: dt.datetime | None = None) -> int:
         current_time = now or utcnow()
@@ -751,7 +829,7 @@ class AgentRepository:
                     recovered += 1
         return recovered
 
-    async def interrupt_running_tool_calls(self, turn_id: str) -> bool:
+    async def interrupt_running_tool_calls(self, turn_id: str, *, run_attempt: int) -> bool:
         """Release retry-safe reads; quarantine interrupted side effects as unknown."""
         current_time = utcnow()
         unknown = False
@@ -760,6 +838,11 @@ class AgentRepository:
                 turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 if turn is None:
                     return False
+                if (
+                    turn.status != 'running' or type(run_attempt) is not int or turn.attempts != run_attempt
+                    or turn.lease_until is None or _utc_datetime(turn.lease_until) <= utcnow()
+                ):
+                    raise StaleRunError()
                 invocations = await db.scalars(
                     select(AgentToolInvocation)
                     .where(AgentToolInvocation.turn_id == turn_id, AgentToolInvocation.status == 'running')
@@ -792,6 +875,7 @@ class AgentRepository:
         tool_name: str,
         arguments: dict,
         retry_safe: bool,
+        run_attempt: int,
         idempotency_key: str | None = None,
     ) -> tuple[AgentToolInvocation, bool]:
         if not call_id or not tool_name:
@@ -805,6 +889,12 @@ class AgentRepository:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
                 if turn.status != 'running':
                     raise HTTPException(status_code=409, detail='Agent turn is not running.')
+                if type(run_attempt) is not int or turn.attempts != run_attempt:
+                    raise HTTPException(status_code=409, detail='Agent run attempt is stale.')
+                if turn.lease_until is None or _utc_datetime(turn.lease_until) <= utcnow():
+                    raise HTTPException(status_code=409, detail='Agent run lease has expired.')
+                if turn.cancel_requested:
+                    raise HTTPException(status_code=409, detail='Agent turn cancellation has been requested.')
                 invocation = await db.scalar(
                     select(AgentToolInvocation)
                     .where(AgentToolInvocation.turn_id == turn.id, AgentToolInvocation.call_id == call_id)
@@ -831,7 +921,7 @@ class AgentRepository:
                     db.add(invocation)
                     acquired = True
                 else:
-                    if invocation.tool_name != tool_name or invocation.arguments != arguments:
+                    if invocation.tool_name != tool_name or not _same_json_value(invocation.arguments, arguments):
                         raise HTTPException(
                             status_code=409, detail='Tool call identity was reused with different input.'
                         )
@@ -878,6 +968,7 @@ class AgentRepository:
         approved_by: str,
         retry_safe: bool,
         idempotency_key: str,
+        execution_attempt: int | None = None,
     ) -> AgentToolInvocation:
         if decision not in {'approved', 'rejected'}:
             raise ValueError('tool approval decision must be approved or rejected')
@@ -891,6 +982,12 @@ class AgentRepository:
                 session = await db.get(AgentSession, turn.session_id)
                 if session is None or session.owner_id != owner_id:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
+                if execution_attempt is not None and (
+                    type(execution_attempt) is not int or turn.attempts != execution_attempt
+                    or turn.status != 'running' or turn.cancel_requested
+                    or turn.lease_until is None or _utc_datetime(turn.lease_until) <= utcnow()
+                ):
+                    raise StaleRunError()
                 if turn.status not in {'running', 'waiting_approval', 'interrupted'}:
                     raise HTTPException(status_code=409, detail='Agent turn is not awaiting tool approval.')
 
@@ -920,7 +1017,7 @@ class AgentRepository:
                     )
                     db.add(invocation)
                 else:
-                    if invocation.tool_name != tool_name or invocation.arguments != arguments:
+                    if invocation.tool_name != tool_name or not _same_json_value(invocation.arguments, arguments):
                         raise HTTPException(
                             status_code=409, detail='Tool call identity was reused with different input.'
                         )
@@ -950,10 +1047,14 @@ class AgentRepository:
         call_id: str,
         result_data: Any,
         *,
+        attempt: int,
         result_artifact_id: str | None = None,
     ) -> AgentToolInvocation:
         async with self._session_factory() as db:
             async with db.begin():
+                turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
+                if turn is None:
+                    raise HTTPException(status_code=404, detail='Agent turn not found.')
                 invocation = await db.scalar(
                     select(AgentToolInvocation)
                     .where(AgentToolInvocation.turn_id == turn_id, AgentToolInvocation.call_id == call_id)
@@ -961,6 +1062,8 @@ class AgentRepository:
                 )
                 if invocation is None:
                     raise HTTPException(status_code=404, detail='Tool invocation not found.')
+                if invocation.attempt_count != attempt:
+                    raise HTTPException(status_code=409, detail='Tool invocation attempt is stale.')
                 if invocation.status == 'outcome_unknown':
                     raise HTTPException(status_code=409, detail='Unknown tool outcome requires reconciliation.')
                 if invocation.status != 'succeeded':
@@ -971,7 +1074,6 @@ class AgentRepository:
                     invocation.result_artifact_id = result_artifact_id
                     invocation.completed_at = utcnow()
                     invocation.updated_at = invocation.completed_at
-                    turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                     if turn:
                         self._append_event_in_transaction(
                             db,
@@ -986,10 +1088,13 @@ class AgentRepository:
             return invocation
 
     async def fail_tool_call(
-        self, turn_id: str, call_id: str, error: dict, *, uncertain: bool = False
+        self, turn_id: str, call_id: str, error: dict, *, attempt: int, uncertain: bool = False
     ) -> AgentToolInvocation:
         async with self._session_factory() as db:
             async with db.begin():
+                turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
+                if turn is None:
+                    raise HTTPException(status_code=404, detail='Agent turn not found.')
                 invocation = await db.scalar(
                     select(AgentToolInvocation)
                     .where(AgentToolInvocation.turn_id == turn_id, AgentToolInvocation.call_id == call_id)
@@ -997,11 +1102,14 @@ class AgentRepository:
                 )
                 if invocation is None:
                     raise HTTPException(status_code=404, detail='Tool invocation not found.')
+                if invocation.attempt_count != attempt:
+                    raise HTTPException(status_code=409, detail='Tool invocation attempt is stale.')
+                if invocation.status != 'running':
+                    raise HTTPException(status_code=409, detail='Tool invocation is not running.')
                 invocation.status = 'outcome_unknown' if uncertain else 'failed'
                 invocation.error = error
                 invocation.completed_at = utcnow()
                 invocation.updated_at = invocation.completed_at
-                turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 if turn:
                     if uncertain:
                         turn.status = 'paused'
@@ -1016,9 +1124,14 @@ class AgentRepository:
             await db.refresh(invocation)
             return invocation
 
-    async def release_tool_call_for_retry(self, turn_id: str, call_id: str, error: dict) -> AgentToolInvocation:
+    async def release_tool_call_for_retry(
+        self, turn_id: str, call_id: str, error: dict, *, attempt: int
+    ) -> AgentToolInvocation:
         async with self._session_factory() as db:
             async with db.begin():
+                turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
+                if turn is None:
+                    raise HTTPException(status_code=404, detail='Agent turn not found.')
                 invocation = await db.scalar(
                     select(AgentToolInvocation)
                     .where(AgentToolInvocation.turn_id == turn_id, AgentToolInvocation.call_id == call_id)
@@ -1026,6 +1139,8 @@ class AgentRepository:
                 )
                 if invocation is None:
                     raise HTTPException(status_code=404, detail='Tool invocation not found.')
+                if invocation.attempt_count != attempt:
+                    raise HTTPException(status_code=409, detail='Tool invocation attempt is stale.')
                 if not invocation.retry_safe:
                     raise HTTPException(status_code=409, detail='Only retry-safe tool calls can be released.')
                 if invocation.status == 'running':
@@ -1033,7 +1148,6 @@ class AgentRepository:
                     invocation.error = error
                     invocation.started_at = None
                     invocation.updated_at = utcnow()
-                    turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                     if turn:
                         turn.status = 'interrupted'
                         turn.worker_id = None
@@ -1057,12 +1171,17 @@ class AgentRepository:
         async with self._session_factory() as db:
             return await db.get(AgentTurn, turn_id)
 
-    async def complete_turn(self, turn_id: str, *, result: dict | None = None) -> AgentTurn:
+    async def complete_turn(self, turn_id: str, *, run_attempt: int, result: dict | None = None) -> AgentTurn:
         async with self._session_factory() as db:
             async with db.begin():
                 turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 if turn is None:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
+                if (
+                    turn.status != 'running' or type(run_attempt) is not int or turn.attempts != run_attempt
+                    or turn.lease_until is None or _utc_datetime(turn.lease_until) <= utcnow()
+                ):
+                    raise StaleRunError()
                 unresolved = await db.scalar(
                     select(AgentToolInvocation.id)
                     .where(

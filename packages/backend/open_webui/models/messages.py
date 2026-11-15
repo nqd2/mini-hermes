@@ -16,7 +16,7 @@ from sqlalchemy.sql import exists
 
 
 class MessageReaction(Base):
-    __tablename__ = 'message_reaction'
+    __tablename__ = 'mh_ow_message_reaction'
     id = Column(Text, primary_key=True, unique=True)
     user_id = Column(Text)
     message_id = Column(Text)
@@ -35,7 +35,7 @@ class MessageReactionModel(BaseModel):
 
 
 class Message(Base):
-    __tablename__ = 'message'
+    __tablename__ = 'mh_ow_message'
     id = Column(Text, primary_key=True, unique=True)
 
     user_id = Column(Text)

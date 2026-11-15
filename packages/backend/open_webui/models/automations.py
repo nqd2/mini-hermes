@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 class Automation(Base):
-    __tablename__ = 'automation'
+    __tablename__ = 'mh_ow_automation'
 
     id = Column(Text, primary_key=True)
     user_id = Column(Text, nullable=False)
@@ -39,7 +39,7 @@ class Automation(Base):
 
 
 class AutomationRun(Base):
-    __tablename__ = 'automation_run'
+    __tablename__ = 'mh_ow_automation_run'
 
     id = Column(Text, primary_key=True)
     automation_id = Column(Text, nullable=False)

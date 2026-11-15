@@ -35,7 +35,7 @@ MIN_CALENDAR_RRULE_INTERVAL_SECONDS = 24 * 60 * 60
 
 
 class Calendar(Base):
-    __tablename__ = 'calendar'
+    __tablename__ = 'mh_ow_calendar'
 
     id = Column(Text, primary_key=True)
     user_id = Column(Text, nullable=False)
@@ -52,7 +52,7 @@ class Calendar(Base):
 
 
 class CalendarEvent(Base):
-    __tablename__ = 'calendar_event'
+    __tablename__ = 'mh_ow_calendar_event'
 
     id = Column(Text, primary_key=True)
     calendar_id = Column(Text, nullable=False)
@@ -79,7 +79,7 @@ class CalendarEvent(Base):
 
 
 class CalendarEventAttendee(Base):
-    __tablename__ = 'calendar_event_attendee'
+    __tablename__ = 'mh_ow_calendar_event_attendee'
 
     id = Column(Text, primary_key=True)
     event_id = Column(Text, nullable=False)

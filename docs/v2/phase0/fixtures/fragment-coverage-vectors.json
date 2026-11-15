@@ -1,0 +1,846 @@
+{
+  "status": "proposed-test-vectors-not-v2-wire-format",
+  "cases": [
+    {
+      "name": "three-adjacent-pages",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10000,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 3000,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 3000,
+          "end": 6000,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 6000,
+          "end": 10000,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": true,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "middle-gap",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10000,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 3000,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 3001,
+          "end": 10000,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "duplicate-not-complete",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10000,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 5000,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 5000,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "overlap-union-complete",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 6,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 4,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": true,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "unsorted-complete",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 5,
+          "end": 10,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 5,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": true,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "different-revision",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 5,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 2,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 5,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "different-build",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 5,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b2",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 5,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "different-unit",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 5,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A2",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 5,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "different-consumer",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 5,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer2",
+            "scope": "request1"
+          },
+          "start": 5,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "unknown-total",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": null,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "outside-total",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 11,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "empty-unobserved",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 0,
+      "fragments": [],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "empty-explicitly-observed",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 0,
+      "fragments": [],
+      "expected": true,
+      "empty_observed": true,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "empty-unauthenticated",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 0,
+      "fragments": [],
+      "expected": false,
+      "empty_observed": true,
+      "empty_evidence": null,
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "missing-required-field",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": false,
+      "required_fields": [
+        "text",
+        "formula"
+      ],
+      "observed_fields": [
+        "text"
+      ],
+      "empty_observed": false,
+      "empty_evidence": "empty-observation"
+    },
+    {
+      "name": "all-required-fields",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 10,
+          "evidence": "ev1"
+        }
+      ],
+      "expected": true,
+      "required_fields": [
+        "text",
+        "formula"
+      ],
+      "observed_fields": [
+        "text",
+        "formula"
+      ],
+      "empty_observed": false,
+      "empty_evidence": "empty-observation"
+    },
+    {
+      "name": "untrusted-fragment",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 10,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 10,
+          "evidence": null
+        }
+      ],
+      "expected": false,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ]
+    },
+    {
+      "name": "unicode-codepoint-offsets",
+      "scope": {
+        "document": "d1",
+        "revision": 1,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": "b1",
+        "unit": "Sheet1!A1",
+        "representation": "cell-text-v1",
+        "consumer": "consumer1",
+        "scope": "request1"
+      },
+      "total": 4,
+      "fragments": [
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 0,
+          "end": 2,
+          "evidence": "ev1"
+        },
+        {
+          "scope": {
+            "document": "d1",
+            "revision": 1,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "build": "b1",
+            "unit": "Sheet1!A1",
+            "representation": "cell-text-v1",
+            "consumer": "consumer1",
+            "scope": "request1"
+          },
+          "start": 2,
+          "end": 4,
+          "evidence": "ev2"
+        }
+      ],
+      "expected": true,
+      "empty_observed": false,
+      "empty_evidence": "empty-observation",
+      "required_fields": [
+        "text"
+      ],
+      "observed_fields": [
+        "text"
+      ],
+      "sample_text": "A😀\n|"
+    }
+  ]
+}

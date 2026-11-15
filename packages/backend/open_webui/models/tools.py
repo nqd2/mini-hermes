@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 
 
 class Tool(Base):  # database table definition
-    __tablename__ = 'tool'
+    __tablename__ = 'mh_ow_tool'
 
     id = Column(String, primary_key=True, unique=True)
     version_id = Column(Text, nullable=True)

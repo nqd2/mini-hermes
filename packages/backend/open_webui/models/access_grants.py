@@ -3,7 +3,7 @@ import time
 import uuid
 from typing import Optional
 
-from open_webui.internal.db import Base, get_async_db_context
+from open_webui.internal.db import Base, get_async_db_context, lock_document_authorization
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import BigInteger, Column, Text, UniqueConstraint, and_, delete, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -21,7 +21,7 @@ WILDCARD_PRINCIPAL_ID = '*'
 
 
 class AccessGrant(Base):
-    __tablename__ = 'access_grant'
+    __tablename__ = 'mh_ow_access_grant'
 
     id = Column(Text, primary_key=True)
     resource_type = Column(Text, nullable=False)  # "knowledge", "model", "prompt", "tool", "note", "channel", "file"
@@ -329,6 +329,7 @@ class AccessGrantsTable:
     ) -> Optional[AccessGrantModel]:
         """Add a single access grant. Idempotent (ignores duplicates)."""
         async with get_async_db_context(db) as db:
+            await lock_document_authorization(db, exclusive=True)
             # Check for existing grant
             result = await db.execute(
                 select(AccessGrant).filter_by(
@@ -367,6 +368,7 @@ class AccessGrantsTable:
     ) -> bool:
         """Remove a single access grant."""
         async with get_async_db_context(db) as db:
+            await lock_document_authorization(db, exclusive=True)
             result = await db.execute(
                 delete(AccessGrant).filter_by(
                     resource_type=resource_type,
@@ -387,6 +389,7 @@ class AccessGrantsTable:
     ) -> int:
         """Remove all access grants for a resource."""
         async with get_async_db_context(db) as db:
+            await lock_document_authorization(db, exclusive=True)
             result = await db.execute(
                 delete(AccessGrant).filter_by(
                     resource_type=resource_type,
@@ -408,6 +411,7 @@ class AccessGrantsTable:
         This is the primary bridge for backward compat with the frontend.
         """
         async with get_async_db_context(db) as db:
+            await lock_document_authorization(db, exclusive=True)
             # Delete all existing grants for this resource
             await db.execute(
                 delete(AccessGrant).filter_by(
@@ -451,6 +455,7 @@ class AccessGrantsTable:
 
     async def replace_access_grants(self, db, resource_type, resource_id, access_grants):
         """Replace grants in the caller's transaction without committing."""
+        await lock_document_authorization(db, exclusive=True)
         await db.execute(
             delete(AccessGrant).filter_by(
                 resource_type=resource_type,

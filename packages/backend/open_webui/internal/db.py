@@ -31,7 +31,7 @@ from open_webui.env import (
     USE_SLIM,
 )
 from open_webui.utils.json_codec import JSONCodec
-from sqlalchemy import Dialect, MetaData, create_engine, event, types
+from sqlalchemy import Dialect, MetaData, create_engine, event, text, types
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -41,6 +41,22 @@ from sqlalchemy.sql.type_api import _T
 from typing_extensions import Self
 
 log = logging.getLogger(__name__)
+
+
+# Transaction-scoped serialization for document authorization and revision
+# publication. All authority writers must take the exclusive form before
+# changing state; publication keeps the shared form through its DB commit.
+_DOCUMENT_AUTHORIZATION_LOCK = 724603816392475001
+
+
+async def lock_document_authorization(db: AsyncSession, *, exclusive: bool) -> None:
+    if db.bind.dialect.name != 'postgresql':
+        return
+    isolation = await db.scalar(text("SELECT current_setting('transaction_isolation')"))
+    if isolation != 'read committed':
+        raise RuntimeError('Document authorization requires PostgreSQL READ COMMITTED')
+    function = 'pg_advisory_xact_lock' if exclusive else 'pg_advisory_xact_lock_shared'
+    await db.execute(text(f'SELECT {function}(:key)'), {'key': _DOCUMENT_AUTHORIZATION_LOCK})
 
 
 # Normalize SSL query parameters for sync psycopg2 and Alembic; async psycopg uses the URL unchanged.
@@ -151,6 +167,12 @@ _url_without_ssl, _ssl_dict = extract_ssl_params_from_url(DATABASE_URL)
 
 # For psycopg2 (sync engine), re-append sslmode + cert-file params.
 SQLALCHEMY_DATABASE_URL = reattach_ssl_params_to_url(_url_without_ssl, _ssl_dict) if _ssl_dict else DATABASE_URL
+
+# Normalize bare postgresql:// or postgres:// to postgresql+psycopg:// for the sync engine,
+# preventing ModuleNotFoundError: No module named 'psycopg2' since psycopg v3 is installed.
+if SQLALCHEMY_DATABASE_URL.startswith(('postgresql://', 'postgres://')):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace('postgresql://', 'postgresql+psycopg://', 1).replace('postgres://', 'postgresql+psycopg://', 1)
+
 
 
 class RDSIAMTokenAuth:

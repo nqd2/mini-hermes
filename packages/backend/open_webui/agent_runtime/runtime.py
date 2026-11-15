@@ -19,7 +19,7 @@ from open_webui.utils.json_codec import JSONCodec
 from .artifacts import AgentArtifactStore
 from .contracts import CURRENT_ENGINE_TYPE, CURRENT_ENGINE_VERSION, ConversationEngineBinding, RunBinding
 from .outputs import ToolOutputManager
-from .repository import AgentRepository
+from .repository import AgentRepository, StaleRunError
 from .request_budget import RequestBudgetManager
 
 log = logging.getLogger(__name__)
@@ -27,9 +27,11 @@ log = logging.getLogger(__name__)
 _SAFE_BUILTINS = {
     'calculate_timestamp',
     'get_current_timestamp',
+    'get_document_task',
     'grep_chat_files',
     'grep_knowledge_files',
     'grep_skill_files',
+    'inspect_document',
     'list_chat_files',
     'list_knowledge',
     'list_knowledge_bases',
@@ -40,12 +42,15 @@ _SAFE_BUILTINS = {
     'query_knowledge_bases',
     'query_knowledge_files',
     'read_agent_artifact',
+    'read_document_range',
     'read_memory_path',
     'read_skill_file',
+    'read_spreadsheet_range',
     'search_calendar_events',
     'search_channel_messages',
     'search_channels',
     'search_chats',
+    'search_document',
     'search_knowledge_bases',
     'search_knowledge_files',
     'search_memories',
@@ -71,6 +76,7 @@ _SECRET_KEYS = {
     'set_cookie',
 }
 _configured_runtime: AgentRuntime | None = None
+_configured_v2_runtime: Any | None = None
 
 
 class AgentRuntime:
@@ -101,6 +107,18 @@ class AgentRuntime:
         _configured_runtime = cls(repository, artifact_store=AgentArtifactStore.configured())
         return _configured_runtime
 
+    @classmethod
+    def v2_configured(cls) -> Any:
+        global _configured_v2_runtime
+        if _configured_v2_runtime is not None:
+            return _configured_v2_runtime
+        from open_webui.internal.db import AsyncSessionLocal
+        from open_webui.mini_hermes.v2.runtime import V2AgentRepository, V2AgentRuntime
+
+        v2_repo = V2AgentRepository(AsyncSessionLocal)
+        _configured_v2_runtime = V2AgentRuntime(v2_repo)
+        return _configured_v2_runtime
+
     async def start(self, **kwargs: Any) -> Any:
         """Create or idempotently return the run owned by this execution engine."""
         return await self.run_chat_turn(**kwargs)
@@ -110,7 +128,22 @@ class AgentRuntime:
         if status is None:
             raise HTTPException(status_code=404, detail='Agent turn not found.')
         page = await self.repository.get_event_page(turn_id, after_sequence=after_sequence, limit=limit)
+        # A persisted client event may contain only an oversized-payload marker
+        # even when all sequence numbers are present. Surface that to replay
+        # callers as well as the per-event marker.
+        if any(
+            event.event_type.startswith('client.')
+            and isinstance(event.payload, dict)
+            and event.payload.get('snapshot_required') is True
+            for event in page['events']
+        ):
+            page['snapshot_required'] = True
         if page['snapshot_required']:
+            # Events can be appended after the initial ownership/status read.
+            # Re-read so the status watermark does not predate the replay page.
+            status = await self.repository.get_turn_status(turn_id, owner_id=owner_id)
+            if status is None:
+                raise HTTPException(status_code=404, detail='Agent turn not found.')
             page['snapshot'] = status
         return page
 
@@ -125,7 +158,7 @@ class AgentRuntime:
         if turn.status == 'cancelled':
             session = await self.repository.get_turn_session(turn.session_id)
             if session:
-                await self._update_task_status(session.id, owner_id, turn.id, 'cancelled')
+                await self._update_task_status(session.id, owner_id, turn.id, 'cancelled', run_attempt=turn.attempts)
         status = await self.repository.get_turn_status(turn_id, owner_id=owner_id)
         return status or {'turn_id': turn.id, 'status': turn.status}
 
@@ -192,6 +225,10 @@ class AgentRuntime:
         resume_turn_id: str | None = None,
     ) -> Any:
         safe_payload = _json_safe(request_payload)
+        # The HTTP dispatcher allocates a task per delivery, including retries.
+        # It identifies execution, not the user's idempotent request.
+        if isinstance(safe_payload.get('metadata'), dict):
+            safe_payload['metadata'].pop('task_id', None)
         session = await self.repository.get_session_for_chat(chat_id, owner_id=owner_id) if chat_id else None
         if session is None:
             session = await self.repository.create_session(
@@ -226,13 +263,24 @@ class AgentRuntime:
             if turn is None:
                 raise HTTPException(status_code=409, detail='No resumable run exists for this approval.')
         if turn is None:
+            continuation_id = metadata.get('continuation_id')
+            if continuation_id:
+                from uuid import UUID
+
+                try:
+                    continuation_id = str(UUID(continuation_id))
+                except (ValueError, TypeError, AttributeError) as exc:
+                    raise HTTPException(status_code=400, detail='Invalid continuation_id.') from exc
+                if metadata.get('assistant_message_id') != chat_message_id or not chat_message_id:
+                    raise HTTPException(status_code=400, detail='Continuation must target the assistant message.')
             turn = await self.repository.create_turn(
                 session.id,
                 safe_payload,
                 model_id=model_id,
                 chat_message_id=chat_message_id,
                 user_message_id=user_message_id,
-                idempotency_key=_chat_start_idempotency_key(chat_message_id, user_message_id),
+                idempotency_key=_chat_start_idempotency_key(chat_message_id, user_message_id, continuation_id),
+                continuation=bool(continuation_id),
             )
         if turn.status in {'waiting_approval', 'paused'} and not resume_requested:
             return await self._existing_run_status(turn, owner_id=owner_id, metadata=metadata)
@@ -250,6 +298,7 @@ class AgentRuntime:
         metadata['agent_run_id'] = run_binding.engine_run_id
         metadata['agent_thread_id'] = run_binding.engine_thread_id
         metadata['agent_run_binding'] = run_binding.as_dict()
+        metadata['agent_turn_attempt'] = claimed.attempts
         checkpoint = await self.repository.save_checkpoint(
             claimed.id,
             {
@@ -261,62 +310,70 @@ class AgentRuntime:
                 'run_binding': run_binding.as_dict(),
             },
             kind='request',
+            run_attempt=claimed.attempts,
         )
         await self.repository.update_session_turn_status(
             session.id,
             owner_id=owner_id,
             turn_id=claimed.id,
             status='in_progress',
+            run_attempt=claimed.attempts,
             objective=_latest_user_text(safe_payload),
             user_message_id=user_message_id,
         )
 
         heartbeat_stop = asyncio.Event()
-        heartbeat_task = asyncio.create_task(self._heartbeat(claimed.id, heartbeat_stop))
+        heartbeat_task = asyncio.create_task(self._heartbeat(claimed.id, claimed.attempts, heartbeat_stop))
         try:
             result = await self._run_handler_until_cancelled(handler, claimed.id)
             if metadata.get('agent_error'):
-                await self._fail_turn(claimed.id, metadata['agent_error'])
+                await self._fail_turn(claimed.id, metadata['agent_error'], run_attempt=claimed.attempts)
                 current = await self.repository.get_turn(claimed.id)
                 await self._update_task_status(
                     session.id, owner_id, claimed.id, current.status if current else 'failed'
-                )
+                , run_attempt=claimed.attempts)
             elif isinstance(result, Response) and result.status_code >= 400:
                 await self._fail_turn(
                     claimed.id,
                     {'code': 'chat_response_error', 'status_code': result.status_code},
+                    run_attempt=claimed.attempts,
                 )
                 current = await self.repository.get_turn(claimed.id)
                 await self._update_task_status(
                     session.id, owner_id, claimed.id, current.status if current else 'failed'
-                )
+                , run_attempt=claimed.attempts)
             elif isinstance(result, StreamingResponse):
-                return self._track_stream(result, claimed.id, owner_id, session.id, heartbeat_stop, heartbeat_task)
+                return await self._track_stream(
+                    result, claimed.id, claimed.attempts, owner_id, session.id, heartbeat_stop, heartbeat_task, metadata
+                )
             elif isinstance(result, dict) and result.get('paused'):
                 await self.repository.set_turn_status(
                     claimed.id,
                     'waiting_approval',
                     event_type='turn.waiting_approval',
                     payload={'turn_id': claimed.id, 'message_id': chat_message_id},
+                    run_attempt=claimed.attempts,
                 )
-                await self._update_task_status(session.id, owner_id, claimed.id, 'waiting_approval')
+                await self._update_task_status(session.id, owner_id, claimed.id, 'waiting_approval', run_attempt=claimed.attempts)
             elif await self.repository.has_unresolved_tool_calls(claimed.id):
                 await self.repository.set_turn_status(
                     claimed.id,
                     'waiting_approval',
                     event_type='turn.waiting_approval',
                     payload={'turn_id': claimed.id, 'message_id': chat_message_id},
+                    run_attempt=claimed.attempts,
                 )
-                await self._update_task_status(session.id, owner_id, claimed.id, 'waiting_approval')
+                await self._update_task_status(session.id, owner_id, claimed.id, 'waiting_approval', run_attempt=claimed.attempts)
             else:
                 await self.repository.complete_turn(
                     claimed.id,
+                    run_attempt=claimed.attempts,
                     result={'message_id': chat_message_id, 'checkpoint_version': checkpoint.version},
                 )
-                await self._update_task_status(session.id, owner_id, claimed.id, 'completed')
+                await self._update_task_status(session.id, owner_id, claimed.id, 'completed', run_attempt=claimed.attempts)
             return result
         except asyncio.CancelledError:
-            unknown = await self.repository.interrupt_running_tool_calls(claimed.id)
+            unknown = await self.repository.interrupt_running_tool_calls(claimed.id, run_attempt=claimed.attempts)
             cancel_requested = await self.repository.is_cancel_requested(claimed.id)
             final_status = 'paused' if unknown else 'cancelled' if cancel_requested else 'interrupted'
             await self.repository.set_turn_status(
@@ -324,13 +381,16 @@ class AgentRuntime:
                 final_status,
                 event_type='turn.recovery_required' if unknown else 'turn.cancelled' if cancel_requested else 'turn.interrupted',
                 payload={'turn_id': claimed.id, 'reason': 'request_cancelled'},
+                run_attempt=claimed.attempts,
             )
-            await self._update_task_status(session.id, owner_id, claimed.id, final_status)
+            await self._update_task_status(session.id, owner_id, claimed.id, final_status, run_attempt=claimed.attempts)
             raise
         except BaseException as error:
-            await self._fail_turn(claimed.id, _error_payload(error))
+            if isinstance(error, StaleRunError):
+                raise
+            await self._fail_turn(claimed.id, _error_payload(error), run_attempt=claimed.attempts)
             current = await self.repository.get_turn(claimed.id)
-            await self._update_task_status(session.id, owner_id, claimed.id, current.status if current else 'failed')
+            await self._update_task_status(session.id, owner_id, claimed.id, current.status if current else 'failed', run_attempt=claimed.attempts)
             raise
         finally:
             if not isinstance(locals().get('result'), StreamingResponse):
@@ -349,6 +409,7 @@ class AgentRuntime:
         tool_name: str,
         arguments: dict,
         tool: dict,
+        run_attempt: int,
     ) -> tuple[Any, bool]:
         retry_safe = _is_retry_safe_builtin(tool_name, tool)
         invocation, acquired = await self.repository.begin_tool_call(
@@ -357,6 +418,7 @@ class AgentRuntime:
             tool_name=tool_name,
             arguments=_json_safe(arguments),
             retry_safe=retry_safe,
+            run_attempt=run_attempt,
             idempotency_key=f'{turn_id}:{call_id}',
         )
         if not acquired:
@@ -382,6 +444,7 @@ class AgentRuntime:
         decision: str,
         approved_by: str,
         tool: dict | None = None,
+        execution_attempt: int | None = None,
     ) -> Any:
         return await self.repository.record_tool_approval(
             turn_id,
@@ -393,6 +456,7 @@ class AgentRuntime:
             approved_by=approved_by,
             retry_safe=_is_retry_safe_builtin(tool_name, tool or {}),
             idempotency_key=f'{turn_id}:{call_id}',
+            execution_attempt=execution_attempt,
         )
 
     def wrap_event_emitter(
@@ -400,12 +464,16 @@ class AgentRuntime:
         turn_id: str,
         emitter: Callable[[dict], Awaitable[Any]] | None,
         *,
+        run_attempt: int,
         message_id: str | None = None,
     ) -> Callable[[dict], Awaitable[Any]] | None:
         if emitter is None:
             return None
-        if getattr(emitter, '_agent_runtime_turn_id', None) == turn_id:
+        if (getattr(emitter, '_agent_runtime_turn_id', None) == turn_id
+                and getattr(emitter, '_agent_runtime_turn_attempt', None) == run_attempt):
             return emitter
+        if getattr(emitter, '_agent_runtime_turn_id', None) == turn_id:
+            emitter = getattr(emitter, '_agent_runtime_original_emitter', emitter)
 
         async def durable_emitter(event_data: dict) -> Any:
             if not _should_persist_client_event(event_data):
@@ -434,7 +502,9 @@ class AgentRuntime:
                     'original_bytes': len(serialized.encode('utf-8')),
                 }
 
-            record = await self.repository.append_event(turn_id, f'client.{event_type}', payload)
+            record = await self.repository.append_event(
+                turn_id, f'client.{event_type}', payload, run_attempt=run_attempt if run_attempt is not None else 0
+            )
             forwarded = copy.deepcopy(event_data)
             if isinstance(forwarded, dict):
                 forwarded['runtime_turn_id'] = turn_id
@@ -450,6 +520,8 @@ class AgentRuntime:
             return result
 
         durable_emitter._agent_runtime_turn_id = turn_id
+        durable_emitter._agent_runtime_turn_attempt = run_attempt
+        durable_emitter._agent_runtime_original_emitter = emitter
         return durable_emitter
 
     async def complete_tool_call(
@@ -459,11 +531,16 @@ class AgentRuntime:
         result: Any,
         *,
         owner_id: str,
+        attempt: int,
     ) -> Any:
         turn = await self.repository.get_turn(turn_id)
         if turn is None:
             raise HTTPException(status_code=404, detail='Agent turn not found.')
         invocation = await self.repository.get_tool_call(turn_id, call_id)
+        if invocation is None:
+            raise HTTPException(status_code=404, detail='Tool invocation not found.')
+        if invocation.attempt_count != attempt or invocation.status != 'running':
+            raise HTTPException(status_code=409, detail='Tool invocation attempt is stale or not running.')
         output_limits = await self._remaining_tool_output_budget(turn_id)
         try:
             bounded = await self.output_manager.process(
@@ -481,12 +558,14 @@ class AgentRuntime:
                     turn_id,
                     call_id,
                     {'code': 'tool_output_persistence_failed', 'message': type(error).__name__},
+                    attempt=attempt,
                 )
             elif invocation:
                 await self.repository.fail_tool_call(
                     turn_id,
                     call_id,
                     {'code': 'tool_output_persistence_failed', 'message': type(error).__name__},
+                    attempt=attempt,
                     uncertain=True,
                 )
             raise
@@ -494,6 +573,7 @@ class AgentRuntime:
             turn_id,
             call_id,
             _json_safe(bounded.value),
+            attempt=attempt,
             result_artifact_id=bounded.artifact_id,
         )
         return bounded.value
@@ -515,7 +595,9 @@ class AgentRuntime:
         except (KeyError, TypeError, ValueError):
             pass
         else:
-            remaining_tokens = max(16, context_window - input_tokens - reserved_output)
+            remaining_tokens = max(0, context_window - input_tokens - reserved_output)
+            # The next request also adds the assistant's tool call and result envelopes.
+            remaining_tokens = max(16, remaining_tokens - min(512, remaining_tokens // 4))
             output_limits['max_tokens'] = min(self.output_manager.max_tokens, remaining_tokens)
 
         try:
@@ -524,7 +606,7 @@ class AgentRuntime:
             pass
         else:
             # Leave room for the tool-result envelope, IDs, and truncation metadata.
-            remaining_chars = max(256, limits.max_json_chars - request_chars - 512)
+            remaining_chars = max(256, limits.preparation_limit_chars - request_chars - 512)
             output_limits['max_chars'] = min(self.output_manager.max_chars, remaining_chars)
         return output_limits
 
@@ -535,11 +617,13 @@ class AgentRuntime:
         error: dict,
         *,
         uncertain: bool,
+        attempt: int,
     ) -> Any:
         return await self.repository.fail_tool_call(
             turn_id,
             call_id,
             _json_safe(error),
+            attempt=attempt,
             uncertain=uncertain,
         )
 
@@ -549,14 +633,16 @@ class AgentRuntime:
             log.warning('Recovered expired agent turns: count=%d', recovered)
         return recovered
 
-    async def _heartbeat(self, turn_id: str, stop: asyncio.Event) -> None:
+    async def _heartbeat(self, turn_id: str, run_attempt: int, stop: asyncio.Event) -> None:
         interval = max(5, self.lease_seconds // 3)
         while not stop.is_set():
             try:
                 await asyncio.wait_for(stop.wait(), timeout=interval)
                 return
             except TimeoutError:
-                alive = await self.repository.heartbeat_turn(turn_id, self.worker_id, lease_seconds=self.lease_seconds)
+                alive = await self.repository.heartbeat_turn(
+                    turn_id, self.worker_id, run_attempt=run_attempt, lease_seconds=self.lease_seconds
+                )
                 if not alive:
                     return
 
@@ -582,10 +668,12 @@ class AgentRuntime:
         self,
         response: StreamingResponse,
         turn_id: str,
+        run_attempt: int,
         owner_id: str,
         session_id: str,
         heartbeat_stop: asyncio.Event,
         heartbeat_task: asyncio.Task,
+        metadata: dict,
     ) -> StreamingResponse:
         iterator = response.body_iterator
 
@@ -600,7 +688,7 @@ class AgentRuntime:
                     yield chunk
                 completed = True
             except asyncio.CancelledError:
-                unknown = await self.repository.interrupt_running_tool_calls(turn_id)
+                unknown = await self.repository.interrupt_running_tool_calls(turn_id, run_attempt=run_attempt)
                 cancel_requested = await self.repository.is_cancel_requested(turn_id)
                 final_status = 'paused' if unknown else 'cancelled' if cancel_requested else 'interrupted'
                 await self.repository.set_turn_status(
@@ -608,27 +696,36 @@ class AgentRuntime:
                     final_status,
                     event_type='turn.recovery_required' if unknown else 'turn.cancelled' if cancel_requested else 'turn.interrupted',
                     payload={'turn_id': turn_id, 'reason': 'stream_cancelled'},
+                    run_attempt=run_attempt,
                 )
-                await self._update_task_status(session_id, owner_id, turn_id, final_status)
+                await self._update_task_status(session_id, owner_id, turn_id, final_status, run_attempt=run_attempt)
                 raise
             except BaseException as error:
-                await self._fail_turn(turn_id, _error_payload(error))
+                await self._fail_turn(turn_id, _error_payload(error), run_attempt=run_attempt)
                 current = await self.repository.get_turn(turn_id)
-                await self._update_task_status(session_id, owner_id, turn_id, current.status if current else 'failed')
+                await self._update_task_status(session_id, owner_id, turn_id, current.status if current else 'failed', run_attempt=run_attempt)
                 raise
             else:
                 if completed:
-                    if await self.repository.has_unresolved_tool_calls(turn_id):
+                    if metadata.get('agent_error'):
+                        await self._fail_turn(turn_id, metadata['agent_error'], run_attempt=run_attempt)
+                        current = await self.repository.get_turn(turn_id)
+                        await self._update_task_status(
+                            session_id, owner_id, turn_id, current.status if current else 'failed',
+                            run_attempt=run_attempt,
+                        )
+                    elif await self.repository.has_unresolved_tool_calls(turn_id):
                         await self.repository.set_turn_status(
                             turn_id,
                             'waiting_approval',
                             event_type='turn.waiting_approval',
                             payload={'turn_id': turn_id},
+                            run_attempt=run_attempt,
                         )
-                        await self._update_task_status(session_id, owner_id, turn_id, 'waiting_approval')
+                        await self._update_task_status(session_id, owner_id, turn_id, 'waiting_approval', run_attempt=run_attempt)
                     else:
-                        await self.repository.complete_turn(turn_id)
-                        await self._update_task_status(session_id, owner_id, turn_id, 'completed')
+                        await self.repository.complete_turn(turn_id, run_attempt=run_attempt)
+                        await self._update_task_status(session_id, owner_id, turn_id, 'completed', run_attempt=run_attempt)
             finally:
                 heartbeat_stop.set()
                 heartbeat_task.cancel()
@@ -658,7 +755,7 @@ class AgentRuntime:
             if not next_chunk.done():
                 next_chunk.cancel()
 
-    async def _fail_turn(self, turn_id: str, error: dict) -> None:
+    async def _fail_turn(self, turn_id: str, error: dict, *, run_attempt: int) -> None:
         turn = await self.repository.get_turn(turn_id)
         if turn and turn.status not in {'completed', 'failed', 'cancelled'}:
             if await self.repository.has_unresolved_tool_calls(turn_id):
@@ -668,6 +765,7 @@ class AgentRuntime:
                     'paused' if unknown else 'interrupted',
                     event_type='turn.recovery_required' if unknown else 'turn.interrupted',
                     payload={'turn_id': turn_id, 'error': error},
+                    run_attempt=run_attempt,
                 )
                 return
             await self.repository.set_turn_status(
@@ -676,14 +774,18 @@ class AgentRuntime:
                 event_type='turn.failed',
                 payload={'turn_id': turn_id, 'error': error},
                 error=error,
+                run_attempt=run_attempt,
             )
 
-    async def _update_task_status(self, session_id: str, owner_id: str, turn_id: str, status: str) -> None:
+    async def _update_task_status(
+        self, session_id: str, owner_id: str, turn_id: str, status: str, *, run_attempt: int
+    ) -> None:
         await self.repository.update_session_turn_status(
             session_id,
             owner_id=owner_id,
             turn_id=turn_id,
             status=status,
+            run_attempt=run_attempt,
         )
 
 def _configured_tool_output_limit() -> int:
@@ -697,11 +799,15 @@ def _configured_tool_output_limit() -> int:
     return value
 
 
-def _chat_start_idempotency_key(chat_message_id: str | None, user_message_id: str | None) -> str | None:
+def _chat_start_idempotency_key(
+    chat_message_id: str | None, user_message_id: str | None, continuation_id: str | None = None
+) -> str | None:
     stable_id = chat_message_id or user_message_id
     if not stable_id:
         return None
     value = f'chat:{stable_id}'
+    if continuation_id:
+        value += f':continue:{continuation_id}'
     if len(value) <= 255:
         return value
     import hashlib
@@ -710,22 +816,10 @@ def _chat_start_idempotency_key(chat_message_id: str | None, user_message_id: st
 
 
 def _should_persist_client_event(event_data: Any) -> bool:
-    if not isinstance(event_data, dict):
-        return False
-    event_type = event_data.get('type')
-    if event_type in {
-        'chat:message',
-        'chat:message:error',
-        'chat:message:follow_ups',
-        'chat:messages',
-        'chat:tasks',
-        'chat:tasks:cancel',
-    }:
-        return True
-    if event_type not in {'chat:completion', 'response:completion'}:
-        return False
-    data = event_data.get('data')
-    return isinstance(data, dict)
+    # Every client event produced by a run needs a durable sequence before it
+    # can reach the transport. An allowlist leaves status/source/citation events
+    # outside replay and lets a stale executor emit them after recovery.
+    return isinstance(event_data, dict)
 
 
 def _is_retry_safe_builtin(name: str, tool: dict) -> bool:

@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 class Skill(Base):
-    __tablename__ = 'skill'
+    __tablename__ = 'mh_ow_skill'
 
     id = Column(String, primary_key=True, unique=True)
     user_id = Column(String)

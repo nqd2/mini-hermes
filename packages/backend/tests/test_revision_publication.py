@@ -410,9 +410,17 @@ async def test_commit_rejects_a_different_approved_patch_without_publishing(tmp_
 
 @pytest.mark.asyncio
 async def test_unauthorized_user_cannot_commit_or_observe_revision_approval(tmp_path, monkeypatch):
+    from open_webui.internal import db as internal_db
+    from open_webui.models.access_grants import AccessGrant
+    from open_webui.models.groups import Group, GroupMember
+
     engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
     try:
+        async with engine.begin() as connection:
+            for table in (Group.__table__, GroupMember.__table__, AccessGrant.__table__):
+                await connection.run_sync(table.create)
         async with sessions() as db:
             with pytest.raises(HTTPException) as error:
                 await commit_preview(
@@ -502,5 +510,410 @@ async def test_concurrent_proposals_based_on_old_revision_cannot_both_commit(tmp
             assert current.current_revision == 2
             assert len(list((await db.scalars(select(Revision))).all())) == 2
             assert len(list((await db.scalars(select(RevisionOutbox))).all())) == 1
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_committed_preview_replay_rechecks_current_write_permission(tmp_path, monkeypatch):
+    from open_webui.mini_hermes import library
+
+    engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
+    preview, _ = previews[0]
+    try:
+        async with sessions() as db:
+            first, _ = await commit_preview(
+                db, store, 'owner-1', preview.id, approval=_approval(preview), idempotency_key='same-key'
+            )
+            revision_id = first.id
+
+        checked = []
+
+        async def revoke(_db, document, user_id, permission, user_group_ids=None, is_admin=False):
+            checked.append((document.id, user_id, permission, is_admin))
+            return False
+
+        monkeypatch.setattr(library, 'has_document_access', revoke)
+        async with sessions() as db:
+            with pytest.raises(HTTPException) as error:
+                await commit_preview(
+                    db, store, 'owner-1', preview.id, approval=_approval(preview), idempotency_key='same-key'
+                )
+            assert error.value.status_code == 404
+        assert checked == [('doc-1', 'owner-1', 'write', False)]
+
+        async with sessions() as db:
+            assert (await db.get(Document, 'doc-1')).current_revision == 2
+            assert (await db.scalar(select(Revision).where(Revision.id == revision_id))) is not None
+            assert len(list((await db.scalars(select(RevisionApproval))).all())) == 1
+            assert len(list((await db.scalars(select(RevisionOutbox))).all())) == 1
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_commit_key_cannot_be_reused_for_another_preview(tmp_path, monkeypatch):
+    engine, sessions, store, previews = await _setup(tmp_path, monkeypatch, preview_count=2)
+    first, second = previews[0][0], previews[1][0]
+    try:
+        async with sessions() as db:
+            await commit_preview(db, store, 'owner-1', first.id, approval=_approval(first), idempotency_key='same-key')
+        async with sessions() as db:
+            with pytest.raises(HTTPException) as error:
+                await commit_preview(
+                    db, store, 'owner-1', second.id, approval=_approval(second), idempotency_key='same-key'
+                )
+            assert error.value.status_code == 409
+            assert error.value.detail['code'] == 'idempotency_key_reused'
+        async with sessions() as db:
+            assert (await db.get(Document, 'doc-1')).current_revision == 2
+            assert len(list((await db.scalars(select(Revision))).all())) == 2
+            assert len(list((await db.scalars(select(RevisionApproval))).all())) == 1
+            assert len(list((await db.scalars(select(RevisionOutbox))).all())) == 1
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_commit_replay_denies_collaborator_after_write_grant_is_revoked(tmp_path, monkeypatch):
+    from sqlalchemy import delete
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library
+    from open_webui.models.access_grants import AccessGrant
+
+    engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
+    preview, _ = previews[0]
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    # The production DB helper otherwise opens its global engine, outside this isolated fixture.
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(AccessGrant.__table__.create)
+        async with sessions() as db:
+            db.add(AccessGrant(
+                id='grant-1', resource_type='mh_document', resource_id='doc-1',
+                principal_type='user', principal_id='collaborator', permission='write', created_at=1,
+            ))
+            await db.commit()
+        async with sessions() as db:
+            committed, _ = await commit_preview(
+                db, store, 'collaborator', preview.id, approval=_approval(preview), idempotency_key='grant-key'
+            )
+            assert committed.number == 2
+        async with sessions() as db:
+            await db.execute(delete(AccessGrant).where(AccessGrant.id == 'grant-1'))
+            await db.commit()
+        async with sessions() as db:
+            with pytest.raises(HTTPException) as error:
+                await commit_preview(
+                    db, store, 'collaborator', preview.id, approval=_approval(preview), idempotency_key='grant-key'
+                )
+            assert error.value.status_code == 404
+        async with sessions() as db:
+            assert (await db.get(Document, 'doc-1')).current_revision == 2
+            assert len(list((await db.scalars(select(Revision))).all())) == 2
+            assert len(list((await db.scalars(select(RevisionApproval))).all())) == 1
+            assert len(list((await db.scalars(select(RevisionOutbox))).all())) == 1
+    finally:
+        await engine.dispose()
+
+
+def test_patch_hash_binds_unicode_content_and_operation_order():
+    from open_webui.mini_hermes.revision_integrity import compute_patch_hash
+
+    common = {'base_revision': 1, 'base_sha256': 'a' * 64, 'artifact_sha256': 'b' * 64}
+    operations = [
+        {'op': 'set_cell', 'sheet': 'Khảo sát', 'cell': 'A1', 'value': 'dòng 1\ndòng 2'},
+        {'op': 'set_cell', 'sheet': 'Khảo sát', 'cell': 'A2', 'value': 'câu trả lời'},
+    ]
+    reordered_keys = [dict(reversed(list(item.items()))) for item in operations]
+    original = compute_patch_hash(**common, operations=operations)
+    assert original == compute_patch_hash(**common, operations=reordered_keys)
+    assert original != compute_patch_hash(**common, operations=list(reversed(operations)))
+    assert original != compute_patch_hash(**{**common, 'base_revision': 2}, operations=operations)
+    assert original != compute_patch_hash(**{**common, 'artifact_sha256': 'c' * 64}, operations=operations)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('worker_enabled', [True, False], ids=['queued-index', 'inline-index'])
+async def test_approval_expiring_during_index_prevents_publication(tmp_path, monkeypatch, worker_enabled):
+    """An approval cannot authorize publication after expiring during async work."""
+    from open_webui.mini_hermes import revision_service
+
+    engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
+    preview, _ = previews[0]
+    preview_created = preview.created_at.replace(tzinfo=dt.UTC) if preview.created_at.tzinfo is None else preview.created_at
+    expiry = preview_created + dt.timedelta(minutes=15)
+    current_time = [expiry - dt.timedelta(seconds=1)]
+    monkeypatch.setattr(revision_service, 'now', lambda: current_time[0])
+    from open_webui.mini_hermes import chunks
+
+    monkeypatch.setattr(resource_indexing, 'resource_index_worker_enabled', lambda: worker_enabled)
+    target_module = resource_indexing if worker_enabled else chunks
+    function_name = 'enqueue_resource_index_job' if worker_enabled else 'replace_document_chunks'
+    original_index = getattr(target_module, function_name)
+
+    async def index_after_expiry(*args, **kwargs):
+        result = await original_index(*args, **kwargs)
+        current_time[0] = expiry
+        return result
+
+    monkeypatch.setattr(target_module, function_name, index_after_expiry)
+    try:
+        async with sessions() as db:
+            with pytest.raises(HTTPException) as error:
+                await commit_preview(db, store, 'owner-1', preview.id, approval=_approval(preview),
+                                     idempotency_key='expires-during-index')
+            assert error.value.status_code == 409
+            # Even if the caller later commits this session, the failed publication
+            # must not persist any of its flushed or pending records.
+            await db.commit()
+        async with sessions() as db:
+            assert (await db.get(Document, 'doc-1')).current_revision == 1
+            assert len(list((await db.scalars(select(Revision))).all())) == 1
+            assert list((await db.scalars(select(RevisionApproval))).all()) == []
+            assert list((await db.scalars(select(RevisionOutbox))).all()) == []
+            assert list((await db.scalars(select(ResourceIndexJob))).all()) == []
+            assert list((await db.scalars(select(DocumentChunk))).all()) == []
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_preview_metadata_rejects_creator_after_document_grant_revoked(tmp_path, monkeypatch):
+    """A preview creator loses metadata access when document access is revoked."""
+    from types import SimpleNamespace
+    import httpx
+    from fastapi import FastAPI
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library, routes
+    from open_webui.models.access_grants import AccessGrant, AccessGrants
+
+    engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
+    preview, _ = previews[0]
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    monkeypatch.setattr(routes, 'ObjectStore', lambda: store)
+    app = FastAPI()
+    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='collaborator', role='user')
+
+    async def session_override():
+        async with sessions() as db:
+            yield db
+
+    app.dependency_overrides[routes.get_async_session] = session_override
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(AccessGrant.__table__.create)
+        async with sessions() as db:
+            row = await db.get(Preview, preview.id)
+            row.owner_id = 'collaborator'
+            row.diff = 'confidential document content'
+            db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='doc-1',
+                               principal_type='user', principal_id='collaborator', permission='read', created_at=1))
+            await db.commit()
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+            path = f'/api/v1/mini-hermes/previews/{preview.id}'
+            authorized = await client.get(path)
+            assert authorized.status_code == 200
+            assert authorized.json()['diff'] == 'confidential document content'
+            async with sessions() as db:
+                await AccessGrants.set_access_grants('mh_document', 'doc-1', [], db=db)
+            revoked = await client.get(path)
+            assert revoked.status_code == 404
+            assert 'confidential document content' not in revoked.text
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_chat_preview_list_hides_document_after_grant_revoked(tmp_path, monkeypatch):
+    """Chat attachment metadata does not override current document access."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    import httpx
+    from fastapi import FastAPI
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import library, routes
+    from open_webui.mini_hermes.models import ChatResource
+    from open_webui.models.access_grants import AccessGrant, AccessGrants
+
+    engine, sessions, _, previews = await _setup(tmp_path, monkeypatch)
+    preview, _ = previews[0]
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
+
+    async def no_groups(_db, _user_id):
+        return []
+
+    monkeypatch.setattr(library, '_groups_for', no_groups)
+    monkeypatch.setattr(routes.Chats, 'get_chat_by_id_and_user_id', AsyncMock(return_value=object()))
+    app = FastAPI()
+    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='collaborator', role='user')
+
+    async def session_override():
+        async with sessions() as db:
+            yield db
+
+    app.dependency_overrides[routes.get_async_session] = session_override
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(AccessGrant.__table__.create)
+            await connection.run_sync(ChatResource.__table__.create)
+        async with sessions() as db:
+            row = await db.get(Preview, preview.id)
+            row.owner_id = 'collaborator'
+            row.diff = 'confidential document content'
+            db.add(ChatResource(id='association', chat_id='chat-1', document_id='doc-1', granted_by='owner-1'))
+            db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='doc-1',
+                               principal_type='user', principal_id='collaborator', permission='read', created_at=1))
+            db.add(Document(id='other-doc', owner_id='other-owner', filename='other.txt',
+                            mime_type='text/plain', current_revision=1))
+            db.add(ChatResource(id='other-association', chat_id='chat-1', document_id='other-doc',
+                                granted_by='other-owner'))
+            for ordinal in range(11):
+                db.add(Preview(id=f'other-preview-{ordinal}', document_id='other-doc', owner_id='collaborator',
+                               base_revision=1, operations=[], status='ready',
+                               created_at=now() + dt.timedelta(minutes=ordinal + 1)))
+            await db.commit()
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+            path = '/api/v1/mini-hermes/chats/chat-1/previews'
+            authorized = await client.get(path)
+            assert authorized.status_code == 200
+            assert [item['id'] for item in authorized.json()] == [preview.id]
+            assert authorized.json()[0]['diff'] == 'confidential document content'
+            async with sessions() as db:
+                await AccessGrants.set_access_grants('mh_document', 'doc-1', [], db=db)
+            revoked = await client.get(path)
+            assert revoked.status_code == 200
+            assert revoked.json() == []
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_preview_routes_recheck_inherited_group_folder_access(tmp_path, monkeypatch):
+    """Removing group membership removes inherited folder access to previews."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    import httpx
+    from fastapi import FastAPI
+    from sqlalchemy import delete
+    from open_webui.internal import db as internal_db
+    from open_webui.mini_hermes import routes
+    from open_webui.mini_hermes.models import ChatResource
+    from open_webui.models.access_grants import AccessGrant
+    from open_webui.models.groups import Group, GroupMember
+
+    engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
+    preview, _ = previews[0]
+    monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
+    monkeypatch.setattr(routes.Chats, 'get_chat_by_id_and_user_id', AsyncMock(return_value=object()))
+    monkeypatch.setattr(routes, 'ObjectStore', lambda: store)
+    app = FastAPI()
+    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='collaborator', role='user')
+
+    async def session_override():
+        async with sessions() as db:
+            yield db
+
+    app.dependency_overrides[routes.get_async_session] = session_override
+    try:
+        async with engine.begin() as connection:
+            for table in (Group.__table__, GroupMember.__table__, AccessGrant.__table__, ChatResource.__table__):
+                await connection.run_sync(table.create)
+        async with sessions() as db:
+            db.add(Folder(id='shared-folder', owner_id='owner-1', name='Shared'))
+            (await db.get(Document, 'doc-1')).folder_id = 'shared-folder'
+            row = await db.get(Preview, preview.id)
+            row.owner_id = 'collaborator'
+            row.diff = 'private inherited content'
+            db.add_all([
+                Group(id='parent', user_id='owner-1', name='Parent', description='', created_at=1, updated_at=1),
+                Group(id='child', user_id='owner-1', name='Child', description='', parent_group_id='parent',
+                      created_at=1, updated_at=1),
+                GroupMember(id='membership', group_id='child', user_id='collaborator'),
+                AccessGrant(id='folder-grant', resource_type='mh_folder', resource_id='shared-folder',
+                            principal_type='group', principal_id='parent', permission='read', created_at=1),
+                ChatResource(id='association', chat_id='chat-1', document_id='doc-1', granted_by='owner-1'),
+            ])
+            await db.commit()
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+            detail_path = f'/api/v1/mini-hermes/previews/{preview.id}'
+            list_path = '/api/v1/mini-hermes/chats/chat-1/previews'
+            assert (await client.get(detail_path)).status_code == 200
+            assert len((await client.get(list_path)).json()) == 1
+            async with sessions() as db:
+                await db.execute(delete(GroupMember).where(GroupMember.id == 'membership'))
+                await db.commit()
+            assert (await client.get(detail_path)).status_code == 404
+            assert (await client.get(list_path)).json() == []
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['missing', 'checksum', 'size'])
+async def test_document_content_route_fails_closed_on_committed_object_integrity_failure(
+    tmp_path, monkeypatch, caplog, failure
+):
+    """The HTTP document reader must never return corrupt committed bytes."""
+    from types import SimpleNamespace
+    import logging
+    import httpx
+    from fastapi import FastAPI
+    from open_webui.mini_hermes import routes
+
+    engine, sessions, store, _ = await _setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(routes, 'ObjectStore', lambda: store)
+    app = FastAPI()
+    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='owner-1', role='user')
+
+    async def session_override():
+        async with sessions() as db:
+            yield db
+
+    app.dependency_overrides[routes.get_async_session] = session_override
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+            path = '/api/v1/mini-hermes/documents/doc-1/content?revision=1'
+            good = await client.get(path)
+            assert good.status_code == 200
+            assert good.content == b'original document'
+            assert good.headers['content-type'].startswith('text/plain')
+            assert 'report.txt' in good.headers['content-disposition']
+            key = 'documents/doc-1/revisions/one.txt'
+            if failure == 'missing':
+                del store.objects[key]
+            elif failure == 'checksum':
+                store.objects[key] = b'x' * len(store.objects[key])
+            else:
+                async with sessions() as db:
+                    revision = await db.get(Revision, 'revision-1')
+                    revision.size += 1
+                    await db.commit()
+            caplog.clear()
+            integrity_logger = logging.getLogger('open_webui.mini_hermes.revision_integrity')
+            integrity_logger.addHandler(caplog.handler)
+            try:
+                denied = await client.get(path)
+            finally:
+                integrity_logger.removeHandler(caplog.handler)
+            assert denied.status_code == 503
+            assert denied.json()['detail']['code'] == 'document_revision_integrity_failure'
+            assert b'original document' not in denied.content
+            assert any(record.levelname == 'CRITICAL' and 'revision' in record.getMessage().lower()
+                       for record in caplog.records)
     finally:
         await engine.dispose()

@@ -193,6 +193,7 @@ async def execute_tool_call(form_data, metadata, event_caller, tool_call):
                 decision=approval_decision,
                 approved_by=str(metadata.get('user_id') or ''),
                 tool=tool,
+                execution_attempt=metadata.get('agent_turn_attempt') or 0,
             )
     if approval_denied:
         return params, 'Error: tool call was not approved.', tool, tool_type, direct_tool
@@ -204,6 +205,7 @@ async def execute_tool_call(form_data, metadata, event_caller, tool_call):
             tool_name=name,
             arguments=params,
             tool=tool,
+            run_attempt=metadata.get('agent_turn_attempt'),
         )
         if not acquired:
             return params, invocation.result_data, tool, tool_type, direct_tool
@@ -219,6 +221,7 @@ async def execute_tool_call(form_data, metadata, event_caller, tool_call):
                 durable_turn_id,
                 str(durable_call_id),
                 {'code': 'tool_execution_failed', 'error_type': type(error).__name__},
+                attempt=invocation.attempt_count,
                 uncertain=not durable_retry_safe,
             )
             if not durable_retry_safe:
@@ -240,5 +243,6 @@ async def execute_tool_call(form_data, metadata, event_caller, tool_call):
             str(durable_call_id),
             result,
             owner_id=str(metadata.get('user_id') or ''),
+            attempt=invocation.attempt_count,
         )
     return params, result, tool, tool_type, direct_tool

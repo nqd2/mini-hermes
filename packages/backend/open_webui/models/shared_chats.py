@@ -21,10 +21,10 @@ class ShareChatForm(BaseModel):
 
 
 class SharedChat(Base):
-    __tablename__ = 'shared_chat'
+    __tablename__ = 'mh_ow_shared_chat'
 
     id = Column(Text, primary_key=True)  # The share token (UUID) — used in /s/{id} URL
-    chat_id = Column(Text, ForeignKey('chat.id', ondelete='CASCADE'), nullable=False)
+    chat_id = Column(Text, ForeignKey('mh_ow_chat.id', ondelete='CASCADE'), nullable=False)
     user_id = Column(Text, nullable=False)  # Who created this share
 
     title = Column(Text)

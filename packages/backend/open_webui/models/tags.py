@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 class Tag(Base):  # database table mapping for tag entity
-    __tablename__ = 'tag'
+    __tablename__ = 'mh_ow_tag'
     id = Column(String)
     name = Column(String, index=True)  # tag label
     user_id = Column(String, index=True)  # user identifier

@@ -111,13 +111,13 @@ def chat_search_message_content_match_sql(dialect_name: str, key: str) -> str:
         (
             EXISTS (
                 SELECT 1
-                FROM json_each(Chat.chat, '$.history.messages') AS history_message
+                FROM json_each(mh_ow_chat.chat, '$.history.messages') AS history_message
                 WHERE LOWER(CASE WHEN history_message.type = 'object'
                     THEN history_message.value->>'content' END) LIKE '%' || :{key} || '%'
             )
             OR EXISTS (
                 SELECT 1
-                FROM json_each(Chat.chat, '$.messages') AS legacy_message
+                FROM json_each(mh_ow_chat.chat, '$.messages') AS legacy_message
                 WHERE LOWER(CASE WHEN legacy_message.type = 'object'
                     THEN legacy_message.value->>'content' END) LIKE '%' || :{key} || '%'
             )
@@ -129,23 +129,23 @@ def chat_search_message_content_match_sql(dialect_name: str, key: str) -> str:
         (
             EXISTS (
                 SELECT 1
-                FROM chat_message AS message
-                WHERE message.chat_id = Chat.id
-                AND message.user_id = Chat.user_id
+                FROM mh_ow_chat_message AS message
+                WHERE message.chat_id = mh_ow_chat.id
+                AND message.user_id = mh_ow_chat.user_id
                 AND json_typeof(message.content) = 'string'
                 AND LOWER(message.content #>> '{{}}') LIKE '%' || :{key} || '%'
             )
             OR EXISTS (
                 SELECT 1
-                FROM json_each(CASE WHEN json_typeof(Chat.chat#>'{{history,messages}}') = 'object'
-                    THEN Chat.chat#>'{{history,messages}}' ELSE '{{}}'::json END) AS history_message
+                FROM json_each(CASE WHEN json_typeof(mh_ow_chat.chat#>'{{history,messages}}') = 'object'
+                    THEN mh_ow_chat.chat#>'{{history,messages}}' ELSE '{{}}'::json END) AS history_message
                 WHERE json_typeof(history_message.value->'content') = 'string'
                 AND LOWER(history_message.value->>'content') LIKE '%' || :{key} || '%'
             )
             OR EXISTS (
                 SELECT 1
-                FROM json_array_elements(CASE WHEN json_typeof(Chat.chat->'messages') = 'array'
-                    THEN Chat.chat->'messages' ELSE '[]'::json END) AS legacy_message
+                FROM json_array_elements(CASE WHEN json_typeof(mh_ow_chat.chat->'messages') = 'array'
+                    THEN mh_ow_chat.chat->'messages' ELSE '[]'::json END) AS legacy_message
                 WHERE json_typeof(legacy_message->'content') = 'string'
                 AND LOWER(legacy_message->>'content') LIKE '%' || :{key} || '%'
             )
@@ -180,7 +180,7 @@ def chat_list_order(sort_by: str = 'updated_at', sort_dir: str = 'desc', user_id
 
 
 class Chat(Base):  # database table mapping for chat entity
-    __tablename__ = 'chat'
+    __tablename__ = 'mh_ow_chat'
 
     id = Column(String, primary_key=True, unique=True)
     user_id = Column(String, index=True)  # owner user id
@@ -268,14 +268,14 @@ class ChatModel(BaseModel):
 
 
 class ChatFile(Base):
-    __tablename__ = 'chat_file'
+    __tablename__ = 'mh_ow_chat_file'
 
     id = Column(Text, unique=True, primary_key=True)
     user_id = Column(Text, nullable=False)
 
-    chat_id = Column(Text, ForeignKey('chat.id', ondelete='CASCADE'), nullable=False)
+    chat_id = Column(Text, ForeignKey('mh_ow_chat.id', ondelete='CASCADE'), nullable=False)
     message_id = Column(Text, nullable=True)
-    file_id = Column(Text, ForeignKey('file.id', ondelete='CASCADE'), nullable=False)
+    file_id = Column(Text, ForeignKey('mh_ow_file.id', ondelete='CASCADE'), nullable=False)
 
     created_at = Column(BigInteger, nullable=False)
     updated_at = Column(BigInteger, nullable=False)
@@ -2334,7 +2334,7 @@ class ChatTable:
                         text("""
                             NOT EXISTS (
                                 SELECT 1
-                                FROM json_each(Chat.meta, '$.tags') AS tag
+                                FROM json_each(mh_ow_chat.meta, '$.tags') AS tag
                             )
                             """)
                     )
@@ -2345,7 +2345,7 @@ class ChatTable:
                                 text(f"""
                                     EXISTS (
                                         SELECT 1
-                                        FROM json_each(Chat.meta, '$.tags') AS tag
+                                        FROM json_each(mh_ow_chat.meta, '$.tags') AS tag
                                         WHERE tag.value = :tag_id_{tag_idx}
                                     )
                                     """).params(**{f'tag_id_{tag_idx}': tag_id})
@@ -2356,17 +2356,17 @@ class ChatTable:
 
             elif dialect_name == 'postgresql':
                 # Safety filter: JSON field must not contain \u0000
-                stmt = stmt.filter(text("Chat.chat::text NOT LIKE '%\\\\u0000%'"))
+                stmt = stmt.filter(text("mh_ow_chat.chat::text NOT LIKE '%\\\\u0000%'"))
 
                 # Safety filter: title must not contain actual null bytes
-                stmt = stmt.filter(text("Chat.title::text NOT LIKE '%\\x00%'"))
+                stmt = stmt.filter(text("mh_ow_chat.title::text NOT LIKE '%\\x00%'"))
 
                 if 'none' in tag_ids:
                     stmt = stmt.filter(
                         text("""
                             NOT EXISTS (
                                 SELECT 1
-                                FROM json_array_elements_text(Chat.meta->'tags') AS tag
+                                FROM json_array_elements_text(mh_ow_chat.meta->'tags') AS tag
                             )
                             """)
                     )
@@ -2377,7 +2377,7 @@ class ChatTable:
                                 text(f"""
                                     EXISTS (
                                         SELECT 1
-                                        FROM json_array_elements_text(Chat.meta->'tags') AS tag
+                                        FROM json_array_elements_text(mh_ow_chat.meta->'tags') AS tag
                                         WHERE tag = :tag_id_{tag_idx}
                                     )
                                     """).params(**{f'tag_id_{tag_idx}': tag_id})
@@ -2509,7 +2509,7 @@ class ChatTable:
                 messages = """
                     SELECT c.id AS chat_id, c.user_id AS owner_id,
                            CASE WHEN m.type = 'object' THEN m.value ELSE '{}' END AS message
-                    FROM chat AS c, json_each(
+                    FROM mh_ow_chat AS c, json_each(
                         CASE
                             WHEN json_type(c.chat, '$.history.messages') = 'object'
                                 THEN json_extract(c.chat, '$.history.messages')
@@ -2531,7 +2531,7 @@ class ChatTable:
             elif dialect == 'postgresql':
                 messages = """
                     SELECT c.id AS chat_id, c.user_id AS owner_id, m.message
-                    FROM chat AS c CROSS JOIN LATERAL (
+                    FROM mh_ow_chat AS c CROSS JOIN LATERAL (
                         SELECT value AS message FROM json_each(
                             CASE WHEN json_typeof(c.chat#>'{history,messages}') = 'object'
                                 THEN c.chat#>'{history,messages}' ELSE '{}'::json END
@@ -2650,11 +2650,11 @@ class ChatTable:
             log.info('DB dialect name: %s', dialect_name)
             if dialect_name == 'sqlite':
                 stmt = stmt.filter(
-                    text(f"EXISTS (SELECT 1 FROM json_each(Chat.meta, '$.tags') WHERE json_each.value = :tag_id)")
+                    text(f"EXISTS (SELECT 1 FROM json_each(mh_ow_chat.meta, '$.tags') WHERE json_each.value = :tag_id)")
                 ).params(tag_id=tag_id)
             elif dialect_name == 'postgresql':
                 stmt = stmt.filter(
-                    text("EXISTS (SELECT 1 FROM json_array_elements_text(Chat.meta->'tags') elem WHERE elem = :tag_id)")
+                    text("EXISTS (SELECT 1 FROM json_array_elements_text(mh_ow_chat.meta->'tags') elem WHERE elem = :tag_id)")
                 ).params(tag_id=tag_id)
             else:
                 raise NotImplementedError(f'Unsupported dialect: {dialect_name}')
@@ -2729,12 +2729,12 @@ class ChatTable:
                 param = f'tag_id_{index}'
                 if dialect_name == 'sqlite':
                     stmt = stmt.filter(
-                        text(f"EXISTS (SELECT 1 FROM json_each(Chat.meta, '$.tags') WHERE json_each.value = :{param})")
+                        text(f"EXISTS (SELECT 1 FROM json_each(mh_ow_chat.meta, '$.tags') WHERE json_each.value = :{param})")
                     ).params(**{param: tag_id})
                 elif dialect_name == 'postgresql':
                     stmt = stmt.filter(
                         text(
-                            f"EXISTS (SELECT 1 FROM json_array_elements_text(Chat.meta->'tags') elem WHERE elem = :{param})"
+                            f"EXISTS (SELECT 1 FROM json_array_elements_text(mh_ow_chat.meta->'tags') elem WHERE elem = :{param})"
                         )
                     ).params(**{param: tag_id})
                 else:

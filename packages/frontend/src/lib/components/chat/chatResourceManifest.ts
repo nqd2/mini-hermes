@@ -49,7 +49,10 @@ export const buildChatRequestFiles = ({
     chatFiles: retainedChatFiles,
     files: files.filter(
       (item, index, allFiles) =>
-        allFiles.findIndex((candidate) => equal(candidate, item)) === index,
+        allFiles.findIndex((candidate) =>
+          (item.type === "file" && candidate.type === "file" && item.id && candidate.id === item.id) ||
+          equal(candidate, item),
+        ) === index,
     ),
   };
 };

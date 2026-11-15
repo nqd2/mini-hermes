@@ -4,7 +4,6 @@ import uuid
 from typing import Optional
 
 from open_webui.models.notifications import emit_changes
-from open_webui.config import RAG_FILE_CONTENT_SEARCH_MAX_CHARS
 from open_webui.models.comments import delete_resource_comments
 from open_webui.internal.db import Base, JSONField, get_async_db_context
 from open_webui.models.access_grants import AccessGrantModel, AccessGrants
@@ -48,7 +47,7 @@ KNOWLEDGE_SORTABLE_FIELDS = {'name', 'created_at', 'updated_at'}
 
 
 class Knowledge(Base):
-    __tablename__ = 'knowledge'
+    __tablename__ = 'mh_ow_knowledge'
 
     id = Column(Text, unique=True, primary_key=True)
     user_id = Column(Text)
@@ -63,11 +62,11 @@ class Knowledge(Base):
 
 
 class KnowledgeDirectory(Base):
-    __tablename__ = 'knowledge_directory'
+    __tablename__ = 'mh_ow_knowledge_directory'
 
     id = Column(Text, unique=True, primary_key=True)
-    knowledge_id = Column(Text, ForeignKey('knowledge.id', ondelete='CASCADE'), nullable=False)
-    parent_id = Column(Text, ForeignKey('knowledge_directory.id', ondelete='CASCADE'), nullable=True)
+    knowledge_id = Column(Text, ForeignKey('mh_ow_knowledge.id', ondelete='CASCADE'), nullable=False)
+    parent_id = Column(Text, ForeignKey('mh_ow_knowledge_directory.id', ondelete='CASCADE'), nullable=True)
     name = Column(Text, nullable=False)
     user_id = Column(Text, nullable=False)
 
@@ -99,13 +98,13 @@ class KnowledgeModel(BaseModel):
 
 
 class KnowledgeFile(Base):
-    __tablename__ = 'knowledge_file'
+    __tablename__ = 'mh_ow_knowledge_file'
 
     id = Column(Text, unique=True, primary_key=True)
 
-    knowledge_id = Column(Text, ForeignKey('knowledge.id', ondelete='CASCADE'), nullable=False)
-    file_id = Column(Text, ForeignKey('file.id', ondelete='CASCADE'), nullable=False)
-    directory_id = Column(Text, ForeignKey('knowledge_directory.id', ondelete='SET NULL'), nullable=True)
+    knowledge_id = Column(Text, ForeignKey('mh_ow_knowledge.id', ondelete='CASCADE'), nullable=False)
+    file_id = Column(Text, ForeignKey('mh_ow_file.id', ondelete='CASCADE'), nullable=False)
+    directory_id = Column(Text, ForeignKey('mh_ow_knowledge_directory.id', ondelete='SET NULL'), nullable=True)
     user_id = Column(Text, nullable=False)
 
     created_at = Column(BigInteger, nullable=False)
@@ -410,6 +409,8 @@ class KnowledgeTable:
                     q = filter.get('query')
                     if q:
                         if filter.get('include_content'):
+                            from open_webui.config import RAG_FILE_CONTENT_SEARCH_MAX_CHARS
+
                             # Use ->> (as_string) instead of CAST(-> AS TEXT)
                             # to avoid PostgreSQL "invalid memory alloc request
                             # size" on large extracted-content rows (#24670).
@@ -569,6 +570,8 @@ class KnowledgeTable:
                     query_key = filter.get('query')
                     if query_key:
                         if filter.get('include_content'):
+                            from open_webui.config import RAG_FILE_CONTENT_SEARCH_MAX_CHARS
+
                             # Use ->> (as_string) instead of CAST(-> AS TEXT)
                             # to avoid PostgreSQL memory allocation failures on
                             # large content (#24670).

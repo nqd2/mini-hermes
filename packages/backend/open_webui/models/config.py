@@ -104,7 +104,7 @@ def _json_value(value: Any) -> Any:
 class Config(Base):
     """Per-key config storage. Each row is one config key."""
 
-    __tablename__ = 'config'
+    __tablename__ = 'mh_ow_config'
 
     key = Column(Text, primary_key=True)
     value = Column(JSON, nullable=False)

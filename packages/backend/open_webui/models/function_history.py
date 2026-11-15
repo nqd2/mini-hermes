@@ -12,7 +12,7 @@ from sqlalchemy import JSON, BigInteger, Column, Text, select, update
 
 
 class FunctionHistory(Base):
-    __tablename__ = 'function_history'
+    __tablename__ = 'mh_ow_function_history'
     id = Column(Text, primary_key=True)
     function_id = Column(Text, nullable=False, index=True)
     parent_id = Column(Text, nullable=True)

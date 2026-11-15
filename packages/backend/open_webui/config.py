@@ -63,16 +63,13 @@ logging.getLogger('uvicorn.access').addFilter(EndpointFilter())
 
 def run_migrations():
     log.info('Running migrations')
+    from open_webui.mini_hermes.v2.environment import validate_sync_startup_or_exit
+    from open_webui.mini_hermes.v2.migrations.runner import run_v2_migrations
+
+    validate_sync_startup_or_exit()
+
     try:
-        from alembic import command
-        from alembic.config import Config as AlembicConfig
-
-        alembic_cfg = AlembicConfig(OPEN_WEBUI_DIR / 'alembic.ini')
-
-        migrations_path = OPEN_WEBUI_DIR / 'migrations'
-        alembic_cfg.set_main_option('script_location', str(migrations_path))
-
-        command.upgrade(alembic_cfg, 'head')
+        run_v2_migrations()
     except Exception as e:
         log.exception(f'Error running migrations: {e}')
         raise

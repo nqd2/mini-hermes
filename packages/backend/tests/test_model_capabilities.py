@@ -1,6 +1,11 @@
 from open_webui.mini_hermes.model_capabilities import resolve_model_capabilities
 
 
+def test_gpt_54_alias_and_snapshot_enable_document_tools():
+    for model in ('gpt-5.4', 'gpt-5.4-2026-03-05'):
+        assert resolve_model_capabilities(model, 'https://api.openai.com/v1').supports_tools
+
+
 def test_known_1min_models_have_explicit_tool_profiles():
     assert resolve_model_capabilities('qwen3.7-plus', 'https://api.1min.ai/openai/v1').supports_tools
     deepseek = resolve_model_capabilities('deepseek-v4-pro', 'https://api.1min.ai/openai/v1')

@@ -1,0 +1,6 @@
+e85ad43cf67e3cb70576e6ad19e0f07452d00a1e9f1c7dc169dc1c9b248248be  xlsx-f05-synthetic.xlsx
+20be40841820b69d9701100e975c5cdca3f3c7a75a7f36bbf3f07c8bd2370486  xlsx-f01-f03-hidden-missing-cache.xlsx
+573ceb37df1c09f7f6021b2b372980bd0f8c8da196c51557c079906afa337e46  docx-f01-structured.docx
+8f3c12c2ca20d9be6db1eb7c9fdc15d994241af448d8ad7bcaecbea59b207306  pptx-f01-structured.pptx
+421ebd09b9d6c6ecab77ff1618cd5545908f433014edbe339f89af7f43633340  pdf-f01-text-and-image.pdf
+3c424996b97a435b4b6b2a9f9c63b2fd4888bc7f4d3dee154fb33575f6faec37  xlsx-f05-exact-57765.xlsx

@@ -1,0 +1,4534 @@
+{
+  "source_root": "packages/frontend/src",
+  "entries": [
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 16,
+      "caller": "getModelAnalytics",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/models?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 58,
+      "caller": "getUserAnalytics",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/users?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 104,
+      "caller": "getMessages",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/messages?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 142,
+      "caller": "getSummary",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/summary?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 186,
+      "caller": "getDailyStats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/daily?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 224,
+      "caller": "getTokenUsage",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/tokens?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 271,
+      "caller": "getModelChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/models/${encodeURIComponent(modelId)}/chats?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/index.ts",
+      "line": 305,
+      "caller": "getModelOverview",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/models/${encodeURIComponent(modelId)}/overview?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/analytics/sessions.ts",
+      "line": 104,
+      "caller": "request",
+      "url_expression": "`${WEBUI_API_BASE_URL}/analytics/sessions${path}?${query}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 34,
+      "caller": "getApps",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 62,
+      "caller": "getAppById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 90,
+      "caller": "createNewApp",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 119,
+      "caller": "updateAppById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`",
+      "callee": "fetch",
+      "method": "PATCH"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 148,
+      "caller": "deleteAppById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 180,
+      "caller": "previewAppManifest",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps/manifest/preview`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 213,
+      "caller": "connectAppById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}/connect`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/apps/index.ts",
+      "line": 246,
+      "caller": "createAppInteraction",
+      "url_expression": "`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}/interactions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/audio/index.ts",
+      "line": 6,
+      "caller": "getAudioConfig",
+      "url_expression": "`${AUDIO_API_BASE_URL}/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/audio/index.ts",
+      "line": 52,
+      "caller": "updateAudioConfig",
+      "url_expression": "`${AUDIO_API_BASE_URL}/config/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/audio/index.ts",
+      "line": 87,
+      "caller": "transcribeAudio",
+      "url_expression": "`${AUDIO_API_BASE_URL}/transcriptions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/audio/index.ts",
+      "line": 120,
+      "caller": "synthesizeOpenAISpeech",
+      "url_expression": "`${AUDIO_API_BASE_URL}/speech`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/audio/index.ts",
+      "line": 157,
+      "caller": "getModels",
+      "url_expression": "`${AUDIO_API_BASE_URL}/models`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/audio/index.ts",
+      "line": 185,
+      "caller": "getVoices",
+      "url_expression": "`${AUDIO_API_BASE_URL}/voices`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 6,
+      "caller": "getAdminDetails",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/details`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 33,
+      "caller": "getAdminConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 60,
+      "caller": "updateAdminConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 88,
+      "caller": "getSessionUser",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 116,
+      "caller": "ldapUserSignIn",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/ldap`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 148,
+      "caller": "getLdapConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config/ldap`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 175,
+      "caller": "updateLdapConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config/ldap`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 205,
+      "caller": "getLdapServer",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config/ldap/server`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 232,
+      "caller": "updateLdapServer",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config/ldap/server`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 260,
+      "caller": "getOAuthConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config/oauth`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 287,
+      "caller": "updateOAuthConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/admin/config/oauth`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 315,
+      "caller": "userSignIn",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/signin`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 352,
+      "caller": "userSignUp",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/signup`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 385,
+      "caller": "userSignOut",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/signout`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 450,
+      "caller": "addUser",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/add`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 484,
+      "caller": "updateUserProfile",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/update/profile`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 515,
+      "caller": "updateUserTimezone",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/update/timezone`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 530,
+      "caller": "updateUserPassword",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/update/password`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 561,
+      "caller": "createAPIKey",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/api_key`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 586,
+      "caller": "getAPIKey",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/api_key`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 611,
+      "caller": "deleteAPIKey",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/api_key`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/auths/index.ts",
+      "line": 636,
+      "caller": "deleteOAuthSession",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/oauth/sessions/${encodeURIComponent(provider)}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/auths/mfa.ts",
+      "line": 22,
+      "caller": "mfaRequest",
+      "url_expression": "`${WEBUI_API_BASE_URL}/auths/mfa/${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 83,
+      "caller": "getAutomationItems",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/list?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 111,
+      "caller": "createAutomation",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 140,
+      "caller": "getAutomationById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 168,
+      "caller": "updateAutomationById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 197,
+      "caller": "toggleAutomationById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/${id}/toggle`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 225,
+      "caller": "runAutomationById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/${id}/run`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 253,
+      "caller": "deleteAutomationById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/${id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/automations/index.ts",
+      "line": 286,
+      "caller": "getAutomationRuns",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/${id}/runs?skip=${skip}&limit=${limit}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 77,
+      "caller": "getCalendars",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 105,
+      "caller": "createCalendar",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 138,
+      "caller": "updateCalendar",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/${calendarId}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 167,
+      "caller": "deleteCalendar",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/${calendarId}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 198,
+      "caller": "setDefaultCalendar",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/${calendarId}/default`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 240,
+      "caller": "getCalendarEvents",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/events?${params.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 271,
+      "caller": "createCalendarEvent",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/events/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 303,
+      "caller": "getCalendarEventById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/events/${eventId}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 335,
+      "caller": "updateCalendarEvent",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/events/${eventId}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 364,
+      "caller": "deleteCalendarEvent",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/events/${eventId}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 396,
+      "caller": "rsvpCalendarEvent",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/events/${eventId}/rsvp`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 435,
+      "caller": "searchCalendarEvents",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/events/search?${params.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/calendar/index.ts",
+      "line": 467,
+      "caller": "updateCalendarAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/calendars/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 18,
+      "caller": "createNewChannel",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 50,
+      "caller": "getChannels",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 81,
+      "caller": "getChannelById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 112,
+      "caller": "getDMChannelByUserId",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/users/${user_id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 168,
+      "caller": "getChannelMembersById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/members?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 204,
+      "caller": "updateChannelMemberActiveStatusById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/members/active`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 238,
+      "caller": "updateChannelMemberMuteStatusById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/members/mute`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 263,
+      "caller": "addMembersById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/update/members/add`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 304,
+      "caller": "removeMembersById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/update/members/remove`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 340,
+      "caller": "updateChannelById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 372,
+      "caller": "deleteChannelById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 408,
+      "caller": "getChannelMessages",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages?skip=${skip}&limit=${limit}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 446,
+      "caller": "getChannelPinnedMessages",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/pinned?page=${page}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 487,
+      "caller": "getChannelThreadMessages",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/${message_id}/thread?skip=${skip}&limit=${limit}&${new URLSearchParams(anchor)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 525,
+      "caller": "getMessageData",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/${message_id}/data`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 568,
+      "caller": "sendMessage",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/post`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 605,
+      "caller": "pinMessage",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/${message_id}/pin`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 645,
+      "caller": "updateMessage",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/${message_id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 685,
+      "caller": "addReaction",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/${message_id}/reactions/add`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 725,
+      "caller": "removeReaction",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/${message_id}/reactions/remove`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 760,
+      "caller": "deleteMessage",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/messages/${message_id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 801,
+      "caller": "getChannelWebhooks",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/webhooks`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 836,
+      "caller": "createChannelWebhook",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/webhooks/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 873,
+      "caller": "updateChannelWebhook",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/webhooks/${webhook_id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 912,
+      "caller": "deleteChannelWebhook",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${channel_id}/webhooks/${webhook_id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 949,
+      "caller": "getChannelAppsById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${encodeURIComponent(channel_id)}/apps`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 986,
+      "caller": "inviteAppToChannel",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${encodeURIComponent(channel_id)}/apps`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 1019,
+      "caller": "removeAppFromChannel",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${encodeURIComponent(channel_id)}/apps/${encodeURIComponent(app_id)}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/channels/index.ts",
+      "line": 1050,
+      "caller": "updateChannelAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/channels/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 15,
+      "caller": "getChatConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 43,
+      "caller": "updateChatConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/config`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 77,
+      "caller": "createNewChat",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/new`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 110,
+      "caller": "unarchiveAllChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/unarchive/all`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 142,
+      "caller": "unshareAllChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/share/all`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 174,
+      "caller": "importChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/import`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 223,
+      "caller": "getChatList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 278,
+      "caller": "getChatListByUserId",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/list/user/${userId}?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 330,
+      "caller": "getArchivedChatList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/archived?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 364,
+      "caller": "getArchivedChatCount",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/archived/count`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 403,
+      "caller": "getSharedChatList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/shared?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 435,
+      "caller": "getAllChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/all`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 486,
+      "caller": "getChatSearchSnippet",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/search/snippet?${searchParams}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 503,
+      "caller": "getChatListBySearchText",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/search?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 537,
+      "caller": "getChatsByFolderId",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/folder/${folderId}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 573,
+      "caller": "getChatListByFolderId",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/folder/${folderId}/list?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 607,
+      "caller": "getAllArchivedChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/all/archived`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 638,
+      "caller": "getAllUserChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/all/db`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 669,
+      "caller": "getAllTags",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/all/tags`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 700,
+      "caller": "getPinnedChatList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/pinned`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 734,
+      "caller": "getChatListByTagName",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/tags`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 771,
+      "caller": "getChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 805,
+      "caller": "getChatByShareId",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/share/${share_id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 837,
+      "caller": "getChatPinnedStatusById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/pinned`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 875,
+      "caller": "toggleChatPinnedStatusById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/pin`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 913,
+      "caller": "markChatUnreadById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/unread`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 941,
+      "caller": "markChatsRead",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/read`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 969,
+      "caller": "cloneChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/clone`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1010,
+      "caller": "forkChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/fork`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1051,
+      "caller": "cloneSharedChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/clone/shared`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1089,
+      "caller": "shareChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/share`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1122,
+      "caller": "updateChatFolderIdById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/folder`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1157,
+      "caller": "archiveChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/archive`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1189,
+      "caller": "deleteSharedChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/share`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1226,
+      "caller": "updateChatAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/shared/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1262,
+      "caller": "getChatAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/shared/${id}/access`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1299,
+      "caller": "updateChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1337,
+      "caller": "updateChatParams",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/params`",
+      "callee": "fetch",
+      "method": "PATCH"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1352,
+      "caller": "compactChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/compact`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1385,
+      "caller": "deleteChatMessageById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/messages/${messageId}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1420,
+      "caller": "resolveChatMessageToolCall",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/messages/${messageId}/resolve`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1453,
+      "caller": "deleteChatById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1485,
+      "caller": "getTagsById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/tags`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1519,
+      "caller": "addTagById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/tags`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1553,
+      "caller": "deleteTagById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${id}/tags`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1588,
+      "caller": "deleteAllChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1620,
+      "caller": "archiveAllChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/archive/all`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1660,
+      "caller": "exportChatStats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/stats/export?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1691,
+      "caller": "exportSingleChatStats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/stats/export/${encodeURIComponent(chatId)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/chats/index.ts",
+      "line": 1732,
+      "caller": "downloadChatStats",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/comments/index.ts",
+      "line": 55,
+      "caller": "commentsRequest",
+      "url_expression": "`${WEBUI_API_BASE_URL}/comments${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 9,
+      "caller": "setInterfaceVisibility",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/interface/visibility`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 24,
+      "caller": "importConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/import`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 54,
+      "caller": "exportConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/export`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 81,
+      "caller": "getConnectionsConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/connections`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 108,
+      "caller": "setConnectionsConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/connections`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 138,
+      "caller": "getToolServerConnections",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/tool_servers`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 165,
+      "caller": "setToolServerConnections",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/tool_servers`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 195,
+      "caller": "getTerminalServerConnections",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 222,
+      "caller": "setTerminalServerConnections",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 269,
+      "caller": "detectTerminalServerType",
+      "url_expression": "`${baseUrl}/api/v1/policies`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 277,
+      "caller": "detectTerminalServerType",
+      "url_expression": "`${baseUrl}/api/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 300,
+      "caller": "putOrchestratorPolicy",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers/policy`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 338,
+      "caller": "getOrchestratorPolicy",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers/policy`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 368,
+      "caller": "putOrchestratorLifecycle",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers/lifecycle`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 406,
+      "caller": "getOrchestratorLifecycle",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers/lifecycle`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 442,
+      "caller": "refreshOrchestratorTerminals",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers/refresh`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 479,
+      "caller": "verifyTerminalServerConnection",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/terminal_servers/verify`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 509,
+      "caller": "verifyToolServerConnection",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/tool_servers/verify`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 553,
+      "caller": "registerOAuthClient",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/oauth/clients/register${searchParams}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 599,
+      "caller": "getCodeExecutionConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/code_execution`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 626,
+      "caller": "setCodeExecutionConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/code_execution`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 656,
+      "caller": "getModelsDefaults",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/models/defaults`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 683,
+      "caller": "getModelsConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/models`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 710,
+      "caller": "setModelsConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/models`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 738,
+      "caller": "getSubagentsConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/subagents`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 750,
+      "caller": "setSubagentsConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/subagents`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 769,
+      "caller": "setDefaultPromptSuggestions",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/suggestions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 800,
+      "caller": "getBanners",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/banners`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/configs/index.ts",
+      "line": 827,
+      "caller": "setBanners",
+      "url_expression": "`${WEBUI_API_BASE_URL}/configs/banners`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 6,
+      "caller": "getConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 37,
+      "caller": "updateConfig",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/config`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 71,
+      "caller": "getLeaderboard",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/leaderboard?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 105,
+      "caller": "getModelHistory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/leaderboard/${encodeURIComponent(modelId)}/history?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 136,
+      "caller": "getFeedbackModelIds",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/feedbacks/models`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 176,
+      "caller": "getFeedbackItems",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/feedbacks/list?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 213,
+      "caller": "exportAllFeedbacks",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/feedbacks/all/export?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 247,
+      "caller": "createNewFeedback",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/feedback`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 278,
+      "caller": "getFeedbackById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/feedback/${feedbackId}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 309,
+      "caller": "updateFeedbackById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/feedback/${feedbackId}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/evaluations/index.ts",
+      "line": 340,
+      "caller": "deleteFeedbackById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/evaluations/feedback/${feedbackId}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 25,
+      "caller": "uploadFile",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 108,
+      "caller": "getFileProcessStatus",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${id}/process/status?${queryParams}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 130,
+      "caller": "uploadDir",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/upload/dir`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 159,
+      "caller": "getFiles",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 201,
+      "caller": "searchFilesByPath",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${path}?${searchParams}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 228,
+      "caller": "getFileCountByPath",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${path}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 241,
+      "caller": "getFileById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 272,
+      "caller": "updateFileDataContentById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${id}/data/content/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 306,
+      "caller": "getFileContentById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${id}/content`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 334,
+      "caller": "renameFileById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${id}/rename`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 363,
+      "caller": "deleteFileById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${id}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 394,
+      "caller": "deleteAllFiles",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/all`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 441,
+      "caller": "getFileBlobById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${encodeURIComponent(id)}/content${suffix}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/files/index.ts",
+      "line": 463,
+      "caller": "getFileIndexedText",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${encodeURIComponent(id)}/data/content`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 13,
+      "caller": "createNewFolder",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 41,
+      "caller": "getFolders",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 72,
+      "caller": "getFolderById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 103,
+      "caller": "updateFolderById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 139,
+      "caller": "updateFolderIsExpandedById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${id}/update/expanded`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 173,
+      "caller": "updateFolderParentIdById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${id}/update/parent`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 210,
+      "caller": "deleteFolderById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${id}?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 241,
+      "caller": "markFolderChatsReadById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${id}/read`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 274,
+      "caller": "updateFolderAccessById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 302,
+      "caller": "getSharedFolders",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/shared`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/folders/index.ts",
+      "line": 354,
+      "caller": "getSharedFolderChats",
+      "url_expression": "`${WEBUI_API_BASE_URL}/folders/${folderId}/shared/chats${query ? `?${query}` : ''}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 6,
+      "caller": "createNewFunction",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 37,
+      "caller": "getFunctions",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 68,
+      "caller": "getFunctionList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/list`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 99,
+      "caller": "loadFunctionByUrl",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/load/url`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 133,
+      "caller": "exportFunctions",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/export`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 164,
+      "caller": "getFunctionById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 196,
+      "caller": "updateFunctionById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 231,
+      "caller": "deleteFunctionById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 263,
+      "caller": "toggleFunctionById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/toggle`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 295,
+      "caller": "toggleGlobalById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/toggle/global`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 327,
+      "caller": "getFunctionValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/valves`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 359,
+      "caller": "getFunctionValvesSpecById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/valves/spec`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 391,
+      "caller": "updateFunctionValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/valves/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 426,
+      "caller": "getUserValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/valves/user`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 458,
+      "caller": "getUserValvesSpecById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/valves/user/spec`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 490,
+      "caller": "updateUserValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${id}/valves/user/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 543,
+      "caller": "getFunctionHistory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${encodeURIComponent(id)}/history?page=${page}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 559,
+      "caller": "getFunctionHistoryEntry",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 576,
+      "caller": "getFunctionHistoryDiff",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${encodeURIComponent(id)}/history/diff?${new URLSearchParams({ from_id: fromId, to_id: toId })}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 592,
+      "caller": "deleteFunctionHistoryVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/functions/index.ts",
+      "line": 608,
+      "caller": "setProductionFunctionVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/functions/id/${encodeURIComponent(id)}/update/version`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 6,
+      "caller": "createNewGroup",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 42,
+      "caller": "getGroups",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 73,
+      "caller": "getGroupById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 105,
+      "caller": "getGroupInfoById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}/info`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 137,
+      "caller": "updateGroupById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 172,
+      "caller": "deleteGroupById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 204,
+      "caller": "addUserToGroup",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}/users/add`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 239,
+      "caller": "removeUserFromGroup",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}/users/remove`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 274,
+      "caller": "getGroupPreview",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}/preview`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/groups/index.ts",
+      "line": 307,
+      "caller": "getGroupMembers",
+      "url_expression": "`${WEBUI_API_BASE_URL}/groups/id/${id}/members?${params}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 6,
+      "caller": "getConfig",
+      "url_expression": "`${IMAGES_API_BASE_URL}/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 38,
+      "caller": "updateConfig",
+      "url_expression": "`${IMAGES_API_BASE_URL}/config/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 76,
+      "caller": "verifyConnection",
+      "url_expression": "`${IMAGES_API_BASE_URL}/verify`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 109,
+      "caller": "getImageGenerationConfig",
+      "url_expression": "`${IMAGES_API_BASE_URL}/image/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 141,
+      "caller": "updateImageGenerationConfig",
+      "url_expression": "`${IMAGES_API_BASE_URL}/image/config/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 174,
+      "caller": "getImageGenerationModels",
+      "url_expression": "`${IMAGES_API_BASE_URL}/models`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 206,
+      "caller": "imageGenerations",
+      "url_expression": "`${IMAGES_API_BASE_URL}/generations`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/images/index.ts",
+      "line": 253,
+      "caller": "imageEdits",
+      "url_expression": "`${IMAGES_API_BASE_URL}/edit`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 37,
+      "caller": "getModels",
+      "url_expression": "`${WEBUI_BASE_URL}/api/models${base ? '/base' : ''}?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 188,
+      "caller": "unloadModel",
+      "url_expression": "`${WEBUI_BASE_URL}/api/models/unload`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 231,
+      "caller": "chatCompleted",
+      "url_expression": "`${WEBUI_BASE_URL}/api/chat/completed`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 270,
+      "caller": "chatAction",
+      "url_expression": "`${WEBUI_BASE_URL}/api/chat/actions/${action_id}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 303,
+      "caller": "stopTask",
+      "url_expression": "`${WEBUI_BASE_URL}/api/tasks/stop/${id}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 335,
+      "caller": "stopTasksByChatId",
+      "url_expression": "`${WEBUI_BASE_URL}/api/tasks/chat/${encodeURIComponent(chat_id)}/stop`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 367,
+      "caller": "getTaskIdsByChatId",
+      "url_expression": "`${WEBUI_BASE_URL}/api/tasks/chat/${encodeURIComponent(chat_id)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 399,
+      "caller": "resumeTemporaryChat",
+      "url_expression": "`${WEBUI_BASE_URL}/api/tasks/chat/${encodeURIComponent(chatId)}/resume`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 412,
+      "caller": "getToolServerData",
+      "url_expression": "`${url}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 517,
+      "caller": "getToolServersData",
+      "url_expression": "`${baseUrl}/api/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 527,
+      "caller": "getToolServersData",
+      "url_expression": "`${baseUrl}/system`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 696,
+      "caller": "executeToolServer",
+      "url_expression": "finalUrl",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 738,
+      "caller": "getTaskConfig",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 766,
+      "caller": "updateTaskConfig",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/config/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 804,
+      "caller": "generateTitle",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/title/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 876,
+      "caller": "generateTags",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/tags/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 948,
+      "caller": "generateEmoji",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/emoji/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 998,
+      "caller": "generateQueries",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/queries/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1070,
+      "caller": "generateAutoCompletion",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/auto/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1141,
+      "caller": "generateMoACompletion",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/tasks/moa/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1171,
+      "caller": "getPipelinesList",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/list`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1205,
+      "caller": "uploadPipeline",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/upload`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1237,
+      "caller": "downloadPipeline",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/add`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1273,
+      "caller": "deletePipeline",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1314,
+      "caller": "getPipelines",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1348,
+      "caller": "getPipelineValves",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/${pipeline_id}/valves?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1384,
+      "caller": "getPipelineValvesSpec",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/${pipeline_id}/valves/spec?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1425,
+      "caller": "updatePipelineValves",
+      "url_expression": "`${WEBUI_BASE_URL}/api/v1/pipelines/${pipeline_id}/valves/update?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1462,
+      "caller": "getUsage",
+      "url_expression": "`${WEBUI_BASE_URL}/api/usage`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1489,
+      "caller": "getBackendConfig",
+      "url_expression": "`${WEBUI_BASE_URL}/api/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1516,
+      "caller": "getBackendConfig",
+      "url_expression": "`${WEBUI_BASE_URL}/api/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1542,
+      "caller": "getChangelog",
+      "url_expression": "`${WEBUI_BASE_URL}/api/changelog`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1568,
+      "caller": "getVersion",
+      "url_expression": "`${WEBUI_BASE_URL}/api/version`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1595,
+      "caller": "getVersionUpdates",
+      "url_expression": "`${WEBUI_BASE_URL}/api/version/updates`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1646,
+      "caller": "getEvents",
+      "url_expression": "`${WEBUI_BASE_URL}/api/events`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1673,
+      "caller": "getEventWebhooks",
+      "url_expression": "`${WEBUI_BASE_URL}/api/events/webhooks`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1703,
+      "caller": "createEventWebhook",
+      "url_expression": "`${WEBUI_BASE_URL}/api/events/webhooks`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1735,
+      "caller": "updateEventWebhook",
+      "url_expression": "`${WEBUI_BASE_URL}/api/events/webhooks/${id}`",
+      "callee": "fetch",
+      "method": "PUT"
+    },
+    {
+      "file": "src/lib/apis/index.ts",
+      "line": 1763,
+      "caller": "deleteEventWebhook",
+      "url_expression": "`${WEBUI_BASE_URL}/api/events/webhooks/${id}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 15,
+      "caller": "validateKnowledgeUpload",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/files/validate`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 36,
+      "caller": "createNewKnowledge",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 70,
+      "caller": "getExternalKnowledgeConnections",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/connections`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 98,
+      "caller": "createExternalKnowledgeConnection",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/connections`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 131,
+      "caller": "updateExternalKnowledgeConnection",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}`",
+      "callee": "fetch",
+      "method": "PATCH"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 160,
+      "caller": "deleteExternalKnowledgeConnection",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 188,
+      "caller": "testExternalKnowledgeConnection",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}/test`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 220,
+      "caller": "testExternalKnowledgeRetrieval",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}/retrieve-test`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 252,
+      "caller": "testExternalKnowledgeSource",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/source/test`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 281,
+      "caller": "createExternalKnowledgeSource",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/source/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 310,
+      "caller": "updateExternalKnowledgeSource",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/source/${id}`",
+      "callee": "fetch",
+      "method": "PATCH"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 339,
+      "caller": "createExternalKnowledge",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/external/knowledge/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 371,
+      "caller": "getKnowledgeBases",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 419,
+      "caller": "searchKnowledgeBases",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/search?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 468,
+      "caller": "searchKnowledgeFiles",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/search/files?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 503,
+      "caller": "getKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 557,
+      "caller": "searchKnowledgeFilesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/files?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 592,
+      "caller": "getPendingKnowledgeFiles",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/files/pending`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 618,
+      "caller": "streamPendingKnowledgeFiles",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/files/pending?stream=true`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 643,
+      "caller": "updateKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 685,
+      "caller": "updateKnowledgeAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 722,
+      "caller": "addFileToKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/file/add`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 755,
+      "caller": "updateFileFromKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/file/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 790,
+      "caller": "removeFileFromKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/file/remove`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 825,
+      "caller": "resetKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/reset`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 861,
+      "caller": "syncKnowledgeDiff",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/sync/diff`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 898,
+      "caller": "syncKnowledgeCleanup",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/sync/cleanup`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 930,
+      "caller": "deleteKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 962,
+      "caller": "reindexKnowledgeFiles",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/reindex`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 990,
+      "caller": "reindexKnowledgeMetadata",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/metadata/reindex`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 1018,
+      "caller": "exportKnowledgeById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/export`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 1054,
+      "caller": "createKnowledgeDirectory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/dirs/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 1088,
+      "caller": "updateKnowledgeDirectory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/dirs/${dirId}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 1125,
+      "caller": "deleteKnowledgeDirectory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/dirs/${dirId}/delete?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/knowledge/index.ts",
+      "line": 1160,
+      "caller": "moveFileInKnowledge",
+      "url_expression": "`${WEBUI_API_BASE_URL}/knowledge/${id}/file/move`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/memories/index.ts",
+      "line": 6,
+      "caller": "getMemories",
+      "url_expression": "`${WEBUI_API_BASE_URL}/memories/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/memories/index.ts",
+      "line": 34,
+      "caller": "addNewMemory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/memories/add`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/memories/index.ts",
+      "line": 74,
+      "caller": "updateMemoryById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/memories/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/memories/index.ts",
+      "line": 103,
+      "caller": "queryMemory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/memories/query`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/memories/index.ts",
+      "line": 134,
+      "caller": "reindexMemoryVectors",
+      "url_expression": "`${WEBUI_API_BASE_URL}/memories/reindex`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/memories/index.ts",
+      "line": 162,
+      "caller": "deleteMemoryById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/memories/${id}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/memories/index.ts",
+      "line": 194,
+      "caller": "deleteMemoriesByUserId",
+      "url_expression": "`${WEBUI_API_BASE_URL}/memories/delete/user`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 7,
+      "caller": "exportModels",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/export${ids ? `?${query}` : ''}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 46,
+      "caller": "getModelItems",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/list?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 79,
+      "caller": "getModelTags",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/tags`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 110,
+      "caller": "getBaseModelTags",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/base/tags`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 141,
+      "caller": "importModels",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/import`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 167,
+      "caller": "getAllModels",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/all`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 186,
+      "caller": "getBaseModels",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/base?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 230,
+      "caller": "createNewModel",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 262,
+      "caller": "getModelById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 297,
+      "caller": "toggleModelById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/toggle?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 340,
+      "caller": "updateModelById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 378,
+      "caller": "updateModelAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 407,
+      "caller": "deleteModelById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/delete`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 440,
+      "caller": "deleteAllModels",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/delete/all`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 491,
+      "caller": "getModelHistory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/history?${new URLSearchParams({ id, page: String(page) })}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 506,
+      "caller": "getModelHistoryEntry",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/history/${encodeURIComponent(versionId)}?${new URLSearchParams({ id })}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 517,
+      "caller": "deleteModelHistoryVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/history/${encodeURIComponent(versionId)}?${new URLSearchParams({ id })}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/models/index.ts",
+      "line": 529,
+      "caller": "setProductionModelVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/models/model/update/version?${new URLSearchParams({ id })}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 34,
+      "caller": "updateNotePages",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/${id}/pages/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 47,
+      "caller": "createNewNote",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 78,
+      "caller": "getNotes",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 163,
+      "caller": "searchNotes",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/search?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 199,
+      "caller": "getNoteList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 230,
+      "caller": "getNoteById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 265,
+      "caller": "getNoteChatById",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 299,
+      "caller": "getNoteChatsById",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 327,
+      "caller": "createNoteChatById",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 358,
+      "caller": "updateNoteById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 394,
+      "caller": "updateNoteAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 423,
+      "caller": "deleteNoteById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/${id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 455,
+      "caller": "getPinnedNoteList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/pinned`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/notes/index.ts",
+      "line": 486,
+      "caller": "toggleNotePinnedStatusById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notes/${id}/pin`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/notifications/inbox.ts",
+      "line": 36,
+      "caller": "inboxRequest",
+      "url_expression": "`${WEBUI_API_BASE_URL}/notifications/inbox${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/notifications/index.ts",
+      "line": 27,
+      "caller": "jsonRequest",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 6,
+      "caller": "verifyOllamaConnection",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/verify`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 36,
+      "caller": "getOllamaConfig",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 74,
+      "caller": "updateOllamaConfig",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/config/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 109,
+      "caller": "getOllamaUrls",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/urls`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 141,
+      "caller": "getOllamaVersion",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/version${urlIdx ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 173,
+      "caller": "getOllamaModels",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/tags${urlIdx !== null ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 213,
+      "caller": "generatePrompt",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/generate`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 248,
+      "caller": "generateEmbeddings",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/embeddings`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 274,
+      "caller": "generateTextCompletion",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/generate`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 302,
+      "caller": "generateChatCompletion",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/chat`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 326,
+      "caller": "unloadModel",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/unload`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 351,
+      "caller": "createModel",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/create${urlIdx !== null ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 377,
+      "caller": "deleteModel",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/delete${urlIdx !== null ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 421,
+      "caller": "pullModel",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/api/pull${urlIdx !== null ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 455,
+      "caller": "downloadModel",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/models/download${urlIdx !== null ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/ollama/index.ts",
+      "line": 490,
+      "caller": "uploadModel",
+      "url_expression": "`${OLLAMA_API_BASE_URL}/models/upload${urlIdx !== null ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 25,
+      "caller": "getOpenAIConfig",
+      "url_expression": "`${OPENAI_API_BASE_URL}/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 60,
+      "caller": "updateOpenAIConfig",
+      "url_expression": "`${OPENAI_API_BASE_URL}/config/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 91,
+      "caller": "getOpenAIModelsDirect",
+      "url_expression": "`${url}/models`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 118,
+      "caller": "getOpenAIModels",
+      "url_expression": "`${OPENAI_API_BASE_URL}/models${typeof urlIdx === 'number' ? `/${urlIdx}` : ''}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 148,
+      "caller": "getProviderModelCatalog",
+      "url_expression": "`${OPENAI_API_BASE_URL}/models/${urlIdx}/catalog`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 180,
+      "caller": "downloadProviderModel",
+      "url_expression": "`${OPENAI_API_BASE_URL}/models/${urlIdx}/download`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 214,
+      "caller": "getProviderModelDownloadStatus",
+      "url_expression": "`${OPENAI_API_BASE_URL}/models/${urlIdx}/download/status/${encodeURIComponent(jobId)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 245,
+      "caller": "loadProviderModel",
+      "url_expression": "`${OPENAI_API_BASE_URL}/models/${urlIdx}/load`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 278,
+      "caller": "unloadProviderModel",
+      "url_expression": "`${OPENAI_API_BASE_URL}/models/${urlIdx}/unload`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 306,
+      "caller": "deleteProviderModel",
+      "url_expression": "`${OPENAI_API_BASE_URL}/models/${urlIdx}?${new URLSearchParams({ model })}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 347,
+      "caller": "verifyOpenAIConnection",
+      "url_expression": "`${url}/models`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 368,
+      "caller": "verifyOpenAIConnection",
+      "url_expression": "`${OPENAI_API_BASE_URL}/verify`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 406,
+      "caller": "chatCompletion",
+      "url_expression": "`${url}/chat/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 434,
+      "caller": "generateOpenAIChatCompletion",
+      "url_expression": "`${url}/chat/completions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/openai/index.ts",
+      "line": 467,
+      "caller": "synthesizeOpenAISpeech",
+      "url_expression": "`${OPENAI_API_BASE_URL}/audio/speech`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 52,
+      "caller": "createNewPrompt",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 84,
+      "caller": "getPrompts",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 115,
+      "caller": "getPromptTags",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/tags`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 172,
+      "caller": "getPromptItems",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/list?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 205,
+      "caller": "getPromptList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/list`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 236,
+      "caller": "getPromptById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 271,
+      "caller": "updatePromptById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${prompt.id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 310,
+      "caller": "updatePromptMetadata",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/update/meta`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 343,
+      "caller": "setProductionPromptVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/update/version`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 374,
+      "caller": "togglePromptById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/toggle`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 402,
+      "caller": "deletePromptById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 438,
+      "caller": "updatePromptAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 473,
+      "caller": "getPromptHistory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history?page=${page}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 505,
+      "caller": "deletePromptHistoryVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history/${historyId}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 537,
+      "caller": "getPromptHistoryEntry",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history/${historyId}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/prompts/index.ts",
+      "line": 570,
+      "caller": "getPromptDiff",
+      "url_expression": "`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history/diff?from_id=${fromId}&to_id=${toId}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 6,
+      "caller": "getRAGConfig",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 70,
+      "caller": "updateRAGConfig",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/config/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 100,
+      "caller": "getQuerySettings",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/query/settings`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 133,
+      "caller": "updateQuerySettings",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/query/settings/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 163,
+      "caller": "getEmbeddingConfig",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/embedding`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 216,
+      "caller": "updateEmbeddingConfig",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/embedding/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 246,
+      "caller": "getRerankingConfig",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/reranking`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 277,
+      "caller": "updateRerankingConfig",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/reranking/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 313,
+      "caller": "processYoutubeVideo",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/process/youtube`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 354,
+      "caller": "processUrl",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/process/url?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 397,
+      "caller": "processWeb",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/process/web?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 433,
+      "caller": "processWebSearch",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/process/web/search`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 469,
+      "caller": "queryDoc",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/query/doc`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 506,
+      "caller": "queryCollection",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/query/collection`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 538,
+      "caller": "resetUploadDir",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/reset/uploads`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/retrieval/index.ts",
+      "line": 564,
+      "caller": "resetVectorDB",
+      "url_expression": "`${RETRIEVAL_API_BASE_URL}/reset/db`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/search/index.ts",
+      "line": 30,
+      "caller": "searchWorkspace",
+      "url_expression": "`${WEBUI_API_BASE_URL}/search?${params}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 6,
+      "caller": "createNewSkill",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 40,
+      "caller": "getSkills",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 71,
+      "caller": "getSkillList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/list`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 117,
+      "caller": "getSkillItems",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/list?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 150,
+      "caller": "exportSkills",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/export`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 181,
+      "caller": "getSkillById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/id/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 212,
+      "caller": "updateSkillById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/id/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 244,
+      "caller": "updateSkillAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/id/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 275,
+      "caller": "toggleSkillById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/id/${id}/toggle`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 306,
+      "caller": "deleteSkillById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills/id/${id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/skills/index.ts",
+      "line": 345,
+      "caller": "skillRequest",
+      "url_expression": "`${WEBUI_API_BASE_URL}/skills${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/git.ts",
+      "line": 62,
+      "caller": "gitRequest",
+      "url_expression": "`${connection.baseUrl}/git/${operation}?${query}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 180,
+      "caller": "terminalRequest",
+      "url_expression": "`${connection.baseUrl}${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 234,
+      "caller": "getTerminalServers",
+      "url_expression": "`${WEBUI_API_BASE_URL}/terminals/`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 248,
+      "caller": "getTerminalConfig",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 263,
+      "caller": "getCwd",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 284,
+      "caller": "listFiles",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 317,
+      "caller": "searchFiles",
+      "url_expression": "`${base}/files/search?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 332,
+      "caller": "searchFiles",
+      "url_expression": "`${base}/files/glob?${globParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 374,
+      "caller": "getFileMatches",
+      "url_expression": "`${baseUrl.replace(/\\/$/, '')}/files/matches?${params.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 397,
+      "caller": "readComparisonSource",
+      "url_expression": "`${baseUrl.replace(/\\/$/, '')}/files/view?path=${encodeURIComponent(path)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 416,
+      "caller": "readFile",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 468,
+      "caller": "downloadFileBlob",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 488,
+      "caller": "downloadFilePreview",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 514,
+      "caller": "archiveFromTerminal",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 542,
+      "caller": "uploadToTerminal",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 606,
+      "caller": "createDirectory",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 631,
+      "caller": "deleteEntry",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 658,
+      "caller": "setCwd",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 687,
+      "caller": "moveEntry",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 709,
+      "caller": "getListeningPorts",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 733,
+      "caller": "createNotebookSession",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 766,
+      "caller": "executeNotebookCell",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 794,
+      "caller": "stopNotebookSession",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/terminal/index.ts",
+      "line": 829,
+      "caller": "compareFiles",
+      "url_expression": "`${baseUrl.replace(/\\/$/, '')}/files/compare`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 4,
+      "caller": "toggleToolById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/toggle`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 18,
+      "caller": "createNewTool",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/create`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 49,
+      "caller": "loadToolByUrl",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/load/url`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 86,
+      "caller": "getTools",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 115,
+      "caller": "getToolSpecs",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/specs`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 127,
+      "caller": "getToolList",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/list`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 158,
+      "caller": "exportTools",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/export`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 189,
+      "caller": "getToolById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 221,
+      "caller": "updateToolById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 257,
+      "caller": "updateToolAccessGrants",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/access/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 286,
+      "caller": "deleteToolById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/delete`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 318,
+      "caller": "getToolValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/valves`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 350,
+      "caller": "getToolValvesSpecById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/spec`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 382,
+      "caller": "updateToolValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 417,
+      "caller": "getUserValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/user`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 449,
+      "caller": "getUserValvesSpecById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/user/spec`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 481,
+      "caller": "updateUserValvesById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/user/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 534,
+      "caller": "getToolHistory",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history?page=${page}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 550,
+      "caller": "getToolHistoryEntry",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 567,
+      "caller": "getToolHistoryDiff",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/diff?${new URLSearchParams({ from_id: fromId, to_id: toId })}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 579,
+      "caller": "deleteToolHistoryVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/tools/index.ts",
+      "line": 591,
+      "caller": "setProductionToolVersion",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/update/version`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 7,
+      "caller": "getUserGroups",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/groups`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 34,
+      "caller": "getUserDefaultPermissions",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/default/permissions`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 61,
+      "caller": "updateUserDefaultPermissions",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/default/permissions`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 91,
+      "caller": "getUserDefaultPermissionsDefaults",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/default/permissions/defaults`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 118,
+      "caller": "updateUserRole",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/update/role`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 172,
+      "caller": "getUsers",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 223,
+      "caller": "searchUsers",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/search?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 253,
+      "caller": "getAllUsers",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/all`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 279,
+      "caller": "getUserSettings",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/user/settings${raw ? '?raw=true' : ''}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 306,
+      "caller": "updateUserSettings",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/user/settings/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 336,
+      "caller": "getUserInfoById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/info`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 363,
+      "caller": "updateUserStatus",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/user/status/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 392,
+      "caller": "getUserInfo",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/user/info`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 419,
+      "caller": "updateUserInfo",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/user/info/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 448,
+      "caller": "getUserVariables",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/user/variables`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 475,
+      "caller": "updateUserVariables",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/user/variables/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 520,
+      "caller": "getUserActiveStatusById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/active`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 547,
+      "caller": "deleteUserById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 582,
+      "caller": "updateUserById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/update`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 616,
+      "caller": "getUserGroupsById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/groups`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 643,
+      "caller": "getUserPreview",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/preview`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 727,
+      "caller": "getUserUsage",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/usage?${searchParams.toString()}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 752,
+      "caller": "revokeUserSessions",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/sessions/revoke`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 762,
+      "caller": "rotateUserAPIKeyById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/api_key/rotate`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/users/index.ts",
+      "line": 772,
+      "caller": "deleteUserAPIKeyById",
+      "url_expression": "`${WEBUI_API_BASE_URL}/users/${userId}/api_key`",
+      "callee": "fetch",
+      "method": "DELETE"
+    },
+    {
+      "file": "src/lib/apis/utils/index.ts",
+      "line": 6,
+      "caller": "getGravatarUrl",
+      "url_expression": "`${WEBUI_API_BASE_URL}/utils/gravatar?email=${email}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/apis/utils/index.ts",
+      "line": 33,
+      "caller": "executeCode",
+      "url_expression": "`${WEBUI_API_BASE_URL}/utils/code/execute`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/utils/index.ts",
+      "line": 67,
+      "caller": "formatPythonCode",
+      "url_expression": "`${WEBUI_API_BASE_URL}/utils/code/format`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/apis/utils/index.ts",
+      "line": 101,
+      "caller": "downloadDatabase",
+      "url_expression": "`${WEBUI_API_BASE_URL}/utils/db/download`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/automations/AutomationEditor.svelte",
+      "line": 65,
+      "caller": "revealRun",
+      "url_expression": "`${WEBUI_API_BASE_URL}/automations/${encodeURIComponent(automation.id)}/runs/${encodeURIComponent(id)}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/channel/MessageInput.svelte",
+      "line": 381,
+      "caller": "screenCaptureHandler",
+      "url_expression": "imageUrl",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/channel/MessageInput.svelte",
+      "line": 468,
+      "caller": "prepareImageFileHandler",
+      "url_expression": "compressed as string",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/chat/Chat.svelte",
+      "line": 1907,
+      "caller": "uploadGoogleDriveFile",
+      "url_expression": "fileData.url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/chat/Chat.svelte",
+      "line": 2233,
+      "caller": "saveVoice",
+      "url_expression": "`${WEBUI_API_BASE_URL}/chats/${$chatId}/messages/${id}`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 63,
+      "caller": "api",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/CallOverlay/VoiceAvatar.svelte",
+      "line": 132,
+      "caller": "<top-level>",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${config.file_id}/content`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/CallOverlay/VoiceAvatar.svelte",
+      "line": 166,
+      "caller": "<top-level>",
+      "url_expression": "`${WEBUI_API_BASE_URL}/files/${id}/content`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 47,
+      "caller": "openDocument",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(document.id)}/content?revision=${revision}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 69,
+      "caller": "api",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput.svelte",
+      "line": 822,
+      "caller": "screenCaptureHandler",
+      "url_expression": "imageUrl",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput.svelte",
+      "line": 940,
+      "caller": "inputFilesHandler",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/chat/Messages/MCPApp.svelte",
+      "line": 39,
+      "caller": "rpc",
+      "url_expression": "`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(`server:mcp:${app.server_id}`)}/mcp/app/rpc`",
+      "callee": "fetch",
+      "method": "POST"
+    },
+    {
+      "file": "src/lib/components/common/DocumentViewerShell.svelte",
+      "line": 63,
+      "caller": "loadRevisions",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(id)}/revisions`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/common/FileItemModal.svelte",
+      "line": 241,
+      "caller": "loadContent",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes${path}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/common/FileItemModal.svelte",
+      "line": 252,
+      "caller": "loadContent",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${selectedRevision}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/common/FileItemModal.svelte",
+      "line": 290,
+      "caller": "chooseRevision",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${number}`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/components/common/PDFViewer.svelte",
+      "line": 636,
+      "caller": "loadPdf",
+      "url_expression": "url!",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/components/playground/Images.svelte",
+      "line": 102,
+      "caller": "downloadImage",
+      "url_expression": "url",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/encryption/vendor/encryption.js",
+      "line": 579,
+      "caller": "__wbg_init",
+      "url_expression": "module_or_path",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/utils/google-drive-picker.ts",
+      "line": 9,
+      "caller": "getCredentials",
+      "url_expression": "`${WEBUI_BASE_URL}/api/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/utils/google-drive-picker.ts",
+      "line": 170,
+      "caller": "createPicker",
+      "url_expression": "downloadUrl",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/utils/onedrive-file-picker.ts",
+      "line": 36,
+      "caller": "getCredentials",
+      "url_expression": "`${WEBUI_BASE_URL}/api/config`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/lib/utils/onedrive-file-picker.ts",
+      "line": 257,
+      "caller": "downloadOneDriveFile",
+      "url_expression": "fileInfoUrl",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/lib/utils/onedrive-file-picker.ts",
+      "line": 274,
+      "caller": "downloadOneDriveFile",
+      "url_expression": "downloadUrl",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 37,
+      "caller": "api",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes${path}`",
+      "callee": "fetch",
+      "method": "UNKNOWN"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 146,
+      "caller": "downloadCurrent",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes/documents/${selected.id}/content`",
+      "callee": "fetch",
+      "method": "GET"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 162,
+      "caller": "downloadPreview",
+      "url_expression": "`${WEBUI_API_BASE_URL}/mini-hermes/previews/${previewId}/content`",
+      "callee": "fetch",
+      "method": "GET"
+    }
+  ],
+  "wrappers": [
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 87,
+      "caller": "refresh",
+      "url_expression": "`/chats/${encodeURIComponent(chatId)}/previews`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 91,
+      "caller": "refresh",
+      "url_expression": "`/chats/${encodeURIComponent(chatId)}/artifacts`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 205,
+      "caller": "loadPreviewContent",
+      "url_expression": "item.status === \"committed\"\r\n          ? `/documents/${item.document_id}/content?revision=${item.revision || item.base_revision + 1}`\r\n          : `/previews/${item.id}/content`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 227,
+      "caller": "showBaseRevision",
+      "url_expression": "`/documents/${item.document_id}/content?revision=${item.base_revision}`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 266,
+      "caller": "selectHistoryRevision",
+      "url_expression": "`/documents/${active.document_id}/content?revision=${number}`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 280,
+      "caller": "commit",
+      "url_expression": "`/previews/${active.id}`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 281,
+      "caller": "commit",
+      "url_expression": "`/previews/${active.id}/commit`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 312,
+      "caller": "retry",
+      "url_expression": "`/previews/${active.id}/retry`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/DocumentChangeReview.svelte",
+      "line": 324,
+      "caller": "download",
+      "url_expression": "active.status === \"committed\"\r\n          ? `/documents/${active.document_id}/content?revision=${selectedHistoryRevision || active.revision || active.base_revision + 1}`\r\n          : `/previews/${active.id}/content`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 92,
+      "caller": "refresh",
+      "url_expression": "`/chats/${chatId}/files/attachments`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 96,
+      "caller": "refresh",
+      "url_expression": "`/personal/files?chat_id=${encodeURIComponent(chatId)}`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 113,
+      "caller": "createFolder",
+      "url_expression": "'/folders'",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 124,
+      "caller": "moveDocument",
+      "url_expression": "`/documents/${documentId}/folder`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 135,
+      "caller": "retryDescription",
+      "url_expression": "`/documents/${documentId}/description/retry`",
+      "callee": "api"
+    },
+    {
+      "file": "src/lib/components/chat/MessageInput/InputMenu/PersonalFiles.svelte",
+      "line": 149,
+      "caller": "persist",
+      "url_expression": "`/chats/${chatId}/files`",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 51,
+      "caller": "refresh",
+      "url_expression": "'/documents'",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 54,
+      "caller": "refresh",
+      "url_expression": "`/documents/${selected.id}/previews`",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 67,
+      "caller": "upload",
+      "url_expression": "'/documents/upload'",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 78,
+      "caller": "importDrive",
+      "url_expression": "'/documents/import-drive'",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 96,
+      "caller": "propose",
+      "url_expression": "`/documents/${selected.id}/previews`",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 111,
+      "caller": "commit",
+      "url_expression": "`/previews/${preview.id}`",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 112,
+      "caller": "commit",
+      "url_expression": "`/previews/${preview.id}/commit`",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 131,
+      "caller": "retry",
+      "url_expression": "`/documents/${selected.id}/sync/retry`",
+      "callee": "api"
+    },
+    {
+      "file": "src/routes/(app)/workspace/documents/+page.svelte",
+      "line": 138,
+      "caller": "connectDrive",
+      "url_expression": "'/drive/connect'",
+      "callee": "api"
+    }
+  ],
+  "parse_errors": [
+    {
+      "file": "src/lib/components/common/FullHeightIframe.svelte",
+      "line": 1,
+      "message": "Unmatched script tag; inspect this component manually."
+    }
+  ]
+}

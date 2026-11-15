@@ -283,6 +283,9 @@ async def remove_chat_file(chat_id: str, document_id: str,
 async def list_chat_previews(chat_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
     if not await Chats.get_chat_by_id_and_user_id(chat_id, user.id, db=db):
         raise HTTPException(404, 'Chat not found')
+    accessible_documents = await list_chat_documents(db, chat_id, user.id, user.role == 'admin')
+    if not accessible_documents:
+        return []
     rows = (await db.execute(
         select(Preview, Document)
         .join(Document, Document.id == Preview.document_id)
@@ -290,12 +293,15 @@ async def list_chat_previews(chat_id: str, user=Depends(get_verified_user), db=D
         .where(
             ChatResource.chat_id == chat_id,
             Preview.owner_id == user.id,
+            Preview.document_id.in_([document.id for document in accessible_documents]),
         )
         .order_by(Preview.created_at.desc())
         .limit(10)
     )).all()
     result = []
     for preview, document in rows:
+        if not await has_document_access(db, document, user.id, 'read', is_admin=user.role == 'admin'):
+            continue
         committed = (await db.execute(select(Revision).where(Revision.preview_id == preview.id))).scalar_one_or_none()
         job = (await db.execute(select(SyncJob).where(SyncJob.revision_id == committed.id))).scalar_one_or_none() if committed else None
         url = (f'/api/v1/mini-hermes/documents/{document.id}/content?revision={committed.number}'
@@ -518,13 +524,13 @@ async def get_preview(preview_id: str, user=Depends(get_verified_user), db=Depen
     preview = (await db.execute(select(Preview).where(Preview.id == preview_id, Preview.owner_id == user.id))).scalar_one_or_none()
     if not preview:
         raise HTTPException(404, 'Preview not found')
+    document = await accessible_document(db, preview.document_id, user.id, 'read', is_admin=user.role == 'admin')
     await ensure_preview_hashes(db, ObjectStore(), preview)
-    document = await db.get(Document, preview.document_id)
     return {'id': preview.id, 'document_id': preview.document_id, 'status': preview.status,
             'diff': preview.diff, 'operations': preview.operations, 'error': preview.error,
             'base_revision': preview.base_revision, 'base_sha256': preview.base_sha256,
             'artifact_sha256': preview.artifact_sha256, 'patch_hash': preview.patch_hash,
-            'filename': document.filename if document else 'document'}
+            'filename': document.filename}
 
 
 @router.get('/previews/{preview_id}/content')

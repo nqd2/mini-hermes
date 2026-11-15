@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class App(Base):
-    __tablename__ = 'app'
+    __tablename__ = 'mh_ow_app'
 
     id = Column(Text, primary_key=True)
     slug = Column(Text, nullable=False, unique=True)

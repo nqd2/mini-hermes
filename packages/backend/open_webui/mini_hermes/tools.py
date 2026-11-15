@@ -589,7 +589,7 @@ async def read_document_skill(
     skill: str,
     path: str = 'SKILL.md',
     offset: int = 0,
-    limit: int = 16000,
+    limit: int = 4000,
     __user__: dict = None,
 ) -> dict:
     """Read bundled skill instructions or referenced Markdown files in bounded sections."""

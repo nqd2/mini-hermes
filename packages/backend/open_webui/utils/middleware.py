@@ -709,6 +709,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         event_emitter = AgentRuntime.configured().wrap_event_emitter(
             str(metadata['agent_turn_id']),
             event_emitter,
+            run_attempt=metadata.get('agent_turn_attempt'),
             message_id=metadata.get('message_id'),
         )
     event_caller = await get_event_call(metadata)

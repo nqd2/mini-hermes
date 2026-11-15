@@ -159,7 +159,7 @@ def task_checkpoint(state: dict | None) -> dict | None:
         'resource_task_ids': list(dict.fromkeys(state.get('resource_task_ids') or [])),
         'resource_index_job_ids': list(dict.fromkeys(state.get('resource_index_job_ids') or [])),
     }
-    for key in ('reason', 'budget'):
+    for key in ('reason', 'budget', 'budget_run_id'):
         if key in state:
             checkpoint[key] = state[key]
     return checkpoint

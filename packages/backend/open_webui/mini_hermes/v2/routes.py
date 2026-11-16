@@ -17,6 +17,7 @@ from openpyxl.utils import column_index_from_string, range_boundaries
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from open_webui.utils.auth import get_verified_user
 
 from open_webui.mini_hermes.v2.canonical.spreadsheet import COORD_REGEX
 from open_webui.mini_hermes.v2.db import create_v2_async_engine, create_v2_sessionmaker
@@ -71,15 +72,9 @@ async def get_v2_db() -> AsyncSession:
         yield session
 
 
-async def get_current_principal(request: Request) -> str:
-    """Resolves authenticated principal ID with test/header fallback."""
-    user = getattr(request.state, "user", None)
-    if user and hasattr(user, "id"):
-        return str(user.id)
-    header_user = request.headers.get("X-User-Id") or request.headers.get("x-user-id")
-    if header_user:
-        return header_user
-    return "default_user"
+async def get_current_principal(user=Depends(get_verified_user)) -> str:
+    """Use the same authenticated, verified identity as the product APIs."""
+    return str(user.id)
 
 
 # DTO Schemas
@@ -195,6 +190,10 @@ async def inspect_document_endpoint(
     doc = await db.get(MhDocument, doc_uuid)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        await verify_current_document_permission(db, doc, principal, "read")
+    except RevisionError as exc:
+        _raise_revision_http_error(exc)
 
     # Resolve revision
     if revision is not None:
@@ -327,6 +326,10 @@ async def read_spreadsheet_range_endpoint(
     doc = await db.get(MhDocument, doc_uuid)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        await verify_current_document_permission(db, doc, principal, "read")
+    except RevisionError as exc:
+        _raise_revision_http_error(exc)
     if doc.format_type != "xlsx":
         raise HTTPException(status_code=422, detail="Document format is not XLSX")
     if not doc.current_revision_id:
@@ -349,6 +352,8 @@ async def read_spreadsheet_range_endpoint(
         try:
             s_uuid = uuid.UUID(body.sheet_id)
             sheet = await db.get(MhWorkbookSheet, s_uuid)
+            if sheet is not None and sheet.index_build_id != build.id:
+                raise HTTPException(status_code=404, detail="Worksheet not found in this document")
         except ValueError:
             pass
     if not sheet and body.sheet_name:
@@ -553,6 +558,10 @@ async def read_range_endpoint(
     doc = await db.get(MhDocument, doc_uuid)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        await verify_current_document_permission(db, doc, principal, "read")
+    except RevisionError as exc:
+        _raise_revision_http_error(exc)
     if not doc.current_revision_id:
         raise HTTPException(status_code=404, detail="Document has no committed revisions")
 
@@ -629,6 +638,10 @@ async def search_document_endpoint(
     doc = await db.get(MhDocument, doc_uuid)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        await verify_current_document_permission(db, doc, principal, "read")
+    except RevisionError as exc:
+        _raise_revision_http_error(exc)
     if not doc.current_revision_id:
         raise HTTPException(status_code=404, detail="Document has no committed revisions")
 

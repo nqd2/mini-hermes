@@ -341,9 +341,21 @@ class AgentRuntime:
                 return await self._track_stream(
                     result, claimed.id, claimed.attempts, owner_id, session.id, heartbeat_stop, heartbeat_task, metadata
                 )
-            elif isinstance(result, dict) and result.get('paused'):
+            elif (
+                (isinstance(result, dict) and result.get('paused'))
+                or metadata.get('agent_waiting_user_input')
+                or metadata.get('agent_waiting_approval')
+                or metadata.get('resource_pending_wait')
+            ):
                 waiting_input = metadata.get('agent_waiting_user_input')
-                wait_status = 'waiting_user_input' if waiting_input else 'waiting_approval'
+                pending_wait = metadata.get('resource_pending_wait')
+                wait_status = (
+                    'waiting_user_input'
+                    if waiting_input
+                    else 'paused'
+                    if pending_wait
+                    else 'waiting_approval'
+                )
                 await self.repository.set_turn_status(
                     claimed.id,
                     wait_status,
@@ -351,6 +363,7 @@ class AgentRuntime:
                     payload={
                         'turn_id': claimed.id, 'message_id': chat_message_id,
                         **({'call_id': waiting_input['call_id']} if waiting_input else {}),
+                        **({'resource_pending_wait': pending_wait} if pending_wait else {}),
                     },
                     run_attempt=claimed.attempts,
                 )
@@ -728,7 +741,18 @@ class AgentRuntime:
                         await self._update_task_status(
                             session_id, owner_id, turn_id, 'waiting_user_input', run_attempt=run_attempt
                         )
-                    elif await self.repository.has_unresolved_tool_calls(turn_id):
+                    elif metadata.get('resource_pending_wait'):
+                        await self.repository.set_turn_status(
+                            turn_id,
+                            'paused',
+                            event_type='turn.paused',
+                            payload={'turn_id': turn_id, 'resource_pending_wait': metadata['resource_pending_wait']},
+                            run_attempt=run_attempt,
+                        )
+                        await self._update_task_status(
+                            session_id, owner_id, turn_id, 'paused', run_attempt=run_attempt
+                        )
+                    elif metadata.get('agent_waiting_approval') or await self.repository.has_unresolved_tool_calls(turn_id):
                         await self.repository.set_turn_status(
                             turn_id,
                             'waiting_approval',

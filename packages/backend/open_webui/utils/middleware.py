@@ -2414,6 +2414,7 @@ async def streaming_chat_response_handler(response, ctx):
                         and is_saved_chat_id(metadata.get('chat_id'))
                         and metadata.get('message_id')
                     ):
+                        metadata['agent_waiting_approval'] = True
                         await pause_for_tool_approval(
                             metadata['chat_id'],
                             metadata['message_id'],
@@ -3054,10 +3055,43 @@ async def streaming_chat_response_handler(response, ctx):
                 if answer_gate:
                     current_output = answer_gate.present(current_output, final=True)
                 title = await Chats.get_chat_title_by_id(metadata['chat_id']) if save_to_chat else ''
+                pending_wait = metadata.get('resource_pending_wait') if save_to_chat else None
+                if pending_wait:
+                    from open_webui.mini_hermes.resource_wait_watcher import build_initial_progress_receipt
+
+                    progress_receipt = build_initial_progress_receipt(pending_wait)
+                    await Chats.upsert_message_to_chat_by_id_and_message_id(
+                        metadata['chat_id'],
+                        metadata['message_id'],
+                        {
+                            'done': False,
+                            'meta': {
+                                **resource_task_state_metadata(metadata),
+                                'resource_task_progress': progress_receipt,
+                            },
+                            'output': current_output,
+                        },
+                    )
+                    await clear_response_stream(request.app.state.redis, response_stream_task_id)
+                    await event_emitter(
+                        {
+                            'type': 'chat:completion',
+                            'data': {
+                                'done': False,
+                                'output': current_output,
+                                'title': title,
+                                'meta': {'resource_task_progress': progress_receipt},
+                            },
+                        }
+                    )
+                    await event_emitter({'type': 'chat:active', 'data': {'active': True}})
+                    return
+
                 data = {
                     'done': True,
                     'output': current_output,
                     'title': title,
+                    'meta': {'resource_task_progress': None},
                     **({'usage': usage} if usage else {}),
                 }
 
@@ -3072,6 +3106,7 @@ async def streaming_chat_response_handler(response, ctx):
                             'meta': {
                                 'response_ended_at': time.time(),
                                 **resource_task_state_metadata(metadata),
+                                'resource_task_progress': None,
                             },
                             'output': current_output,
                             **({'usage': usage} if usage else {}),

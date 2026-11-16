@@ -1217,3 +1217,49 @@ async def test_stale_provider_request_cannot_bind_or_checkpoint_new_run(tmp_path
         assert (await repository.latest_checkpoint(turn.id, kind='context')).id == saved.id
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('metadata_key', 'metadata_value', 'expected_status'),
+    [
+        ('agent_waiting_user_input', {'call_id': 'call-1'}, 'waiting_user_input'),
+        ('agent_waiting_approval', True, 'waiting_approval'),
+    ],
+)
+async def test_streaming_emitter_pause_without_dict_return_is_resumable(
+    tmp_path, metadata_key, metadata_value, expected_status
+):
+    engine, repository = await _repository(tmp_path)
+    runtime = AgentRuntime(repository, worker_id='worker')
+    metadata = {}
+    phase = {'resumed': False}
+
+    async def handler():
+        if not phase['resumed']:
+            metadata[metadata_key] = metadata_value
+            return None
+        return {'answer': 'resumed'}
+
+    request = dict(
+        owner_id='owner',
+        chat_id='chat-pause-none',
+        chat_message_id='assistant-1',
+        user_message_id='user-1',
+        model_id='model',
+        request_payload={'messages': [{'role': 'user', 'content': 'hi'}]},
+        handler=handler,
+    )
+    try:
+        await runtime.run_chat_turn(**request, metadata=metadata)
+        paused_turn = await repository.get_turn(metadata['agent_turn_id'])
+        assert paused_turn.status == expected_status
+
+        phase['resumed'] = True
+        resume_metadata = {'tool_approval_resume': ('chat-pause-none', 'assistant-1', 'model')}
+        await runtime.run_chat_turn(**request, metadata=resume_metadata)
+        resumed_turn = await repository.get_turn(resume_metadata['agent_turn_id'])
+        assert resumed_turn.id == paused_turn.id
+        assert resumed_turn.status == 'completed'
+    finally:
+        await engine.dispose()

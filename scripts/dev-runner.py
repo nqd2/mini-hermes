@@ -34,7 +34,7 @@ def prepare_data_dir() -> None:
 
 def wait_for_backend(timeout: int = 90) -> None:
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    while time.monotonic() < deadline and not STOP.is_set():
         with LOCK:
             backend = PROCESSES['backend']
         if backend.poll() is not None:
@@ -46,7 +46,9 @@ def wait_for_backend(timeout: int = 90) -> None:
                     return
         except OSError:
             pass
-        time.sleep(1)
+        STOP.wait(1)
+    if STOP.is_set():
+        return
     raise RuntimeError('Backend did not become healthy within 90 seconds')
 
 
@@ -143,12 +145,23 @@ def watch_backend() -> None:
 def main() -> int:
     if not VITE.is_file():
         raise RuntimeError('Vite dependencies missing; run npm ci --force in packages/frontend')
+
+    def handle_stop_signal(_signum: int, _frame: object) -> None:
+        STOP.set()
+
+    signal.signal(signal.SIGINT, handle_stop_signal)
+    if hasattr(signal, 'SIGBREAK'):
+        signal.signal(signal.SIGBREAK, handle_stop_signal)
+
     try:
         prepare_data_dir()
         start('sandbox', [PYTHON, '-m', 'open_webui.mini_hermes.sandbox_service'], BACKEND)
         start('backend', [PYTHON, '-m', 'uvicorn', 'open_webui.main:app',
                           '--host', '127.0.0.1', '--port', '8080', '--loop', 'none'], BACKEND)
         wait_for_backend()
+        if STOP.is_set():
+            print('\nStopping dev stack...', flush=True)
+            return 0
         start('connector', [PYTHON, '-m', 'uvicorn', 'open_webui.mini_hermes.drive:app',
                             '--host', '127.0.0.1', '--port', '8090', '--loop', 'none'], BACKEND)
         start('worker', [PYTHON, '-m', 'open_webui.mini_hermes.worker'], BACKEND)
@@ -161,15 +174,22 @@ def main() -> int:
             for name, process in processes:
                 code = process.poll()
                 if code is not None:
+                    if STOP.is_set():
+                        break
                     with LOCK:
                         if PROCESSES.get(name) is not process:
                             continue
                     print(f'[{name}] exited with code {code}', flush=True)
                     return code or 1
+        print('\nStopping dev stack...', flush=True)
+        return 0
     except KeyboardInterrupt:
         print('\nStopping dev stack...', flush=True)
         return 0
     finally:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if hasattr(signal, 'SIGBREAK'):
+            signal.signal(signal.SIGBREAK, signal.SIG_IGN)
         STOP.set()
         with LOCK:
             processes = list(PROCESSES.values())

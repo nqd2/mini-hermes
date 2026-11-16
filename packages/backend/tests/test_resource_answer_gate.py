@@ -272,3 +272,27 @@ def test_index_pending_summary_can_resume_after_document_indexing(monkeypatch):
     )]}
     apply_resource_summary_tool_choice(tool_fields, state)
     assert tool_fields['tool_choice'] == 'none'
+
+
+def test_resolved_ask_user_preserves_assistant_explanation_when_coverage_partial():
+    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+
+    state = {
+        'resource_aware_files': ['upload-1'],
+        'resource_execution_requested': True,
+        'agent_task_state': {
+            'schema_version': 1,
+            'required_actions': ['read'],
+            'requires_complete_coverage': True,
+            'coverage_complete': False,
+            'steps': [],
+        },
+    }
+    output = [
+        {'type': 'function_call', 'name': 'ask_user', 'call_id': 'c1', 'status': 'completed'},
+        {'type': 'message', 'role': 'assistant', 'status': 'completed', 'content': [
+            {'type': 'output_text', 'text': 'Bạn đã từ chối gửi ra dịch vụ bên ngoài; vui lòng chọn phương án thay thế.'}
+        ]},
+    ]
+    final = ResourceAnswerGate(state, enabled=True).present(output, final=True)
+    assert final == output

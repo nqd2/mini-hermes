@@ -2,7 +2,7 @@ from open_webui.mini_hermes.model_capabilities import resolve_model_capabilities
 
 
 def test_gpt_54_alias_and_snapshot_enable_document_tools():
-    for model in ('gpt-5.4', 'gpt-5.4-2026-03-05'):
+    for model in ('gpt-5.4', 'gpt-5.4-2026-03-05', 'gpt-6.1-terra'):
         assert resolve_model_capabilities(model, 'https://api.openai.com/v1').supports_tools
 
 

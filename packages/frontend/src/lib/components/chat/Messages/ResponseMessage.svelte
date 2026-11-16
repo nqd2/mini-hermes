@@ -71,6 +71,7 @@
 	import RegenerateMenu from './ResponseMessage/RegenerateMenu.svelte';
 	import StatusHistory from './ResponseMessage/StatusHistory.svelte';
 	import DocumentAnalysisStatus from './ResponseMessage/DocumentAnalysisStatus.svelte';
+	import ResourceTaskProgress from './ResponseMessage/ResourceTaskProgress.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
 	import MCPApp from '$lib/components/chat/Messages/MCPApp.svelte';
 	import OutputEditView from './OutputEditView.svelte';
@@ -127,7 +128,10 @@
 			load_duration?: number;
 			usage?: unknown;
 		};
-		meta?: { document_analysis?: import('./ResponseMessage/documentAnalysis').AnalysisReceipt };
+		meta?: {
+			document_analysis?: import('./ResponseMessage/documentAnalysis').AnalysisReceipt;
+			resource_task_progress?: import('./ResponseMessage/ResourceTaskProgress.svelte').ResourceTaskProgressData | null;
+		};
 		annotation?: { type: string; rating: number };
 	}
 
@@ -757,6 +761,14 @@
 									}}
 								/>
 							{/key}
+						{/if}
+
+						{#if message.meta?.resource_task_progress}
+							<ResourceTaskProgress
+								receipt={message.meta.resource_task_progress}
+								chatId={$chatId}
+								{messageId}
+							/>
 						{/if}
 
 						{#if message?.files && message.files?.filter( (f) => ['image', 'file'].includes(f.type) ).length > 0}

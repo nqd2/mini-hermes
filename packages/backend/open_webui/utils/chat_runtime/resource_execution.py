@@ -176,9 +176,37 @@ class ResourceAnswerGate:
         if decision.status == 'completed':
             return output
 
+        has_resolved_ask_user = any(
+            isinstance(item, dict)
+            and item.get('type') == 'function_call'
+            and item.get('name') == 'ask_user'
+            and item.get('status') in {'completed', 'rejected'}
+            for item in output
+        )
+        has_assistant_message = any(
+            isinstance(item, dict) and item.get('type') == 'message' and self._is_hidden_prose_item(item)
+            for item in output
+        )
+        if decision.status == 'partial' and has_resolved_ask_user and has_assistant_message:
+            return output
+
         visible = [deepcopy(item) for item in output if not self._is_hidden_prose_item(item)]
         task_ids = (self.metadata.get('agent_task_state') or {}).get('resource_task_ids') or []
         index_job_ids = (self.metadata.get('agent_task_state') or {}).get('resource_index_job_ids') or []
+        if (
+            decision.status == 'pending'
+            and decision.reason in {'resource_summary_task_pending', 'resource_index_pending'}
+            and self.metadata.get('chat_id')
+            and self.metadata.get('message_id')
+        ):
+            self.metadata['resource_pending_wait'] = {
+                'reason': decision.reason,
+                'task_ids': list(task_ids),
+                'index_job_ids': list(index_job_ids),
+            }
+            self.metadata['resource_completion'] = decision.as_dict()
+            return visible
+
         text = self.fallback_text(
             decision.status, decision.reason, task_ids=task_ids, index_job_ids=index_job_ids
         )

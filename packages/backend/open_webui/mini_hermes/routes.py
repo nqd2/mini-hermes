@@ -529,6 +529,79 @@ async def resume_resource_task(task_id: str, user=Depends(get_verified_user), db
             'completed_units': resumed.completed_units, 'total_units': resumed.total_units}
 
 
+@router.get('/index-jobs/{job_id}')
+async def get_index_job(job_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
+    from .models import ResourceIndexJob
+
+    job = (await db.execute(select(ResourceIndexJob).where(ResourceIndexJob.id == job_id))).scalar_one_or_none()
+    if not job:
+        raise HTTPException(404, 'Index job not found')
+    doc = await accessible_document(db, job.document_id, user.id, 'read', is_admin=user.role == 'admin')
+    return {
+        'job_id': job.id,
+        'document_id': job.document_id,
+        'filename': doc.filename,
+        'revision': job.revision,
+        'status': 'completed' if job.status == 'ready' else job.status,
+        'error': job.error,
+    }
+
+
+@router.post('/chats/{chat_id}/messages/{message_id}/resume-resource')
+async def resume_chat_resource_wait(
+    chat_id: str,
+    message_id: str,
+    request: Request,
+    user=Depends(get_verified_user),
+    db=Depends(get_async_session),
+):
+    from open_webui.models.chats import Chats
+    from .resource_wait_watcher import fetch_resource_progress, schedule_resource_wait_watcher
+
+    chat = await Chats.get_accessible_chat_by_id(chat_id, user, db=db, permission='write')
+    if not chat:
+        raise HTTPException(404, 'Chat not found')
+    message = await Chats.get_message_by_id_and_message_id(chat_id, message_id)
+    if not message:
+        raise HTTPException(404, 'Message not found')
+
+    meta = message.get('meta') or {}
+    progress = meta.get('resource_task_progress') or {}
+    task_id = progress.get('task_id')
+    index_job_id = progress.get('index_job_id')
+    if task_id:
+        task = (
+            await db.execute(select(ResourceTask).where(ResourceTask.id == task_id, ResourceTask.owner_id == user.id))
+        ).scalar_one_or_none()
+        if not task:
+            raise HTTPException(404, 'Task not found')
+        doc = await accessible_document(db, task.document_id, user.id, 'read', is_admin=user.role == 'admin')
+        if task.status in {'failed', 'cancelled'}:
+            await resume_summary_task(db, task_id, user.id, doc)
+        pending_wait = {'reason': 'resource_summary_task_pending', 'task_ids': [task_id], 'index_job_ids': []}
+    elif index_job_id:
+        pending_wait = {'reason': 'resource_index_pending', 'task_ids': [], 'index_job_ids': [index_job_id]}
+    else:
+        raise HTTPException(409, 'No resumable resource wait on this message.')
+
+    updated = await fetch_resource_progress(pending_wait, user.id)
+    await Chats.upsert_message_to_chat_by_id_and_message_id(
+        chat_id,
+        message_id,
+        {'done': False, 'meta': {'resource_task_progress': updated}},
+        touch=False,
+    )
+    schedule_resource_wait_watcher(
+        request.app,
+        chat_id=chat_id,
+        message_id=message_id,
+        owner_id=user.id,
+        session_id=meta.get('session_id'),
+        pending_wait=pending_wait,
+    )
+    return {'status': True, 'resource_task_progress': updated}
+
+
 @router.get('/documents/{document_id}/previews')
 async def list_previews(document_id: str, user=Depends(get_verified_user), db=Depends(get_async_session)):
     await accessible_document(db, document_id, user.id, 'read', is_admin=user.role == 'admin')

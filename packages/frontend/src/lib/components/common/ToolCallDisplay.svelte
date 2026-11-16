@@ -20,6 +20,7 @@
 	import FullHeightIframe from './FullHeightIframe.svelte';
 	import MCPApp from '$lib/components/chat/Messages/MCPApp.svelte';
 	import { settings } from '$lib/stores';
+	import { formatToolDisplayName } from '$lib/utils/toolName';
 
 	export let id: string = '';
 	export let attributes: {
@@ -44,6 +45,7 @@
 
 	const RESULT_PREVIEW_LIMIT = 10000;
 	let expandedResult = false;
+	$: displayName = formatToolDisplayName(attributes.name);
 
 	$: if (!open) expandedResult = false;
 	export let buttonClassName =
@@ -243,23 +245,23 @@ export let workerStatus: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'int
 				<!-- Label -->
 				<div class="flex-1 min-w-0 line-clamp-1">
 					<!-- Short label (below md) -->
-					<span class="@md:hidden text-black dark:text-white">{attributes.name}</span>
+					<span class="@md:hidden text-black dark:text-white">{displayName}</span>
 					<!-- Full label (md and above) -->
 					<span class="hidden @md:inline font-normal">
 						{#if workerStatus}
-							{attributes.name}
+							{displayName}
 						{:else if isRejected}
-							{$i18n.t('Denied {{NAME}}', { NAME: attributes.name })}
+							{$i18n.t('Denied {{NAME}}', { NAME: displayName })}
 						{:else if isDone}
-							{$i18n.t('View Result from {{NAME}}', { NAME: attributes.name })}
+							{$i18n.t('View Result from {{NAME}}', { NAME: displayName })}
 						{:else if needsInput}
 							{$i18n.t('Input needed')}
 						{:else if needsApproval}
-							{$i18n.t('Allow {{NAME}}?', { NAME: attributes.name })}
+							{$i18n.t('Allow {{NAME}}?', { NAME: displayName })}
 						{:else if isPreparing}
-							{$i18n.t('Preparing {{NAME}}...', { NAME: attributes.name })}
+							{$i18n.t('Preparing {{NAME}}...', { NAME: displayName })}
 						{:else}
-							{$i18n.t('Executing {{NAME}}...', { NAME: attributes.name })}
+							{$i18n.t('Executing {{NAME}}...', { NAME: displayName })}
 						{/if}
 					</span>
 				</div>

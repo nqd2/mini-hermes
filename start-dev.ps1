@@ -33,5 +33,12 @@ if (-not $SkipPostgres) {
 }
 
 Write-Host 'Starting sandbox, backend, connector, worker and frontend...'
-& $python (Join-Path $repo 'scripts\dev-runner.py')
+$ErrorActionPreference = 'Continue'
+try {
+    & $python (Join-Path $repo 'scripts\dev-runner.py')
+} finally {
+    if ($LASTEXITCODE -eq -1073741510) {
+        $global:LASTEXITCODE = 0
+    }
+}
 exit $LASTEXITCODE

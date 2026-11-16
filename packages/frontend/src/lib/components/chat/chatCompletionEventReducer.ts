@@ -83,5 +83,9 @@ export const applyChatCompletionEvent = (
     dependencies.captureUsageCheckpoint(message);
   }
 
+  if (data.meta && typeof data.meta === 'object') {
+    message.meta = { ...(message.meta ?? {}), ...data.meta };
+  }
+
   return { done };
 };

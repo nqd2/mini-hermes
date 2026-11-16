@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { decode } from 'html-entities';
 	import { getContext } from 'svelte';
+	import { formatToolDisplayName } from '$lib/utils/toolName';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { slide } from 'svelte/transition';
@@ -159,7 +160,7 @@
 			tokens
 				.filter((t) => t?.attributes?.type === 'tool_calls')
 				.forEach((t) => {
-					const name = t?.attributes?.name ?? 'tool';
+					const name = formatToolDisplayName(t?.attributes?.name ?? 'tool');
 					nameCounts[name] = (nameCounts[name] || 0) + 1;
 				});
 

@@ -80,7 +80,6 @@
 		terminalSkills,
 		toolServers,
 		terminalServers,
-		functions,
 		selectedFolder,
 		showEmbeds,
 		selectedTerminalId,
@@ -161,7 +160,6 @@
 	import { getSkills } from '$lib/apis/skills';
 	import { uploadFile } from '$lib/apis/files';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
-	import { getFunctions } from '$lib/apis/functions';
 	import { initiateOAuthRedirect } from '$lib/apis/configs';
 
 	import Banner from '../common/Banner.svelte';
@@ -1027,10 +1025,9 @@
 		settingDefaults = new Promise<void>((resolve) => (resolveDefaults = resolve));
 
 		try {
-			if (!$tools) tools.set(await getTools(localStorage.token));
-			if (!$functions) functions.set(await getFunctions(localStorage.token));
-			if (!$skills) skills.set(await getSkills(localStorage.token));
-			if ($tools === null || $functions === null || $skills === null) return;
+			if (!$tools) tools.set(await getTools(localStorage.token).catch(() => []));
+			if (!$skills) skills.set(await getSkills(localStorage.token).catch(() => []));
+			if ($tools === null || $skills === null) return;
 			if (
 				id !== $chatId ||
 				!equal(modelIds, atSelectedModel ? [atSelectedModel.id] : selectedModels)
@@ -2829,20 +2826,23 @@
 
 				if (signal.aborted) return;
 				if (loading) {
-					if (chatIdProp && !$temporaryChatEnabled) updateLastReadAt(chatIdProp);
+					try {
+						if (chatIdProp && !$temporaryChatEnabled) updateLastReadAt(chatIdProp);
 
-					const lastMessage = history.currentId ? history.messages[history.currentId] : null;
-					if (!lastMessage || lastMessage.role !== 'assistant' || lastMessage.done) {
-						await processNextInQueue(chatIdProp);
+						const lastMessage = history.currentId ? history.messages[history.currentId] : null;
+						if (!lastMessage || lastMessage.role !== 'assistant' || lastMessage.done) {
+							await processNextInQueue(chatIdProp);
+						}
+						if (signal.aborted) return;
+						const restored = await restoreChatInput(
+							sessionStorage.getItem(`chat-input${chatIdProp ? `-${chatIdProp}` : ''}`)
+						);
+						if (signal.aborted) return;
+						await setDefaults(restored);
+						if (signal.aborted) return;
+					} finally {
+						if (!signal.aborted) loading = false;
 					}
-					if (signal.aborted) return;
-					const restored = await restoreChatInput(
-						sessionStorage.getItem(`chat-input${chatIdProp ? `-${chatIdProp}` : ''}`)
-					);
-					if (signal.aborted) return;
-					await setDefaults(restored);
-					if (signal.aborted) return;
-					loading = false;
 					await tick();
 					if (signal.aborted) return;
 					if (!$page.url.searchParams.has('message')) scrollToBottom();

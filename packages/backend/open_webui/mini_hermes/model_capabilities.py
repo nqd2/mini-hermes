@@ -33,6 +33,7 @@ _ONE_MIN_PROFILES = {
     'gpt-5.6': _profile(True),
     'gpt-6-sol': _profile(True),
     'gpt-6-luna': _profile(True),
+    'gpt-6.1-terra': _profile(True, True),
 }
 _COMMON_PROFILES = {
     'gpt-4.1': _profile(True, True),
@@ -47,6 +48,7 @@ _COMMON_PROFILES = {
     'gpt-5.6': _profile(True),
     'gpt-6-sol': _profile(True),
     'gpt-6-luna': _profile(True),
+    'gpt-6.1-terra': _profile(True, True),
 }
 
 

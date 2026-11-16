@@ -1828,7 +1828,7 @@ async def chat_completion(
                 runtime_chat_id = None if internal_turn else turn_metadata.get('chat_id')
                 agent_runtime = AgentRuntime.configured()
                 try:
-                    return await agent_runtime.run_chat_turn(
+                    run_result = await agent_runtime.run_chat_turn(
                         owner_id=user.id,
                         chat_id=runtime_chat_id,
                         chat_message_id=turn_message_id,
@@ -1844,6 +1844,22 @@ async def chat_completion(
                             request, turn_form_data, user, turn_metadata, turn_model, turn_tasks
                         ),
                     )
+                    if (
+                        turn_metadata.get('resource_pending_wait')
+                        and is_saved_chat_id(runtime_chat_id)
+                        and turn_message_id
+                    ):
+                        from open_webui.mini_hermes.resource_wait_watcher import schedule_resource_wait_watcher
+
+                        schedule_resource_wait_watcher(
+                            request.app,
+                            chat_id=runtime_chat_id,
+                            message_id=turn_message_id,
+                            owner_id=user.id,
+                            session_id=turn_metadata.get('session_id'),
+                            pending_wait=turn_metadata['resource_pending_wait'],
+                        )
+                    return run_result
                 except asyncio.CancelledError:
                     raise
                 except Exception as error:

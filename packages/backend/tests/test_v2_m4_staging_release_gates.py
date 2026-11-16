@@ -26,7 +26,7 @@ import pytest
 import pytest_asyncio
 import yaml
 from docx import Document as PythonDocxDocument
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from pptx import Presentation
 from pptx.util import Inches
 from sqlalchemy import delete, func, select
@@ -43,6 +43,7 @@ from open_webui.mini_hermes.v2.models import (
     V2Base,
 )
 from open_webui.mini_hermes.v2.routes import (
+    get_current_principal,
     get_v2_db,
     get_v2_store,
     router as v2_router,
@@ -128,6 +129,14 @@ async def create_staging_app(tmp_path: Path):
         async with session_factory() as session:
             yield session
 
+    # Identity headers are test inputs only; production uses verified sessions.
+    async def _test_principal(request: Request):
+        principal = request.headers.get("X-User-Id")
+        if not principal:
+            raise HTTPException(401, "Test identity required")
+        return principal
+
+    app.dependency_overrides[get_current_principal] = _test_principal
     app.dependency_overrides[get_v2_db] = _override_db
     app.dependency_overrides[get_v2_store] = lambda: store
 

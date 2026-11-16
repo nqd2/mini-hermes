@@ -37,7 +37,6 @@ _SAFE_BUILTINS = {
     'list_knowledge_bases',
     'list_memory_paths',
     'list_memories',
-    'list_automations',
     'query_chat_files',
     'query_knowledge_bases',
     'query_knowledge_files',
@@ -46,22 +45,15 @@ _SAFE_BUILTINS = {
     'read_memory_path',
     'read_skill_file',
     'read_spreadsheet_range',
-    'search_calendar_events',
-    'search_channel_messages',
-    'search_channels',
     'search_chats',
     'search_document',
     'search_knowledge_bases',
     'search_knowledge_files',
     'search_memories',
-    'search_notes',
     'search_tools',
-    'view_channel_message',
-    'view_channel_thread',
     'view_chat',
     'view_file',
     'view_knowledge_file',
-    'view_note',
     'view_skill',
 }
 _SECRET_KEYS = {
@@ -191,7 +183,10 @@ class AgentRuntime:
         session = await self.repository.get_turn_session(turn.session_id)
         if session is None or ConversationEngineBinding.from_session(session) != self.engine_binding:
             raise HTTPException(status_code=409, detail='Run is bound to another execution engine.')
-        if turn.status not in {'waiting_approval', 'interrupted', 'paused'} or turn.cancel_requested:
+        if (
+            turn.status not in {'waiting_approval', 'waiting_user_input', 'interrupted', 'paused'}
+            or turn.cancel_requested
+        ):
             raise HTTPException(status_code=409, detail='Agent turn cannot be resumed in its current state.')
         if await self.repository.has_unknown_tool_outcomes(turn.id):
             raise HTTPException(status_code=409, detail='An unknown external tool outcome blocks resume.')
@@ -256,7 +251,7 @@ class AgentRuntime:
             turn = await self.repository.get_owned_turn(resume_turn_id, owner_id=owner_id)
             if turn is None or turn.session_id != session.id or turn.chat_message_id != chat_message_id:
                 raise HTTPException(status_code=404, detail='Agent turn not found.')
-            if turn.status not in {'waiting_approval', 'interrupted', 'paused'}:
+            if turn.status not in {'waiting_approval', 'waiting_user_input', 'interrupted', 'paused'}:
                 raise HTTPException(status_code=409, detail='Agent turn cannot be resumed in its current state.')
         elif approval_resume_requested and chat_message_id:
             turn = await self.repository.find_resumable_turn(session.id, chat_message_id)
@@ -282,7 +277,7 @@ class AgentRuntime:
                 idempotency_key=_chat_start_idempotency_key(chat_message_id, user_message_id, continuation_id),
                 continuation=bool(continuation_id),
             )
-        if turn.status in {'waiting_approval', 'paused'} and not resume_requested:
+        if turn.status in {'waiting_approval', 'waiting_user_input', 'paused'} and not resume_requested:
             return await self._existing_run_status(turn, owner_id=owner_id, metadata=metadata)
         try:
             claimed = await self.repository.claim_turn_by_id(
@@ -347,14 +342,21 @@ class AgentRuntime:
                     result, claimed.id, claimed.attempts, owner_id, session.id, heartbeat_stop, heartbeat_task, metadata
                 )
             elif isinstance(result, dict) and result.get('paused'):
+                waiting_input = metadata.get('agent_waiting_user_input')
+                wait_status = 'waiting_user_input' if waiting_input else 'waiting_approval'
                 await self.repository.set_turn_status(
                     claimed.id,
-                    'waiting_approval',
-                    event_type='turn.waiting_approval',
-                    payload={'turn_id': claimed.id, 'message_id': chat_message_id},
+                    wait_status,
+                    event_type=f'turn.{wait_status}',
+                    payload={
+                        'turn_id': claimed.id, 'message_id': chat_message_id,
+                        **({'call_id': waiting_input['call_id']} if waiting_input else {}),
+                    },
                     run_attempt=claimed.attempts,
                 )
-                await self._update_task_status(session.id, owner_id, claimed.id, 'waiting_approval', run_attempt=claimed.attempts)
+                await self._update_task_status(
+                    session.id, owner_id, claimed.id, wait_status, run_attempt=claimed.attempts
+                )
             elif await self.repository.has_unresolved_tool_calls(claimed.id):
                 await self.repository.set_turn_status(
                     claimed.id,
@@ -713,6 +715,18 @@ class AgentRuntime:
                         await self._update_task_status(
                             session_id, owner_id, turn_id, current.status if current else 'failed',
                             run_attempt=run_attempt,
+                        )
+                    elif metadata.get('agent_waiting_user_input'):
+                        waiting_input = metadata['agent_waiting_user_input']
+                        await self.repository.set_turn_status(
+                            turn_id,
+                            'waiting_user_input',
+                            event_type='turn.waiting_user_input',
+                            payload={'turn_id': turn_id, 'call_id': waiting_input['call_id']},
+                            run_attempt=run_attempt,
+                        )
+                        await self._update_task_status(
+                            session_id, owner_id, turn_id, 'waiting_user_input', run_attempt=run_attempt
                         )
                     elif await self.repository.has_unresolved_tool_calls(turn_id):
                         await self.repository.set_turn_status(

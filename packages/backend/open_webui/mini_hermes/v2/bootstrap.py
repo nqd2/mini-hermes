@@ -1,13 +1,13 @@
 """Fresh bootstrap runner for Mini-Hermes V2 persistence.
 
-Initializes an empty PostgreSQL database with all 49 mh_* tables,
+Initializes an empty PostgreSQL database with the versioned release schema,
 seeds baseline roles, creates initial administrator, and writes the immutable
 environment identity marker. Fails closed on legacy V1 tables or existing markers.
 """
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 import secrets
 import uuid
@@ -26,7 +26,6 @@ from open_webui.mini_hermes.v2.models import (
     MhUser,
     UserRole,
     utcnow,
-    v2_metadata,
 )
 
 log = logging.getLogger(__name__)
@@ -104,7 +103,7 @@ async def bootstrap_v2_database(
 
     1. Fail-closed check: verify no legacy V1 tables exist.
     2. Check if mh_environment_markers has an active identity.
-    3. Create all 49 tables via v2_metadata.
+    3. Apply the frozen versioned PostgreSQL migrations.
     4. Seed default roles (admin, user, reviewer, auditor).
     5. Seed initial admin user with bcrypt password hash.
     6. Insert immutable environment marker in mh_environment_markers.
@@ -114,6 +113,37 @@ async def bootstrap_v2_database(
     should_dispose = engine is None
 
     try:
+        # Refuse a populated or legacy database before running any migration.
+        async with async_engine.connect() as preflight:
+            preexisting_tables = await preflight.run_sync(
+                lambda sync_conn: inspect(sync_conn).get_table_names()
+            )
+            legacy_tables = [
+                table for table in preexisting_tables
+                if not table.startswith("mh_")
+                and table not in ("alembic_version", "alembic_version_v2")
+            ]
+            if legacy_tables:
+                raise LegacyV1DatabaseDetectedError(
+                    f"Legacy V1 tables detected: {legacy_tables}. "
+                    "Mini-Hermes V2 refuses to modify a legacy database."
+                )
+            if "mh_environment_markers" in preexisting_tables:
+                existing_marker = (
+                    await preflight.execute(
+                        select(MhEnvironmentMarker.environment_name, MhEnvironmentMarker.instance_id).limit(1)
+                    )
+                ).mappings().fetchone()
+                if existing_marker is not None:
+                    raise DatabaseAlreadyBootstrappedError(
+                        f"Database is already bootstrapped with environment '{existing_marker['environment_name']}' "
+                        f"(instance: {existing_marker['instance_id']})."
+                    )
+
+        from open_webui.mini_hermes.v2.migrations.runner import run_v2_migrations
+
+        await asyncio.to_thread(run_v2_migrations, normalized_url)
+
         async with async_engine.begin() as conn:
             # 1. Inspect existing tables for fail-closed checks
             def _check_existing(sync_conn):
@@ -149,12 +179,6 @@ async def bootstrap_v2_database(
                         f"Database is already bootstrapped with environment '{existing_marker['environment_name']}' "
                         f"(instance: {existing_marker['instance_id']})."
                     )
-
-            # 3. Create all 49 mh_* tables
-            def _create_tables(sync_conn):
-                v2_metadata.create_all(bind=sync_conn)
-
-            await conn.run_sync(_create_tables)
 
             # 4. Seed default roles
             roles_seeded: list[str] = []
@@ -240,7 +264,7 @@ async def bootstrap_v2_database(
                 "admin_id": str(admin_id),
                 "admin_email": config.admin_email,
                 "roles_seeded": roles_seeded,
-                "tables_created": len(v2_metadata.tables),
+                "tables_created": sum(table.startswith("mh_") for table in existing_tables),
             }
     finally:
         if should_dispose:

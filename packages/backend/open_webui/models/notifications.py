@@ -51,22 +51,11 @@ class NotificationData(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
-class ReminderData(NotificationData):
-    start_at: int
-
-
 class SystemData(NotificationData):
     message: str = Field(min_length=1, max_length=2000)
 
 
 DATA_TYPES = {
-    'comment.created': NotificationData,
-    'comment.replied': NotificationData,
-    'comment.mentioned': NotificationData,
-    'channel.mentioned': NotificationData,
-    'channel.replied': NotificationData,
-    'calendar.alert': ReminderData,
-    'automation.run_failed': NotificationData,
     'system.announcement': SystemData,
 }
 

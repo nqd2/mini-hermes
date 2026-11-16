@@ -50,8 +50,6 @@ from open_webui.config import (
     # Admin
     ENABLE_ADMIN_CHAT_ACCESS,
     ENABLE_ADMIN_EXPORT,
-    ENABLE_ONEDRIVE_BUSINESS,
-    ENABLE_ONEDRIVE_PERSONAL,
     # OpenAI
     ENV,
     FRONTEND_BUILD_DIR,
@@ -59,17 +57,12 @@ from open_webui.config import (
     GOOGLE_DRIVE_CLIENT_ID,
     IFRAME_CSP,
     OAUTH_PROVIDERS,
-    ONEDRIVE_CLIENT_ID_BUSINESS,
-    ONEDRIVE_CLIENT_ID_PERSONAL,
-    ONEDRIVE_SHAREPOINT_TENANT_ID,
-    ONEDRIVE_SHAREPOINT_URL,
     STATIC_DIR,
     THREAD_POOL_SIZE,
     THREAD_POOL_THREAD_NAME_PREFIX,
     WEBUI_AUTH,
     WEBUI_NAME,
     async_reset_config,
-    import_legacy_config_json,
     seed_registered_defaults,
 )
 from open_webui.constants import ERROR_MESSAGES, TASKS
@@ -85,7 +78,6 @@ from open_webui.env import (
     ENABLE_COMPRESSION_MIDDLEWARE,
     ENABLE_CUSTOM_MODEL_FALLBACK,
     ENABLE_EASTER_EGGS,
-    ENABLE_FUNCTIONS,
     # OAuth Back-Channel Logout
     ENABLE_OAUTH_BACKCHANNEL_LOGOUT,
     ENABLE_OTEL,
@@ -93,7 +85,6 @@ from open_webui.env import (
     ENABLE_PUBLIC_ACTIVE_USERS_COUNT,
     ENABLE_PYODIDE_FILE_PERSISTENCE,
     # SCIM
-    ENABLE_SCIM,
     ENABLE_SIGNUP_PASSWORD_CONFIRMATION,
     ENABLE_STAR_SESSIONS_MIDDLEWARE,
     ENABLE_TOOL_SERVERS,
@@ -143,44 +134,31 @@ from open_webui.models.access_grants import AccessGrants
 from open_webui.models.channels import Channels
 from open_webui.models.chats import ChatForm, Chats
 from open_webui.models.config import Config
-from open_webui.models.functions import Functions
 from open_webui.models.messages import Messages
 from open_webui.models.models import Models, normalize_model_tags
 from open_webui.models.groups import Groups, resolve_group_default_models
 from open_webui.models.users import Users
 from open_webui.routers import (
-    apps,
     analytics,
-    audio,
     auths,
-    automations,
-    calendar,
     chat_tasks,
-    channels,
     chats,
-    comments,
     configs,
-    evaluations,
     files,
     folders,
-    functions,
     groups,
     images,
     knowledge,
     memories,
     mfa,
     models,
-    notes,
     notifications,
     openai,
-    pipelines,
     prompts,
     retrieval,
-    scim,
     search,
     skills,
     tasks,
-    terminals,
     tools,
     users,
     utils,
@@ -275,7 +253,6 @@ from open_webui.utils.oauth import (
     recover_oauth_client_metadata,
     resolve_oauth_client_info,
 )
-from open_webui.utils.plugin import install_tool_and_function_dependencies
 from open_webui.utils.recurrence import RecurrenceEvaluationTimeout
 from open_webui.utils.redis import get_redis_client
 from open_webui.utils.session_pool import cleanup_response, get_client_timeout, get_session, stream_wrapper
@@ -284,11 +261,10 @@ from open_webui.utils.tool_approval import (
     build_tool_approval_resume_payload,
     resolve_tool_call_output,
 )
-from open_webui.utils.tools import set_terminal_servers, set_tool_servers
+from open_webui.utils.tools import set_tool_servers
 
 if SAFE_MODE:
     print('SAFE MODE ENABLED')
-    # Functions.deactivate_all_functions() is awaited in lifespan below
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
@@ -388,7 +364,6 @@ async def lifespan(app: FastAPI):
     if RESET_CONFIG_ON_START:
         await async_reset_config()
 
-    await import_legacy_config_json()
     await seed_registered_defaults()
     await app.state.oauth_manager.initialize()
     from open_webui.utils.mfa import validate_mfa_configuration
@@ -425,18 +400,7 @@ async def lifespan(app: FastAPI):
             # Disable signup since we now have an admin
             await Config.upsert({'ui.enable_signup': False})
 
-    if SAFE_MODE:
-        await Functions.deactivate_all_functions()
-
-    # This should be blocking (sync) so functions are not deactivated on first /get_models calls
-    # when the first user lands on the / route.
-    log.info('Installing external dependencies of functions and tools...')
-    await install_tool_and_function_dependencies()
-
     app.state.redis = get_redis_client(async_mode=True)
-    from open_webui.socket.apps import connections as app_connections
-
-    await app_connections.start(app.state.redis)
 
     if app.state.redis is not None:
         app.state.redis_task_command_listener = asyncio.create_task(redis_task_command_listener(app))
@@ -452,10 +416,6 @@ async def lifespan(app: FastAPI):
     app.state.periodic_socket_authentication = asyncio.create_task(periodic_socket_authentication())
     app.state.periodic_usage_pool_cleanup = asyncio.create_task(periodic_usage_pool_cleanup())
     app.state.periodic_session_pool_cleanup = asyncio.create_task(periodic_session_pool_cleanup())
-
-    from open_webui.utils.automations import scheduler_worker_loop
-
-    app.state.scheduler_worker_loop = asyncio.create_task(scheduler_worker_loop(app))
 
     if await Config.get('models.base_models_cache'):
         try:
@@ -482,9 +442,7 @@ async def lifespan(app: FastAPI):
             log.warning(f'Failed to pre-fetch models at startup: {e}')
 
     # Pre-fetch tool server specs so the first request doesn't pay the latency cost
-    if ENABLE_TOOL_SERVERS and (
-        await Config.get('tool_server.connections', []) or await Config.get('terminal_server.connections', [])
-    ):
+    if ENABLE_TOOL_SERVERS and await Config.get('tool_server.connections', []):
         mock_request = Request(
             {
                 'type': 'http',
@@ -508,12 +466,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             log.warning(f'Failed to initialize tool servers at startup: {e}')
 
-        try:
-            await set_terminal_servers(mock_request)
-            log.info('Initialized %s terminal server(s)', len(app.state.TERMINAL_SERVERS))
-        except Exception as e:
-            log.warning(f'Failed to initialize terminal servers at startup: {e}')
-
     # Mark application as ready to accept traffic from a startup perspective.
     if license_task:
         try:
@@ -529,8 +481,6 @@ async def lifespan(app: FastAPI):
     yield
 
     await publish_event(request, EVENTS.SYSTEM_SHUTDOWN_STARTED, source='system')
-    await app_connections.close()
-
     # Shutdown: clean up shared resources
     from open_webui.utils.session_pool import close_session
 
@@ -548,7 +498,6 @@ async def lifespan(app: FastAPI):
     app.state.periodic_socket_authentication.cancel()
     app.state.periodic_usage_pool_cleanup.cancel()
     app.state.periodic_session_pool_cleanup.cancel()
-    app.state.scheduler_worker_loop.cancel()
     if hasattr(app.state, 'revision_outbox_dispatcher'):
         app.state.revision_outbox_dispatcher.cancel()
         try:
@@ -671,7 +620,6 @@ app.state.TERMINAL_SERVERS = []
 
 # SCIM
 
-app.state.ENABLE_SCIM = ENABLE_SCIM
 app.state.SCIM_TOKEN = SCIM_TOKEN
 
 # Models
@@ -866,12 +814,10 @@ app.mount('/ws', socket_app)
 app.include_router(openai.router, prefix='/openai', tags=['openai'])
 
 
-app.include_router(pipelines.router, prefix='/api/v1/pipelines', tags=['pipelines'])
 app.include_router(tasks.router, prefix='/api/v1/tasks', tags=['tasks'])
 app.include_router(chat_tasks.router)
 app.include_router(images.router, prefix='/api/v1/images', tags=['images'])
 
-app.include_router(audio.router, prefix='/api/v1/audio', tags=['audio'])
 app.include_router(retrieval.router, prefix='/api/v1/retrieval', tags=['retrieval'])
 
 app.include_router(configs.router, prefix='/api/v1/configs', tags=['configs'])
@@ -881,11 +827,7 @@ app.include_router(mfa.router, prefix='/api/v1/auths/mfa', tags=['auths'])
 app.include_router(users.router, prefix='/api/v1/users', tags=['users'])
 
 
-app.include_router(apps.router, prefix='/api/v1/apps', tags=['apps'])
-app.include_router(channels.router, prefix='/api/v1/channels', tags=['channels'])
 app.include_router(chats.router, prefix='/api/v1/chats', tags=['chats'])
-app.include_router(comments.router, prefix='/api/v1/comments', tags=['comments'])
-app.include_router(notes.router, prefix='/api/v1/notes', tags=['notes'])
 app.include_router(search.router, prefix='/api/v1/search', tags=['search'])
 
 
@@ -905,18 +847,9 @@ from open_webui.mini_hermes.v2.routes import router as v2_document_router
 
 app.include_router(document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents'])
 app.include_router(v2_document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents-v2'])
-app.include_router(functions.router, prefix='/api/v1/functions', tags=['functions'])
-app.include_router(evaluations.router, prefix='/api/v1/evaluations', tags=['evaluations'])
 if ENABLE_ADMIN_ANALYTICS:
     app.include_router(analytics.router, prefix='/api/v1/analytics', tags=['analytics'])
 app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
-app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
-app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
-app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
-
-# SCIM 2.0 API for identity management
-if ENABLE_SCIM:
-    app.include_router(scim.router, prefix='/api/v1/scim/v2', tags=['scim'])
 
 
 # Chat Endpoints
@@ -2455,23 +2388,14 @@ async def get_app_config(request: Request):
     config = await Config.get_many(
         'oauth.enable',
         'oauth.auto_redirect',
-        'ldap.enable',
         'ui.enable_signup',
         'ui.enable_login_form',
         'auth.enable_api_keys',
         'ui.enable_password_change_form',
         'direct.enable',
         'direct.integrations.enable',
-        'terminal_server.connections',
         'folders.enable',
         'folders.max_file_count',
-        'channels.enable',
-        'channels.encryption.enable',
-        'apps.enable',
-        'calendar.enable',
-        'automations.enable',
-        'notes.enable',
-        'comments.enable',
         'notifications.enable',
         'chat.context_compaction.enable',
         'chat.tool_permissions.enable',
@@ -2485,14 +2409,10 @@ async def get_app_config(request: Request):
         'task.title.enable',
         'task.follow_up.enable',
         'task.tags.enable',
-        'ui.enable_community_sharing',
         'ui.enable_message_rating',
-        'ui.enable_user_webhooks',
         'users.enable_status',
         'google_drive.enable',
-        'onedrive.enable',
         'memories.enable',
-        'subagents.enable',
         'ui.default_models',
         'ui.default_pinned_models',
         'ui.default_interface_settings',
@@ -2502,13 +2422,6 @@ async def get_app_config(request: Request):
         'ui.prompt_suggestions_i18n',
         'code_execution.engine',
         'code_interpreter.engine',
-        'audio.realtime.enabled',
-        'audio.realtime.model',
-        'audio.realtime.voice',
-        'audio.tts.engine',
-        'audio.tts.voice',
-        'audio.tts.split_on',
-        'audio.stt.engine',
         'rag.file.max_size',
         'rag.file.max_count',
         'file.image_compression_width',
@@ -2542,7 +2455,6 @@ async def get_app_config(request: Request):
             'auth': WEBUI_AUTH,
             'auth_trusted_header': bool(WEBUI_AUTH_TRUSTED_EMAIL_HEADER),
             'enable_signup_password_confirmation': ENABLE_SIGNUP_PASSWORD_CONFIRMATION,
-            'enable_ldap': config.get('ldap.enable'),
             'enable_signup': config.get('ui.enable_signup'),
             'enable_login_form': config.get('ui.enable_login_form'),
             'enable_websocket': ENABLE_WEBSOCKET_SUPPORT,
@@ -2565,22 +2477,9 @@ async def get_app_config(request: Request):
                     and config.get('direct.integrations.enable', False),
                     'enable_plugins': ENABLE_PLUGINS,
                     'enable_tools': ENABLE_TOOLS,
-                    'enable_functions': ENABLE_FUNCTIONS,
                     'enable_tool_servers': ENABLE_TOOL_SERVERS,
-                    'enable_terminal_servers': ENABLE_TOOL_SERVERS
-                    and any(
-                        connection.get('enabled', True)
-                        for connection in config.get('terminal_server.connections') or []
-                    ),
                     'enable_folders': config.get('folders.enable'),
                     'folder_max_file_count': config.get('folders.max_file_count'),
-                    'enable_channels': config.get('channels.enable'),
-                    'enable_encrypted_channels': config.get('channels.encryption.enable'),
-                    'enable_apps': config.get('apps.enable'),
-                    'enable_calendar': config.get('calendar.enable'),
-                    'enable_automations': config.get('automations.enable'),
-                    'enable_notes': config.get('notes.enable'),
-                    'enable_comments': config.get('comments.enable'),
                     'enable_notifications': config.get('notifications.enable'),
                     'enable_context_compaction': config.get('chat.context_compaction.enable'),
                     'enable_tool_permissions': config.get('chat.tool_permissions.enable'),
@@ -2594,25 +2493,13 @@ async def get_app_config(request: Request):
                     'enable_title_generation': config.get('task.title.enable'),
                     'enable_follow_up_generation': config.get('task.follow_up.enable'),
                     'enable_tags_generation': config.get('task.tags.enable'),
-                    'enable_community_sharing': config.get('ui.enable_community_sharing'),
                     'enable_message_rating': config.get('ui.enable_message_rating'),
-                    'enable_user_webhooks': config.get('ui.enable_user_webhooks'),
                     'enable_user_status': config.get('users.enable_status'),
                     'enable_admin_export': ENABLE_ADMIN_EXPORT,
                     'enable_admin_chat_access': ENABLE_ADMIN_CHAT_ACCESS,
                     'enable_admin_analytics': ENABLE_ADMIN_ANALYTICS,
                     'enable_google_drive_integration': config.get('google_drive.enable'),
-                    'enable_onedrive_integration': config.get('onedrive.enable'),
                     'enable_memories': config.get('memories.enable'),
-                    'enable_subagents': config.get('subagents.enable'),
-                    **(
-                        {
-                            'enable_onedrive_personal': ENABLE_ONEDRIVE_PERSONAL,
-                            'enable_onedrive_business': ENABLE_ONEDRIVE_BUSINESS,
-                        }
-                        if config.get('onedrive.enable')
-                        else {}
-                    ),
                 }
                 if user is not None
                 else {}
@@ -2629,21 +2516,6 @@ async def get_app_config(request: Request):
                     'engine': config.get('code_execution.engine'),
                     'interpreter_engine': config.get('code_interpreter.engine'),
                 },
-                'audio': {
-                    'realtime': {
-                        'enabled': config.get('audio.realtime.enabled'),
-                        'model': config.get('audio.realtime.model'),
-                        'voice': config.get('audio.realtime.voice'),
-                    },
-                    'tts': {
-                        'engine': config.get('audio.tts.engine'),
-                        'voice': config.get('audio.tts.voice'),
-                        'split_on': config.get('audio.tts.split_on'),
-                    },
-                    'stt': {
-                        'engine': config.get('audio.stt.engine'),
-                    },
-                },
                 'file': {
                     'max_size': config.get('rag.file.max_size'),
                     'max_count': config.get('rag.file.max_count'),
@@ -2656,12 +2528,6 @@ async def get_app_config(request: Request):
                 'google_drive': {
                     'client_id': GOOGLE_DRIVE_CLIENT_ID,
                     'api_key': GOOGLE_DRIVE_API_KEY,
-                },
-                'onedrive': {
-                    'client_id_personal': ONEDRIVE_CLIENT_ID_PERSONAL,
-                    'client_id_business': ONEDRIVE_CLIENT_ID_BUSINESS,
-                    'sharepoint_url': ONEDRIVE_SHAREPOINT_URL,
-                    'sharepoint_tenant_id': ONEDRIVE_SHAREPOINT_TENANT_ID,
                 },
                 'ui': {
                     'default_interface_settings': config.get('ui.default_interface_settings'),

@@ -17,7 +17,6 @@ def _adapters(config_get, **overrides):
         'has_permission': unexpected,
         'add_memory_context': unexpected,
         'web_search_handler': unexpected,
-        'image_generation_handler': unexpected,
         'add_or_update_system_message': message_update,
         'add_or_update_user_message': message_update,
         'default_voice_prompt': 'default voice',
@@ -60,15 +59,10 @@ async def test_process_chat_features_preserves_legacy_order_and_prompt_placement
         order.append(('web-search', request, user))
         return form_data
 
-    async def image_generation(request, form_data, extra_params, user):
-        order.append(('image-generation', request, user))
-        return form_data
-
     adapters = _adapters(
         config_get,
         add_memory_context=add_memory,
         web_search_handler=web_search,
-        image_generation_handler=image_generation,
         add_or_update_system_message=add_system,
         add_or_update_user_message=add_user,
     )
@@ -96,7 +90,6 @@ async def test_process_chat_features_preserves_legacy_order_and_prompt_placement
         'voice',
         'memory',
         'web-search',
-        'image-generation',
         'code-interpreter',
     ]
     assert order[-1][1] == 'execute code filesystem'
@@ -111,13 +104,11 @@ async def test_process_chat_features_skips_forced_search_and_generation_for_nati
         return {'web.search.enable': True, 'code_interpreter.engine': 'jupyter'}.get(key)
 
     web_search = AsyncMock()
-    image_generation = AsyncMock()
     add_system = AsyncMock()
     add_user = AsyncMock()
     adapters = _adapters(
         config_get,
         web_search_handler=web_search,
-        image_generation_handler=image_generation,
         add_or_update_system_message=add_system,
         add_or_update_user_message=add_user,
     )
@@ -137,7 +128,6 @@ async def test_process_chat_features_skips_forced_search_and_generation_for_nati
     )
 
     web_search.assert_not_awaited()
-    image_generation.assert_not_awaited()
     add_system.assert_not_called()
     add_user.assert_not_called()
 
@@ -154,13 +144,11 @@ async def test_process_chat_features_rechecks_permissions_for_client_feature_fla
     has_permission = AsyncMock(return_value=False)
     memory = AsyncMock()
     web_search = AsyncMock()
-    image_generation = AsyncMock()
     adapters = _adapters(
         config_get,
         has_permission=has_permission,
         add_memory_context=memory,
         web_search_handler=web_search,
-        image_generation_handler=image_generation,
     )
     form_data = {
         'messages': [],
@@ -170,12 +158,10 @@ async def test_process_chat_features_rechecks_permissions_for_client_feature_fla
 
     await process_chat_features(object(), form_data, user, {}, {'params': {'function_calling': 'legacy'}}, {}, adapters)
 
-    assert has_permission.await_count == 3
+    assert has_permission.await_count == 2
     assert [call.args[1] for call in has_permission.await_args_list] == [
         'features.memories',
         'features.web_search',
-        'features.image_generation',
     ]
     memory.assert_not_awaited()
     web_search.assert_not_awaited()
-    image_generation.assert_not_awaited()

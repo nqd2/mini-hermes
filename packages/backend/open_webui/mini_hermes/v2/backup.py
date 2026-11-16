@@ -8,21 +8,23 @@ Supports:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import shutil
 import subprocess
 from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import inspect, select, text
+from sqlalchemy import Date, DateTime, LargeBinary, MetaData, Uuid, and_, func, inspect, select, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from open_webui.mini_hermes.v2.db import normalize_v2_db_url
-from open_webui.mini_hermes.v2.models import utcnow, v2_metadata
+from open_webui.mini_hermes.v2.models import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -33,16 +35,61 @@ def _json_serial(obj: Any) -> Any:
         return obj.isoformat()
     if isinstance(obj, UUID):
         return str(obj)
-    if isinstance(obj, bytes):
+    if isinstance(obj, (bytes, memoryview)):
         return obj.hex()
+    if isinstance(obj, Decimal):
+        return str(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
+
+
+def _restore_row(table, row: dict[str, Any]) -> dict[str, Any]:
+    """Recover typed values from the JSON backup representation."""
+    converted = {}
+    for column in table.columns:
+        if column.name not in row:
+            continue
+        value = row[column.name]
+        if isinstance(value, str):
+            if isinstance(column.type, Uuid):
+                value = UUID(value)
+            elif isinstance(column.type, DateTime):
+                value = datetime.fromisoformat(value)
+            elif isinstance(column.type, Date):
+                value = date.fromisoformat(value)
+            elif isinstance(column.type, LargeBinary):
+                value = bytes.fromhex(value)
+        converted[column.name] = value
+    return converted
+
+
+async def _verify_restored_foreign_keys(conn, metadata: MetaData) -> None:
+    """Check every FK after loading rows with triggers temporarily disabled."""
+    for table in metadata.tables.values():
+        for constraint in table.foreign_key_constraints:
+            elements = list(constraint.elements)
+            referred = elements[0].column.table.alias()
+            matches = and_(*(
+                element.parent == referred.c[element.column.name]
+                for element in elements
+            ))
+            missing = and_(
+                *(element.parent.is_not(None) for element in elements),
+                referred.c[elements[0].column.name].is_(None),
+            )
+            orphan_count = await conn.scalar(
+                select(func.count()).select_from(table.outerjoin(referred, matches)).where(missing)
+            )
+            if orphan_count:
+                raise RuntimeError(
+                    f"Restored table {table.name} violates foreign key {constraint.name}"
+                )
 
 
 async def dump_v2_database(
     source_url: str | None = None,
     output_path: str | Path = "backup_v2.dump",
 ) -> dict[str, Any]:
-    """Dump all 49 mh_* tables and environment identity.
+    """Dump every release table and environment identity.
 
     Tries pg_dump first; falls back to pure Python async dumper if pg_dump is unavailable.
     """
@@ -83,21 +130,21 @@ async def dump_v2_database(
         }
 
         async with engine.connect() as conn:
-            def _get_tables(sync_conn):
-                inspector = inspect(sync_conn)
-                return [t for t in inspector.get_table_names() if t.startswith("mh_")]
+            def _reflect(sync_conn):
+                metadata = MetaData()
+                names = [
+                    name for name in inspect(sync_conn).get_table_names()
+                    if name.startswith("mh_")
+                ]
+                metadata.reflect(bind=sync_conn, only=names)
+                return metadata
 
-            mh_tables = await conn.run_sync(_get_tables)
-
-            for tbl_name in sorted(mh_tables):
-                if tbl_name in v2_metadata.tables:
-                    table_obj = v2_metadata.tables[tbl_name]
-                    stmt = select(table_obj)
-                    rows = (await conn.execute(stmt)).mappings().all()
-
-                    serialized_rows = [dict(r) for r in rows]
-                    dump_payload["tables"][tbl_name] = serialized_rows
-                    dump_payload["row_counts"][tbl_name] = len(serialized_rows)
+            metadata = await conn.run_sync(_reflect)
+            for tbl_name in sorted(metadata.tables):
+                rows = (await conn.execute(select(metadata.tables[tbl_name]))).mappings().all()
+                serialized_rows = [dict(row) for row in rows]
+                dump_payload["tables"][tbl_name] = serialized_rows
+                dump_payload["row_counts"][tbl_name] = len(serialized_rows)
 
         # Write serialized dump to file
         dump_json = json.dumps(dump_payload, default=_json_serial, indent=2)
@@ -149,37 +196,53 @@ async def restore_v2_database(
 
     # Python async restore from JSON dump
     data = json.loads(dump_file.read_text(encoding="utf-8"))
+    if data.get("format") != "mini-hermes-v2-json-dump" or not isinstance(data.get("tables"), dict):
+        raise ValueError("Unsupported or incomplete Mini-Hermes backup format")
+
+    from open_webui.mini_hermes.v2.migrations.runner import run_v2_migrations
+
+    await asyncio.to_thread(run_v2_migrations, url)
     engine = create_async_engine(url)
 
     try:
         async with engine.begin() as conn:
-            # 1. Create tables if not present
-            def _create_all(sync_conn):
-                v2_metadata.create_all(bind=sync_conn)
+            def _reflect(sync_conn):
+                metadata = MetaData()
+                names = [
+                    name for name in inspect(sync_conn).get_table_names()
+                    if name.startswith("mh_")
+                ]
+                metadata.reflect(bind=sync_conn, only=names)
+                return metadata
 
-            await conn.run_sync(_create_all)
+            metadata = await conn.run_sync(_reflect)
+            if set(data["tables"]) != set(metadata.tables):
+                raise ValueError("Backup tables do not match the target release schema")
+            if any(
+                data.get("row_counts", {}).get(name) != len(rows)
+                for name, rows in data["tables"].items()
+            ):
+                raise ValueError("Backup row-count manifest does not match its contents")
 
-            # 2. Disable triggers/FK checking during restore transaction
+            # Trigger suppression is scoped to this transaction. Verify every FK
+            # explicitly before committing the restored data.
             await conn.execute(text("SET session_replication_role = 'replica';"))
 
             tables_restored = 0
             rows_restored = 0
 
-            # 3. Clear existing table data to ensure clean restore
-            for tbl_name in reversed(list(v2_metadata.tables.keys())):
-                if tbl_name in data["tables"]:
-                    await conn.execute(text(f'TRUNCATE TABLE "{tbl_name}" CASCADE;'))
+            quoted_names = ", ".join(f'"{name}"' for name in sorted(metadata.tables))
+            await conn.exec_driver_sql(f"TRUNCATE TABLE {quoted_names} CASCADE")
 
-            # 4. Insert table rows
-            for tbl_name, rows in data["tables"].items():
-                if tbl_name in v2_metadata.tables and rows:
-                    table_obj = v2_metadata.tables[tbl_name]
-                    await conn.execute(table_obj.insert(), rows)
+            for table in metadata.sorted_tables:
+                rows = data["tables"][table.name]
+                if rows:
+                    await conn.execute(table.insert(), [_restore_row(table, row) for row in rows])
                     rows_restored += len(rows)
                 tables_restored += 1
 
-            # 5. Re-enable triggers and foreign keys
             await conn.execute(text("SET session_replication_role = 'origin';"))
+            await _verify_restored_foreign_keys(conn, metadata)
 
         return {
             "mode": "python_async",

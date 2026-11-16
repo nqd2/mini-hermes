@@ -1,6 +1,7 @@
 """Tests for Dual-Mode Backup, Restore, and 8-Point 100% Parity Verification Harness (M1.5)."""
 
 import asyncio
+import json
 import os
 import sys
 from uuid import uuid4
@@ -12,6 +13,8 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from open_webui.mini_hermes.v2.backup import dump_v2_database, restore_v2_database
+from open_webui.mini_hermes.v2 import backup as backup_module
+from open_webui.agent_runtime.repository import AgentRepository
 from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
 from open_webui.mini_hermes.v2.outbox import insert_outbox_event
 from open_webui.mini_hermes.v2.verify_backup import verify_database_parity
@@ -81,6 +84,7 @@ async def test_full_backup_restore_and_8_point_parity_verification(dual_pg_schem
     src_engine = create_async_engine(src_url)
     src_sessionmaker = async_sessionmaker(src_engine, expire_on_commit=False)
     try:
+        await AgentRepository(src_sessionmaker).create_session("backup_owner", "backup_chat")
         async with src_sessionmaker() as session:
             async with session.begin():
                 insert_outbox_event(
@@ -108,10 +112,51 @@ async def test_full_backup_restore_and_8_point_parity_verification(dual_pg_schem
     # Must pass 100%
     assert parity_result.passed is True, f"Parity failed: {parity_result.discrepancies}"
     assert len(parity_result.discrepancies) == 0
-    assert parity_result.tables_verified == 49
+    assert parity_result.tables_verified == 101
     assert parity_result.total_rows_source > 0
     assert parity_result.total_rows_source == parity_result.total_rows_target
+
+    target_engine = create_async_engine(tgt_url)
+    try:
+        async with target_engine.connect() as conn:
+            assert await conn.scalar(text("SELECT count(*) FROM mh_agent_session")) == 1
+    finally:
+        await target_engine.dispose()
 
     # Verify all 8 individual checks passed
     for check_name, check_val in parity_result.check_details.items():
         assert check_val is True, f"Check '{check_name}' failed!"
+
+
+@pytest.mark.asyncio
+async def test_json_restore_rejects_orphan_runtime_row_without_losing_target(
+    dual_pg_schemas, tmp_path, monkeypatch,
+):
+    src_url, tgt_url, _, _ = dual_pg_schemas
+    monkeypatch.setattr(backup_module.shutil, "which", lambda _: None)
+    await bootstrap_v2_database(BootstrapConfig(database_url=src_url))
+    engine = create_async_engine(src_url)
+    try:
+        await AgentRepository(async_sessionmaker(engine, expire_on_commit=False)).create_session(
+            "owner", "chat"
+        )
+    finally:
+        await engine.dispose()
+
+    dump_file = tmp_path / "full-v2.json"
+    await dump_v2_database(src_url, dump_file)
+    await restore_v2_database(tgt_url, dump_file, force=True)
+
+    data = json.loads(dump_file.read_text(encoding="utf-8"))
+    data["tables"]["mh_agent_session"][0]["parent_session_id"] = str(uuid4())
+    dump_file.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="violates foreign key"):
+        await restore_v2_database(tgt_url, dump_file, force=True)
+
+    target = create_async_engine(tgt_url)
+    try:
+        async with target.connect() as conn:
+            assert await conn.scalar(text("SELECT count(*) FROM mh_agent_session")) == 1
+            assert await conn.scalar(text("SELECT parent_session_id FROM mh_agent_session")) is None
+    finally:
+        await target.dispose()

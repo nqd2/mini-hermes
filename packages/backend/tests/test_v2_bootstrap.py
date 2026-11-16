@@ -62,7 +62,7 @@ async def disposable_pg_schema():
 
 @pytest.mark.asyncio
 async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_schema):
-    """bootstrap_v2_database must create all 49 tables, seed roles, admin, and environment marker."""
+    """Bootstrap creates the full release schema, roles, admin, and environment marker."""
     schema_url, schema_name = disposable_pg_schema
 
     config = BootstrapConfig(
@@ -76,7 +76,8 @@ async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_
 
     summary = await bootstrap_v2_database(config)
 
-    assert summary["tables_created"] == 49
+    assert summary["tables_created"] == 101
+    assert get_v2_current_revision(schema_url) == "0005_v2_user_input_wait"
     assert summary["environment_id"] == "development"
     assert summary["admin_email"] == "testadmin@hermes.test"
     assert len(summary["roles_seeded"]) == 4
@@ -95,7 +96,7 @@ async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_
                 )
             ).all()
             mh_tables = [t for t in tables if t.startswith("mh_")]
-            assert len(mh_tables) == 49
+            assert len(mh_tables) == 101
 
             # 2. Verify roles
             roles = (await conn.scalars(text("SELECT name FROM mh_roles ORDER BY name"))).all()
@@ -170,7 +171,7 @@ def test_alembic_v2_migrations_upgrade_and_downgrade(disposable_pg_schema):
 
     run_v2_migrations(schema_url, "head")
 
-    assert get_v2_current_revision(schema_url) == "0004_v2_analysis_trace"
+    assert get_v2_current_revision(schema_url) == "0005_v2_user_input_wait"
     assert check_v2_migrations_up_to_date(schema_url) is True
 
     from sqlalchemy import create_engine
@@ -193,3 +194,83 @@ def test_alembic_v2_migrations_upgrade_and_downgrade(disposable_pg_schema):
 
     assert get_v2_current_revision(schema_url) is None
     assert check_v2_migrations_up_to_date(schema_url) is False
+
+
+def test_v2_migration_does_not_create_retired_openwebui_tables(disposable_pg_schema):
+    """A fresh release database must contain only supported product tables."""
+    schema_url, schema_name = disposable_pg_schema
+    run_v2_migrations(schema_url, "head")
+
+    from sqlalchemy import create_engine
+
+    engine = create_engine(schema_url)
+    try:
+        with engine.connect() as conn:
+            tables = set(conn.scalars(text(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = :schema AND table_type = 'BASE TABLE'"
+            ), {"schema": schema_name}))
+    finally:
+        engine.dispose()
+
+    assert {
+        "mh_agent_session", "mh_agent_turn", "mh_agent_event",
+        "mh_ow_user", "mh_ow_auth", "mh_ow_chat", "mh_ow_model",
+    } <= tables
+    assert sum(name.startswith("mh_") for name in tables) == 101
+    assert not tables.intersection({
+        "mh_ow_app", "mh_ow_automation", "mh_ow_automation_run",
+        "mh_ow_calendar", "mh_ow_calendar_event", "mh_ow_calendar_event_attendee",
+        "mh_ow_channel", "mh_ow_channel_file", "mh_ow_channel_member",
+        "mh_ow_channel_webhook", "mh_ow_comment", "mh_ow_comment_reaction",
+        "mh_ow_function", "mh_ow_function_history", "mh_ow_note",
+        "mh_ow_pinned_note", "mh_ow_shared_chat",
+    })
+
+
+def test_v2_migration_runner_does_not_silently_repair_schema(disposable_pg_schema):
+    """Only a versioned migration may change a deployed schema."""
+    schema_url, _ = disposable_pg_schema
+    run_v2_migrations(schema_url, "head")
+
+    from sqlalchemy import create_engine
+
+    engine = create_engine(schema_url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DROP TABLE mh_ow_model CASCADE"))
+        run_v2_migrations(schema_url, "head")
+        with engine.connect() as conn:
+            assert conn.scalar(text("SELECT to_regclass('mh_ow_model')")) is None
+    finally:
+        engine.dispose()
+
+
+def test_v2_migration_upgrades_existing_agent_wait_constraint(disposable_pg_schema):
+    """An already created V2 database accepts the distinct user-input wait state."""
+    schema_url, _ = disposable_pg_schema
+    run_v2_migrations(schema_url, "0004_v2_analysis_trace")
+
+    from sqlalchemy import create_engine
+
+    engine = create_engine(schema_url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE mh_agent_turn DROP CONSTRAINT ck_agent_turn_status"
+            ))
+            conn.execute(text(
+                "ALTER TABLE mh_agent_turn ADD CONSTRAINT ck_agent_turn_status "
+                "CHECK (status IN ('queued', 'running', 'waiting_approval', 'paused', "
+                "'completed', 'failed', 'interrupted', 'cancelled'))"
+            ))
+        run_v2_migrations(schema_url, "head")
+        with engine.connect() as conn:
+            definition = conn.scalar(text(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                "WHERE conrelid = 'mh_agent_turn'::regclass "
+                "AND conname = 'ck_agent_turn_status'"
+            ))
+        assert "waiting_user_input" in definition
+    finally:
+        engine.dispose()

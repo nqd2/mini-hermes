@@ -6,7 +6,6 @@
 	import { getAdminConfig, updateAdminConfig } from '$lib/apis/auths';
 	import { getBanners, setBanners } from '$lib/apis/configs';
 	import InterfaceSettings from '$lib/components/common/InterfaceSettings.svelte';
-	import SettingsSelect from '$lib/components/common/SettingsSelect.svelte';
 	import LanguageModeSelect from '$lib/components/common/LanguageModeSelect.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import BuildVersion from '$lib/components/common/BuildVersion.svelte';
@@ -279,16 +278,9 @@
 			</AdminSettingSection>
 
 			<AdminSettingSection title={$i18n.t('settings.admin.general.sections.features.title')}>
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.communitySharing.label')}
-					description={$i18n.t('settings.admin.general.communitySharing.description')}
-					let:labelId
-				>
-					<!-- LICENSE covers this Open WebUI Community wordmark.
-					Do not alter, remove, obscure, or replace it except as LICENSE permits:
-					https://docs.openwebui.com/license. -->
-					<Switch bind:state={adminConfig.ENABLE_COMMUNITY_SHARING} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
+				<!-- LICENSE covers this Open WebUI Community wordmark.
+				Do not alter, remove, obscure, or replace it except as LICENSE permits:
+				https://docs.openwebui.com/license. -->
 				<AdminSettingRow
 					label={$i18n.t('settings.admin.general.messageRating.label')}
 					description={$i18n.t('settings.admin.general.messageRating.description')}
@@ -379,84 +371,11 @@
 					/>
 				</AdminSettingField>
 				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.notes.label')}
-					description={$i18n.t('settings.admin.general.notes.description')}
-					let:labelId
-				>
-					<Switch bind:state={adminConfig.ENABLE_NOTES} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.comments.label')}
-					description={$i18n.t('settings.admin.general.comments.description')}
-					let:labelId
-				>
-					<Switch bind:state={adminConfig.ENABLE_COMMENTS} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-				<AdminSettingRow
 					label={$i18n.t('settings.admin.general.notifications.label')}
 					description={$i18n.t('settings.admin.general.notifications.description')}
 					let:labelId
 				>
 					<Switch bind:state={adminConfig.ENABLE_NOTIFICATIONS} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.channels.label')}
-					description={$i18n.t('settings.admin.general.channels.description')}
-					let:labelId
-				>
-					<Switch bind:state={adminConfig.ENABLE_CHANNELS} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-				{#if adminConfig.ENABLE_CHANNELS}
-					<AdminSettingRow
-						label={$i18n.t('settings.admin.general.encryptedChannels.label')}
-						description={$i18n.t('settings.admin.general.encryptedChannels.description')}
-						labelClassName="text-gray-500 dark:text-gray-500"
-						let:labelId
-					>
-						<Switch bind:state={adminConfig.ENABLE_ENCRYPTED_CHANNELS} ariaLabelledbyId={labelId} />
-					</AdminSettingRow>
-					<AdminSettingRow
-						label={$i18n.t('settings.admin.general.modelResponseMode.label')}
-						description={$i18n.t('settings.admin.general.modelResponseMode.description')}
-						labelClassName="text-gray-500 dark:text-gray-500"
-						let:labelId
-					>
-						<SettingsSelect
-							bind:value={adminConfig.CHANNEL_MODEL_RESPONSE_MODE}
-							aria-labelledby={labelId}
-						>
-							<option value="thread">{$i18n.t('Thread')}</option>
-							<option value="channel">{$i18n.t('Channel')}</option>
-						</SettingsSelect>
-					</AdminSettingRow>
-				{/if}
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.apps.label')}
-					description={$i18n.t('settings.admin.general.apps.description')}
-					let:labelId
-				>
-					<Switch bind:state={adminConfig.ENABLE_APPS} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.calendar.label')}
-					description={$i18n.t('settings.admin.general.calendar.description')}
-					let:labelId
-				>
-					<Switch bind:state={adminConfig.ENABLE_CALENDAR} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.automations.label')}
-					description={$i18n.t('settings.admin.general.automations.description')}
-					let:labelId
-				>
-					<Switch bind:state={adminConfig.ENABLE_AUTOMATIONS} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.general.userWebhooks.label')}
-					description={$i18n.t('settings.admin.general.userWebhooks.description')}
-					let:labelId
-				>
-					<Switch bind:state={adminConfig.ENABLE_USER_WEBHOOKS} ariaLabelledbyId={labelId} />
 				</AdminSettingRow>
 				<AdminSettingRow
 					label={$i18n.t('settings.admin.general.userStatus.label')}

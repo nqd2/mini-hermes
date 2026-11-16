@@ -17,9 +17,7 @@
 		showSearch,
 		mobile,
 		pinnedChats,
-		pinnedNotes,
 		temporaryChatEnabled,
-		channels,
 		socket,
 		config,
 		visiblePinnedModels,
@@ -65,9 +63,7 @@
 		getSharedFolders,
 		updateFolderParentIdById
 	} from '$lib/apis/folders';
-	import { createNewNote, getPinnedNoteList, toggleNotePinnedStatusById } from '$lib/apis/notes';
 	import { updateUserSettings } from '$lib/apis/users';
-	import { createNoteHandler } from '$lib/components/notes/utils';
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 
 	import InboxButton from './InboxButton.svelte';
@@ -90,18 +86,10 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import Folders from './Sidebar/Folders.svelte';
 	import SharedFolderItem from './Sidebar/SharedFolderItem.svelte';
-	import { getChannels, createNewChannel } from '$lib/apis/channels';
-	import ChannelModal from './Sidebar/ChannelModal.svelte';
-	import ChannelItem from './Sidebar/ChannelItem.svelte';
 	import SearchModal from './SearchModal.svelte';
 	import FolderModal from './Sidebar/Folders/FolderModal.svelte';
 	import PinnedModelList from './Sidebar/PinnedModelList.svelte';
-	import PinnedNoteList from './Sidebar/PinnedNoteList.svelte';
-	import CalendarIcon from './Sidebar/icons/Calendar.svelte';
-	import ClockIcon from './Sidebar/icons/Clock.svelte';
-	import CodeIcon from './Sidebar/icons/Code.svelte';
 	import EditPencilIcon from './Sidebar/icons/EditPencil.svelte';
-	import NotesIcon from './Sidebar/icons/Notes.svelte';
 	import SearchIcon from './Sidebar/icons/Search.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
 	import WorkspaceIcon from './Sidebar/icons/Workspace.svelte';
@@ -116,7 +104,7 @@
 	import MoreHorizontalIcon from './Sidebar/icons/MoreHorizontal.svelte';
 	import MobileSwipePanel from '../common/MobileSwipePanel.svelte';
 
-	const DEFAULT_PINNED_ITEMS = ['notes', 'workspace'];
+	const DEFAULT_PINNED_ITEMS = ['workspace'];
 
 	let scrollTop = 0;
 
@@ -231,8 +219,6 @@
 	// Follow chatId changes on navigation; preserve the click's optimistic highlight until chatId catches up.
 	$: selectedChatId = $chatId || null;
 
-	let showCreateChannel = false;
-
 	// Pagination variables
 	let chatListLoading = false;
 	let chatListReady = false;
@@ -242,13 +228,6 @@
 	let showCreateFolderModal = false;
 
 	let showPinnedModels = true;
-	let showPinnedNotes = false;
-	let showChannels = false;
-	$: channelGroups = [
-		$channels.filter((channel) => channel.type !== 'group' && channel.type !== 'dm'),
-		$channels.filter((channel) => channel.type === 'group'),
-		$channels.filter((channel) => channel.type === 'dm')
-	].filter((group) => group.length > 0);
 	let showFolders = false;
 	let showSharedFolders = false;
 	let showChatsMenu = false;
@@ -282,11 +261,6 @@
 
 	$: isMenuItemVisible = (id) => {
 		switch (id) {
-			case 'notes':
-				return (
-					($config?.features?.enable_notes ?? false) &&
-					($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))
-				);
 			case 'workspace':
 				return (
 					$user?.role === 'admin' ||
@@ -296,18 +270,6 @@
 					$user?.permissions?.workspace?.tools ||
 					$user?.permissions?.workspace?.skills
 				);
-			case 'automations':
-				return (
-					$config?.features?.enable_automations &&
-					($user?.role === 'admin' || $user?.permissions?.features?.automations)
-				);
-			case 'calendar':
-				return (
-					$config?.features?.enable_calendar &&
-					($user?.role === 'admin' || $user?.permissions?.features?.calendar)
-				);
-			case 'playground':
-				return $user?.role === 'admin';
 			default:
 				return false;
 		}
@@ -315,21 +277,13 @@
 
 	const getMenuItemMeta = (id) => {
 		const items = {
-			notes: { label: $i18n.t('Notes'), href: '/notes', iconType: 'note' },
 			workspace: { label: $i18n.t('Workspace'), href: '/workspace', iconType: 'workspace' },
-			automations: { label: $i18n.t('Automations'), href: '/automations', iconType: 'automations' },
-			calendar: { label: $i18n.t('Calendar'), href: '/calendar', iconType: 'calendar' },
-			playground: { label: $i18n.t('Playground'), href: '/playground', iconType: 'playground' }
 		};
 		return items[id];
 	};
 
 	const menuItemPathPrefixes = {
-		notes: '/notes',
 		workspace: '/workspace',
-		calendar: '/calendar',
-		automations: '/automations',
-		playground: '/playground'
 	};
 
 	const getActiveMenuItemId = (pathname) => {
@@ -486,18 +440,8 @@
 		}
 	};
 
-	const initChannels = async () => {
-		const res = await getChannels(localStorage.token).catch((error) => {
-			return null;
-		});
-
-		if (res) {
-			channels.set(res);
-		}
-	};
-
 	const initChatList = async () => {
-		// Mark the chat list as loading while tags, pinned notes, and chats refresh.
+		// Mark the chat list as loading while tags and chats refresh.
 		console.log('initChatList');
 		chatListReady = false;
 
@@ -508,16 +452,6 @@
 				tags.set(_tags);
 			})(),
 			(async () => {
-				if (
-					$config?.features?.enable_notes &&
-					($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))
-				) {
-					console.log('Init pinned notes');
-					const _pinnedNotes = await getPinnedNoteList(localStorage.token).catch(() => []);
-					pinnedNotes.set(_pinnedNotes);
-				}
-			})(),
-			(async () => {
 				console.log('Init chat list');
 				await refreshChatRows();
 			})()
@@ -525,14 +459,6 @@
 	};
 
 	const initSidebarData = async () => {
-		// Only fetch channels if the feature is enabled and user has permission
-		if (
-			$config?.features?.enable_channels &&
-			($user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true))
-		) {
-			await initChannels();
-		}
-
 		await initChatList();
 	};
 
@@ -792,12 +718,6 @@
 		}
 	});
 
-	onMount(() => {
-		const socketInstance = $socket;
-		socketInstance?.on('connect', initChannels);
-		return () => socketInstance?.off('connect', initChannels);
-	});
-
 	onMount(async () => {
 		try {
 			const width = Number(localStorage.getItem('sidebarWidth'));
@@ -990,46 +910,6 @@
 	on:confirm={() => applySelectedChatAction('delete', deleteSelectedIds)}
 />
 
-<ChannelModal
-	bind:show={showCreateChannel}
-	onSubmit={async (payload: any) => {
-		let { type, name, is_private, access_grants, group_ids, user_ids } = payload ?? {};
-		name = name?.trim();
-
-		if (type === 'dm') {
-			if (!user_ids || user_ids.length === 0) {
-				toast.error($i18n.t('Please select at least one user for Direct Message channel.'));
-				return;
-			}
-		} else {
-			if (!name) {
-				toast.error($i18n.t('Channel name cannot be empty.'));
-				return;
-			}
-		}
-
-		const res = await createNewChannel(localStorage.token, {
-			type: type,
-			name: name,
-			is_private: is_private,
-			access_grants: access_grants,
-			group_ids: group_ids,
-			user_ids: user_ids
-		}).catch((error) => {
-			toast.error(`${error}`);
-			return null;
-		});
-
-		if (res) {
-			$socket.emit('join-channels', { auth: { token: $user?.token } });
-			await initChannels();
-			showCreateChannel = false;
-			showChannels = true;
-			goto(`/channels/${res.id}`);
-		}
-	}}
-/>
-
 <FolderModal
 	bind:show={showCreateFolderModal}
 	onSubmit={async (folder) => {
@@ -1218,16 +1098,8 @@
 													: 'bg-black/[0.035] dark:bg-white/[0.045]'
 												: 'group-hover:bg-gray-100 dark:group-hover:bg-gray-900'}"
 										>
-											{#if itemId === 'notes'}
-												<NotesIcon className="size-4" strokeWidth="1.5" />
-											{:else if itemId === 'workspace'}
+											{#if itemId === 'workspace'}
 												<WorkspaceIcon className="size-4" strokeWidth="1.5" />
-											{:else if itemId === 'automations'}
-												<ClockIcon className="size-4" strokeWidth="1.5" />
-											{:else if itemId === 'calendar'}
-												<CalendarIcon className="size-4" strokeWidth="1.5" />
-											{:else if itemId === 'playground'}
-												<CodeIcon className="size-4" strokeWidth="1.5" />
 											{/if}
 										</div>
 									</a>
@@ -1463,16 +1335,8 @@
 											aria-label={$i18n.t(meta.label)}
 										>
 											<div class="self-center flex size-4 shrink-0 items-center justify-center">
-												{#if itemId === 'notes'}
-													<NotesIcon className="size-4" strokeWidth="1.5" />
-												{:else if itemId === 'workspace'}
+												{#if itemId === 'workspace'}
 													<WorkspaceIcon className="size-4" strokeWidth="1.5" />
-												{:else if itemId === 'automations'}
-													<ClockIcon className="size-4" strokeWidth="1.5" />
-												{:else if itemId === 'calendar'}
-													<CalendarIcon className="size-4" strokeWidth="1.5" />
-												{:else if itemId === 'playground'}
-													<CodeIcon className="size-4" strokeWidth="1.5" />
 												{/if}
 											</div>
 
@@ -1499,56 +1363,9 @@
 						</SidebarSection>
 					{/if}
 
-					{#if ($config?.features?.enable_notes ?? false) && ($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true)) && $pinnedNotes.length > 0}
-						<SidebarSection
-							id="sidebar-pinned-notes"
-							bind:open={showPinnedNotes}
-							name={$i18n.t('Notes')}
-							dragAndDrop={false}
-							onAdd={async () => {
-								const note = await createNoteHandler('New Note');
-								if (note) {
-									goto(`/notes/${note.id}`);
-								}
-							}}
-							onAddLabel={$i18n.t('New Note')}
-						>
-							<PinnedNoteList bind:selectedChatId />
-						</SidebarSection>
-					{/if}
 
-					{#if $config?.features?.enable_channels && ($user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true))}
-						<SidebarSection
-							id="sidebar-channels"
-							bind:open={showChannels}
-							name={$i18n.t('Channels')}
-							dragAndDrop={false}
-							onAdd={$user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true)
-								? async () => {
-										await tick();
 
-										setTimeout(() => {
-											showCreateChannel = true;
-										}, 0);
-									}
-								: null}
-							onAddLabel={$i18n.t('Create Channel')}
-						>
-							{#each channelGroups as group, groupIdx}
-								{#if groupIdx > 0}
-									<hr class=" border-gray-100/40 dark:border-gray-800/10 my-1.5 w-full" />
-								{/if}
-								{#each group as channel (channel.id)}
-									<ChannelItem
-										{channel}
-										onUpdate={async () => {
-											await initChannels();
-										}}
-									/>
-								{/each}
-							{/each}
-						</SidebarSection>
-					{/if}
+
 
 					{#if $config?.features?.enable_folders && ($user?.role === 'admin' || ($user?.permissions?.features?.folders ?? true))}
 						<SidebarSection

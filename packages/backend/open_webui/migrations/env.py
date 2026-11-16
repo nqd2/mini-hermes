@@ -14,7 +14,6 @@ from open_webui.models.auths import Auth
 from open_webui.models.calendar import Calendar, CalendarEvent, CalendarEventAttendee  # noqa: F401
 from open_webui.models.chat_messages import ChatMessage  # noqa: F401
 from open_webui.models.chats import Chat  # noqa: F401
-from open_webui.models.comments import Comment, CommentReaction  # noqa: F401
 from open_webui.models.notifications import Notification  # noqa: F401
 from open_webui.mini_hermes import models as mini_hermes_models  # noqa: F401
 from open_webui.agent_runtime import models as agent_runtime_models  # noqa: F401

@@ -136,7 +136,6 @@ describe('buildChatRequestFeatures', () => {
   const createInput = (overrides: Record<string, any> = {}) => ({
     config: {
       features: {
-        enable_image_generation: true,
         enable_code_interpreter: true,
         enable_memories: true,
       },
@@ -145,7 +144,6 @@ describe('buildChatRequestFeatures', () => {
     showCallOverlay: false,
     callMode: 'current',
     bridgeConnected: false,
-    imageGenerationEnabled: true,
     codeInterpreterEnabled: true,
     webSearchActive: false,
     settingsMemory: undefined,
@@ -156,13 +154,12 @@ describe('buildChatRequestFeatures', () => {
     expect(
       buildChatRequestFeatures(
         createInput({
-          user: { role: 'user', permissions: { features: { image_generation: true } } },
+          user: { role: 'user', permissions: { features: {} } },
           webSearchActive: true,
         }),
       ),
     ).toEqual({
       voice: false,
-      image_generation: true,
       code_interpreter: false,
       web_search: true,
       memory: true,
@@ -175,16 +172,15 @@ describe('buildChatRequestFeatures', () => {
         createInput({
           user: { role: 'admin', permissions: { features: {} } },
           showCallOverlay: true,
-          imageGenerationEnabled: false,
         }),
       ),
-    ).toEqual({ voice: true, image_generation: false, code_interpreter: true, web_search: false, memory: true });
+    ).toEqual({ voice: true, code_interpreter: true, web_search: false, memory: true });
 
     expect(
       buildChatRequestFeatures(
         createInput({ bridgeConnected: true, config: { features: {} } }),
       ),
-    ).toEqual({ voice: true, image_generation: false, code_interpreter: false, web_search: false });
+    ).toEqual({ voice: true, code_interpreter: false, web_search: false });
   });
 
   it('uses the explicit memory setting before the configured default', () => {
@@ -197,7 +193,6 @@ describe('buildChatRequestFeatures', () => {
       ),
     ).toEqual({
       voice: false,
-      image_generation: false,
       code_interpreter: false,
       web_search: false,
     });

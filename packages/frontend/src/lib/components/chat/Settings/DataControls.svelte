@@ -11,7 +11,6 @@
 	import { getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import SharedChatsModal from '$lib/components/layout/SharedChatsModal.svelte';
 	import FilesModal from '$lib/components/layout/FilesModal.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import UserSettingRow from './UserSettingRow.svelte';
@@ -27,7 +26,6 @@
 
 	let showArchiveConfirmDialog = false;
 	let showDeleteConfirmDialog = false;
-	let showSharedChatsModal = false;
 	let showFilesModal = false;
 
 	let chatImportInputElement: HTMLInputElement;
@@ -119,7 +117,6 @@
 	};
 </script>
 
-<SharedChatsModal bind:show={showSharedChatsModal} />
 <FilesModal bind:show={showFilesModal} />
 
 <ConfirmDialog
@@ -199,22 +196,6 @@
 				</UserSettingRow>
 			{/if}
 
-			<UserSettingRow
-				let:labelId
-				label={$i18n.t('settings.personal.dataControls.sharedChats.label')}
-				description={$i18n.t('settings.personal.dataControls.sharedChats.description')}
-			>
-				<button
-					id={`${labelId}-control`}
-					class={actionButtonClass}
-					on:click={() => {
-						showSharedChatsModal = true;
-					}}
-					type="button"
-				>
-					{$i18n.t('Manage')}
-				</button>
-			</UserSettingRow>
 
 			{#if $visibleControls['chat.archive']}
 				<UserSettingRow

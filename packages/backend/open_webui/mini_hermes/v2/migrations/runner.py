@@ -42,9 +42,6 @@ def run_v2_migrations(database_url: str | None = None, target_revision: str = "h
         command.downgrade(cfg, target_revision)
     else:
         command.upgrade(cfg, target_revision)
-        from open_webui.mini_hermes.v2.runtime_schema import ensure_runtime_tables_for_url
-
-        ensure_runtime_tables_for_url(database_url)
 
 
 def get_v2_current_revision(database_url: str | None = None) -> str | None:

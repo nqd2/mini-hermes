@@ -10,6 +10,7 @@ from open_webui.models.chats import Chats
 from open_webui.models.config import Config
 from open_webui.models.users import Users
 from open_webui.socket.main import get_event_emitter
+from open_webui.utils.ask_user import normalize_ask_user_request
 from open_webui.utils.json_codec import JSONCodec
 
 
@@ -18,6 +19,47 @@ class ResolveToolCallForm(BaseModel):
     action: Literal['approve', 'reject', 'answer']
     answers: Any | None = None
     timed_out: bool = False
+
+
+def _validated_user_answers(raw_arguments: Any, answers: Any) -> dict:
+    if not isinstance(answers, dict):
+        raise HTTPException(status_code=400, detail='Answers must be keyed by question id.')
+    try:
+        arguments = raw_arguments
+        for _ in range(2):
+            if isinstance(arguments, str):
+                arguments = JSONCodec.loads(arguments)
+        request = normalize_ask_user_request(arguments)
+    except (TypeError, ValueError, JSONCodec.JSONDecodeError) as exc:
+        raise HTTPException(status_code=409, detail='Saved user question is invalid.') from exc
+    questions = request['questions']
+    if set(answers) != {question['id'] for question in questions}:
+        raise HTTPException(status_code=400, detail='Answer every question exactly once.')
+    validated = {}
+    for question in questions:
+        answer = answers[question['id']]
+        if not isinstance(answer, dict):
+            raise HTTPException(status_code=400, detail='Invalid user answer.')
+        if answer.get('type') == 'option':
+            index = answer.get('option_index')
+            options = question['options']
+            if (
+                type(index) is not int or not 0 <= index < len(options)
+                or answer.get('label') != options[index]['label']
+                or answer.get('description') != options[index]['description']
+            ):
+                raise HTTPException(status_code=400, detail='Selected option does not match the question.')
+            validated[question['id']] = {
+                'type': 'option', 'option_index': index, **options[index],
+            }
+        elif answer.get('type') == 'other' and question['allow_other']:
+            text = answer.get('text')
+            if not isinstance(text, str) or not text.strip() or len(text) > 2000:
+                raise HTTPException(status_code=400, detail='Free-form answer must be 1–2000 characters.')
+            validated[question['id']] = {'type': 'other', 'text': text.strip()}
+        else:
+            raise HTTPException(status_code=400, detail='Invalid user answer type.')
+    return validated
 
 
 def pending_tool_calls(output):
@@ -159,12 +201,36 @@ async def resolve_tool_call_output(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tool call not found.')
         function_call.setdefault('call_id', form_data.call_id)
         tool_name = function_call.get('name')
+        if tool_name == 'ask_user' and form_data.timed_out:
+            raise HTTPException(status_code=400, detail='Saved user questions do not expire automatically.')
+        validated_answers = (
+            _validated_user_answers(function_call.get('arguments'), form_data.answers)
+            if tool_name == 'ask_user' and form_data.action == 'answer'
+            else None
+        )
+
+        resolved_output = next(
+            (
+                item for item in output
+                if item.get('type') == 'function_call_output' and item.get('call_id') == form_data.call_id
+            ),
+            None,
+        )
+        if resolved_output and tool_name == 'ask_user' and form_data.action == 'answer':
+            try:
+                previous = JSONCodec.loads(resolved_output['output'][0]['text'])
+            except (KeyError, IndexError, TypeError, JSONCodec.JSONDecodeError):
+                previous = None
+            if previous == {'status': 'answered', 'answers': validated_answers}:
+                return {'chat': chat, 'output': output, 'resume': None}
+            raise HTTPException(status_code=409, detail='User question was answered differently.')
+        if resolved_output and tool_name == 'ask_user' and form_data.action == 'reject':
+            if function_call.get('status') == 'rejected' and resolved_output.get('status') == 'rejected':
+                return {'chat': chat, 'output': output, 'resume': None}
+            raise HTTPException(status_code=409, detail='User question was already answered.')
 
         if (
-            any(
-                item.get('type') == 'function_call_output' and item.get('call_id') == form_data.call_id
-                for item in output
-            )
+            resolved_output is not None
             or function_call.get('status') not in {'pending', 'queued', 'requires_approval'}
             or function_call.get('approved') is True
         ):
@@ -197,16 +263,12 @@ async def resolve_tool_call_output(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail='Tool call does not accept answers.'
                 )
-            if form_data.answers is None and not form_data.timed_out:
+            if validated_answers is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail='Answers are required for ask_user.'
                 )
             function_call['status'] = 'completed'
-            answer_payload = (
-                {'status': 'cancelled', 'answers': {}, 'timed_out': True}
-                if form_data.timed_out
-                else {'status': 'answered', 'answers': form_data.answers or {}}
-            )
+            answer_payload = {'status': 'answered', 'answers': validated_answers}
             output.append(
                 {
                     'type': 'function_call_output',

@@ -2,11 +2,7 @@
 	import { getBackendConfig } from '$lib/apis';
 	import {
 		getAdminConfig,
-		getLdapConfig,
-		getLdapServer,
 		getOAuthConfig,
-		updateLdapConfig,
-		updateLdapServer,
 		updateOAuthConfig,
 		updateAdminConfig
 	} from '$lib/apis/auths';
@@ -28,52 +24,12 @@
 	let adminConfig: any = null;
 	let groups: any[] = [];
 
-	let ENABLE_LDAP = false;
-	let LDAP_SERVER = {
-		label: '',
-		host: '',
-		port: null,
-		attribute_for_mail: 'mail',
-		default_email_domain: '',
-		attribute_for_username: 'uid',
-		app_dn: '',
-		app_dn_password: '',
-		search_base: '',
-		search_filters: '',
-		use_tls: false,
-		validate_cert: false,
-		certificate_path: '',
-		ciphers: '',
-		enable_group_management: false,
-		enable_group_creation: false,
-		attribute_for_groups: 'memberOf'
-	};
-
 	let oauthConfig: any = null;
 	$: oauthEditable = oauthConfig?.ENABLE_OAUTH_PERSISTENT_CONFIG ?? true;
 	const inputClass =
 		'w-full h-7 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors placeholder:text-gray-300 focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:placeholder:text-gray-700 dark:focus:border-blue-500';
 	const textareaClass =
 		'w-full rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 py-1.5 text-xs text-gray-700 outline-hidden transition-colors placeholder:text-gray-300 focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:placeholder:text-gray-700 dark:focus:border-blue-500';
-
-	const updateLdapServerHandler = async () => {
-		await updateLdapConfig(localStorage.token, ENABLE_LDAP);
-		if (!ENABLE_LDAP) return true;
-
-		// Honor the "Default to memberOf" hint: fall back to the default group
-		// attribute when it is left blank while group management is enabled, so
-		// the save isn't rejected by the backend's required-field check.
-		if (LDAP_SERVER.enable_group_management && !LDAP_SERVER.attribute_for_groups?.trim()) {
-			LDAP_SERVER.attribute_for_groups = 'memberOf';
-		}
-
-		const res = await updateLdapServer(localStorage.token, LDAP_SERVER).catch((error) => {
-			toast.error(`${error}`);
-			return null;
-		});
-
-		return !!res;
-	};
 
 	const updateOAuthHandler = async () => {
 		if (!oauthConfig || !oauthEditable) return true;
@@ -105,9 +61,8 @@
 	};
 
 	const submitHandler = async () => {
-		const ldapSaved = await updateLdapServerHandler();
 		const oauthSaved = await updateOAuthHandler();
-		if (!ldapSaved || !oauthSaved) return;
+		if (!oauthSaved) return;
 
 		// Save MFA policy last because changing it revokes the current session.
 		const adminSaved = await updateAdminHandler();
@@ -126,17 +81,10 @@
 				groups = await getGroups(localStorage.token);
 			})(),
 			(async () => {
-				// Merge into the defaults so any key the backend omits (e.g. an
-				// older backend without the group settings) keeps its default.
-				LDAP_SERVER = { ...LDAP_SERVER, ...(await getLdapServer(localStorage.token)) };
-			})(),
-			(async () => {
 				oauthConfig = await getOAuthConfig(localStorage.token).catch(() => null);
 			})()
 		]);
 
-		const ldapConfig = await getLdapConfig(localStorage.token);
-		ENABLE_LDAP = ldapConfig.ENABLE_LDAP;
 	});
 </script>
 
@@ -361,281 +309,8 @@
 			</AdminSettingSection>
 		{/if}
 
-		<AdminSettingSection title={$i18n.t('settings.admin.authentication.sections.ldap.title')}>
-			<AdminSettingRow
-				label={$i18n.t('settings.admin.authentication.ldap.label')}
-				description={$i18n.t('settings.admin.authentication.ldap.description')}
-				let:labelId
-			>
-				<Switch bind:state={ENABLE_LDAP} ariaLabelledbyId={labelId} />
-			</AdminSettingRow>
-
-			{#if ENABLE_LDAP}
-				<div class="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.label.label')}
-						description={$i18n.t('settings.admin.authentication.label.description')}
-						forId="ldap-label"
-					>
-						<input
-							id="ldap-label"
-							class={inputClass}
-							required
-							placeholder={$i18n.t('Enter server label')}
-							bind:value={LDAP_SERVER.label}
-						/>
-					</AdminSettingField>
-				</div>
-
-				<div class="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.host.label')}
-						description={$i18n.t('settings.admin.authentication.host.description')}
-						forId="ldap-host"
-					>
-						<input
-							id="ldap-host"
-							class={inputClass}
-							required
-							placeholder={$i18n.t('Enter server host')}
-							bind:value={LDAP_SERVER.host}
-						/>
-					</AdminSettingField>
-
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.port.label')}
-						description={$i18n.t('settings.admin.authentication.port.description')}
-						forId="ldap-port"
-					>
-						<Tooltip
-							placement="top-start"
-							content={$i18n.t('Default to 389 or 636 if TLS is enabled')}
-							className="w-full"
-						>
-							<input
-								id="ldap-port"
-								class={inputClass}
-								type="number"
-								placeholder={$i18n.t('Enter server port')}
-								bind:value={LDAP_SERVER.port}
-							/>
-						</Tooltip>
-					</AdminSettingField>
-				</div>
-
-				<div class="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.applicationDn.label')}
-						description={$i18n.t('settings.admin.authentication.applicationDn.description')}
-						forId="ldap-application-dn"
-					>
-						<Tooltip
-							content={$i18n.t('The Application Account DN you bind with for search')}
-							placement="top-start"
-						>
-							<input
-								id="ldap-application-dn"
-								class={inputClass}
-								placeholder={$i18n.t('Enter Application DN')}
-								bind:value={LDAP_SERVER.app_dn}
-							/>
-						</Tooltip>
-					</AdminSettingField>
-
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.applicationDnPassword.label')}
-						description={$i18n.t('settings.admin.authentication.applicationDnPassword.description')}
-					>
-						<SensitiveInput
-							variant="settings"
-							placeholder={$i18n.t('Enter Application DN Password')}
-							required={false}
-							bind:value={LDAP_SERVER.app_dn_password}
-						/>
-					</AdminSettingField>
-				</div>
-
-				<div class="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.attributeForMail.label')}
-						description={$i18n.t('settings.admin.authentication.attributeForMail.description')}
-						forId="ldap-attribute-for-mail"
-					>
-						<Tooltip
-							content={$i18n.t(
-								'The LDAP attribute that maps to the mail that users use to sign in.'
-							)}
-							placement="top-start"
-						>
-							<input
-								id="ldap-attribute-for-mail"
-								class={inputClass}
-								required
-								placeholder={$i18n.t('Example: mail')}
-								bind:value={LDAP_SERVER.attribute_for_mail}
-							/>
-						</Tooltip>
-					</AdminSettingField>
-
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.attributeForUsername.label')}
-						description={$i18n.t('settings.admin.authentication.attributeForUsername.description')}
-						forId="ldap-attribute-for-username"
-					>
-						<Tooltip
-							content={$i18n.t(
-								'The LDAP attribute that maps to the username that users use to sign in.'
-							)}
-							placement="top-start"
-						>
-							<input
-								id="ldap-attribute-for-username"
-								class={inputClass}
-								required
-								placeholder={$i18n.t('Example: sAMAccountName or uid or userPrincipalName')}
-								bind:value={LDAP_SERVER.attribute_for_username}
-							/>
-						</Tooltip>
-					</AdminSettingField>
-				</div>
-
-				<AdminSettingField
-					label={$i18n.t('settings.admin.authentication.defaultEmailDomain.label')}
-					description={$i18n.t('settings.admin.authentication.defaultEmailDomain.description')}
-					forId="ldap-default-email-domain"
-				>
-					<input
-						id="ldap-default-email-domain"
-						class={inputClass}
-						placeholder="example.com"
-						bind:value={LDAP_SERVER.default_email_domain}
-					/>
-				</AdminSettingField>
-
-				<AdminSettingField
-					label={$i18n.t('settings.admin.authentication.searchBase.label')}
-					description={$i18n.t('settings.admin.authentication.searchBase.description')}
-					forId="ldap-search-base"
-				>
-					<Tooltip content={$i18n.t('The base to search for users')} placement="top-start">
-						<input
-							id="ldap-search-base"
-							class={inputClass}
-							required
-							placeholder={$i18n.t('Example: ou=users,dc=foo,dc=example')}
-							bind:value={LDAP_SERVER.search_base}
-						/>
-					</Tooltip>
-				</AdminSettingField>
-
-				<AdminSettingField
-					label={$i18n.t('settings.admin.authentication.searchFilters.label')}
-					description={$i18n.t('settings.admin.authentication.searchFilters.description')}
-					forId="ldap-search-filters"
-				>
-					<input
-						id="ldap-search-filters"
-						class={inputClass}
-						placeholder={$i18n.t('Example: (&(objectClass=inetOrgPerson)(uid=%s))')}
-						bind:value={LDAP_SERVER.search_filters}
-					/>
-					<a
-						class="mt-1 block text-[0.6875rem] text-gray-400 underline hover:text-gray-700 dark:text-gray-600 dark:hover:text-gray-300"
-						href="https://ldap.com/ldap-filters/"
-						target="_blank"
-					>
-						{$i18n.t('Click here for filter guides.')}
-					</a>
-				</AdminSettingField>
-
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.authentication.tls.label')}
-					description={$i18n.t('settings.admin.authentication.tls.description')}
-					let:labelId
-				>
-					<Switch bind:state={LDAP_SERVER.use_tls} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-
-				{#if LDAP_SERVER.use_tls}
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.certificatePath.label')}
-						description={$i18n.t('settings.admin.authentication.certificatePath.description')}
-						forId="ldap-certificate-path"
-					>
-						<input
-							id="ldap-certificate-path"
-							class={inputClass}
-							placeholder={$i18n.t('Enter certificate path')}
-							bind:value={LDAP_SERVER.certificate_path}
-						/>
-					</AdminSettingField>
-
-					<AdminSettingRow
-						label={$i18n.t('settings.admin.authentication.validateCertificate.label')}
-						description={$i18n.t('settings.admin.authentication.validateCertificate.description')}
-						let:labelId
-					>
-						<Switch bind:state={LDAP_SERVER.validate_cert} ariaLabelledbyId={labelId} />
-					</AdminSettingRow>
-
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.ciphers.label')}
-						description={$i18n.t('settings.admin.authentication.ciphers.description')}
-						forId="ldap-ciphers"
-					>
-						<Tooltip content={$i18n.t('Default to ALL')} placement="top-start">
-							<input
-								id="ldap-ciphers"
-								class={inputClass}
-								placeholder={$i18n.t('Example: ALL')}
-								bind:value={LDAP_SERVER.ciphers}
-							/>
-						</Tooltip>
-					</AdminSettingField>
-				{/if}
-
-				<!-- LICENSE covers this Open WebUI wordmark.
-					Do not alter, remove, obscure, or replace it except as LICENSE permits:
-					https://docs.openwebui.com/license. -->
-				<AdminSettingRow
-					label={$i18n.t('settings.admin.authentication.enableGroupManagement.label')}
-					description={$i18n.t('settings.admin.authentication.enableGroupManagement.description')}
-					let:labelId
-				>
-					<Switch bind:state={LDAP_SERVER.enable_group_management} ariaLabelledbyId={labelId} />
-				</AdminSettingRow>
-
-				{#if LDAP_SERVER.enable_group_management}
-					<AdminSettingRow
-						label={$i18n.t('settings.admin.authentication.enableGroupCreation.label')}
-						description={$i18n.t('settings.admin.authentication.enableGroupCreation.description')}
-						let:labelId
-					>
-						<Switch bind:state={LDAP_SERVER.enable_group_creation} ariaLabelledbyId={labelId} />
-					</AdminSettingRow>
-
-					<AdminSettingField
-						label={$i18n.t('settings.admin.authentication.groupAttribute.label')}
-						description={$i18n.t('settings.admin.authentication.groupAttribute.description')}
-						forId="ldap-group-attribute"
-					>
-						<Tooltip content={$i18n.t('Default to memberOf')} placement="top-start">
-							<input
-								id="ldap-group-attribute"
-								class={inputClass}
-								placeholder="memberOf"
-								bind:value={LDAP_SERVER.attribute_for_groups}
-							/>
-						</Tooltip>
-					</AdminSettingField>
-				{/if}
-			{/if}
-		</AdminSettingSection>
-
 		{#if oauthConfig}
-			<AdminSettingSection
-				title={$i18n.t('settings.admin.authentication.sections.oauthOidc.title')}
-			>
+			<AdminSettingSection title={$i18n.t('Google sign-in')}>
 				{#if !oauthEditable}
 					<div
 						class="rounded-lg bg-yellow-500/10 px-2 py-1.5 text-[0.6875rem] text-yellow-700 dark:text-yellow-200"
@@ -667,34 +342,6 @@
 						</p>
 						<div class="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
 							<AdminSettingField
-								label={$i18n.t('settings.admin.authentication.providerName.label')}
-								description={$i18n.t('settings.admin.authentication.providerName.description')}
-								forId="oauth-provider-name"
-							>
-								<input
-									id="oauth-provider-name"
-									class={inputClass}
-									placeholder="SSO"
-									bind:value={oauthConfig.OAUTH_PROVIDER_NAME}
-								/>
-							</AdminSettingField>
-
-							<AdminSettingField
-								label={$i18n.t('settings.admin.authentication.providerUrl.label')}
-								description={$i18n.t('settings.admin.authentication.providerUrl.description')}
-								forId="oauth-provider-url"
-							>
-								<input
-									id="oauth-provider-url"
-									class={inputClass}
-									placeholder="https://accounts.google.com/.well-known/openid-configuration"
-									bind:value={oauthConfig.OPENID_PROVIDER_URL}
-								/>
-							</AdminSettingField>
-						</div>
-
-						<div class="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
-							<AdminSettingField
 								label={$i18n.t('settings.admin.authentication.clientId.label')}
 								description={$i18n.t('settings.admin.authentication.clientId.description')}
 								forId="oauth-client-id"
@@ -703,7 +350,7 @@
 									id="oauth-client-id"
 									class={inputClass}
 									placeholder={$i18n.t('Enter Client ID')}
-									bind:value={oauthConfig.OAUTH_CLIENT_ID}
+									bind:value={oauthConfig.GOOGLE_CLIENT_ID}
 								/>
 							</AdminSettingField>
 
@@ -715,7 +362,7 @@
 									variant="settings"
 									placeholder={$i18n.t('Enter Client Secret')}
 									required={false}
-									bind:value={oauthConfig.OAUTH_CLIENT_SECRET}
+									bind:value={oauthConfig.GOOGLE_CLIENT_SECRET}
 								/>
 							</AdminSettingField>
 						</div>
@@ -730,7 +377,7 @@
 									id="oauth-redirect-uri"
 									class={inputClass}
 									placeholder={$i18n.t('Enter Redirect URI')}
-									bind:value={oauthConfig.OPENID_REDIRECT_URI}
+									bind:value={oauthConfig.GOOGLE_REDIRECT_URI}
 								/>
 							</AdminSettingField>
 
@@ -743,7 +390,7 @@
 									id="oauth-scopes"
 									class={inputClass}
 									placeholder="openid email profile"
-									bind:value={oauthConfig.OAUTH_SCOPES}
+									bind:value={oauthConfig.GOOGLE_OAUTH_SCOPE}
 								/>
 							</AdminSettingField>
 						</div>

@@ -12,9 +12,9 @@ Production-grade reliability, security, recovery, observability, and data-integr
 
 ## Fresh persistence baseline and provider scope
 
-The latest approved product specification replaces persistence across both Mini-Hermes and Open WebUI using PostgreSQL and SQLAlchemy async. The local development database may be reset during the separately scoped implementation. No legacy schema/data backfill, chat-history import, or checkpoint conversion is required. Keep the existing product capabilities, current execution engine, authorization boundaries, notices, and public contracts still used by the UI. This local reset authorization does not apply to production data or traffic.
+The latest approved product specification replaces persistence across both Mini-Hermes and Open WebUI using PostgreSQL and SQLAlchemy async. The local development database may be reset during the separately scoped implementation. No legacy schema/data backfill, chat-history import, or checkpoint conversion is required. Keep the capabilities selected in the [production scope cleanup](../plans/production-scope-cleanup.md), current execution engine, authorization boundaries, notices, and retained UI contracts. This local reset authorization does not apply to production data or traffic.
 
-Ollama is excluded from the target, including provider/model selection, discovery, health/about probes, and embedding configuration. Optional image/audio/embedding/search capabilities require their own configured providers; OpenAI compatibility alone does not prove those capabilities.
+Ollama is excluded from the target, including provider/model selection, discovery, health/about probes, and embedding configuration. Image generation for Office documents, embeddings, and web search require their own configured providers and permissions; audio is outside the current product scope. OpenAI compatibility alone does not prove those capabilities.
 
 Detailed target use cases, new persistence, planned tests, and evidence-classified audit findings are in the [Mini-Hermes specification](../design/mini-hermes-use-cases-design-and-tests.md). Presence of that specification does not establish implementation or staging gate completion.
 

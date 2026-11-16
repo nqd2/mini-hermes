@@ -42,7 +42,6 @@ from open_webui.utils.json_codec import JSONCodec
 
 
 async def seed_registered_defaults():
-    await Config.rename_prefix('rag.web', 'web')
     await Config.repair_config_rows()
     await Config.seed_defaults(DEFAULT_CONFIG)
 
@@ -77,15 +76,6 @@ def run_migrations():
 
 if ENABLE_DB_MIGRATIONS:
     run_migrations()
-
-
-async def import_legacy_config_json():
-    """Migrate legacy config.json → database on first run."""
-    if not os.path.exists(f'{DATA_DIR}/config.json'):
-        return
-    with open(f'{DATA_DIR}/config.json', 'r') as _f:
-        await Config.upsert(JSONCodec.loads(_f.read()))
-    os.rename(f'{DATA_DIR}/config.json', f'{DATA_DIR}/old_config.json')
 
 
 # Static DIR
@@ -223,14 +213,6 @@ if CUSTOM_NAME:
 
 ENABLE_DIRECT_CONNECTIONS = os.getenv('ENABLE_DIRECT_CONNECTIONS', 'False').lower() == 'true'
 ENABLE_DIRECT_INTEGRATIONS = os.getenv('ENABLE_DIRECT_INTEGRATIONS', 'False').lower() == 'true'
-
-# Mini-Hermes does not use Ollama. Keep empty values for upstream call sites
-# that still import these constants; do not probe localhost or discover models.
-ENABLE_OLLAMA_API = False
-OLLAMA_API_BASE_URL = ''
-OLLAMA_BASE_URL = ''
-OLLAMA_BASE_URLS = []
-OLLAMA_API_CONFIGS = {}
 
 # OPENAI_API
 
@@ -755,24 +737,6 @@ GOOGLE_DRIVE_CLIENT_ID = os.getenv('GOOGLE_DRIVE_CLIENT_ID', '')
 
 GOOGLE_DRIVE_API_KEY = os.getenv('GOOGLE_DRIVE_API_KEY', '')
 
-ENABLE_ONEDRIVE_INTEGRATION = os.getenv('ENABLE_ONEDRIVE_INTEGRATION', 'False').lower() == 'true'
-
-
-ONEDRIVE_CLIENT_ID = os.getenv('ONEDRIVE_CLIENT_ID', '')
-ONEDRIVE_CLIENT_ID_PERSONAL = os.getenv('ONEDRIVE_CLIENT_ID_PERSONAL', ONEDRIVE_CLIENT_ID)
-ONEDRIVE_CLIENT_ID_BUSINESS = os.getenv('ONEDRIVE_CLIENT_ID_BUSINESS', ONEDRIVE_CLIENT_ID)
-
-ENABLE_ONEDRIVE_PERSONAL = os.getenv('ENABLE_ONEDRIVE_PERSONAL', 'True').lower() == 'true' and bool(
-    ONEDRIVE_CLIENT_ID_PERSONAL
-)
-ENABLE_ONEDRIVE_BUSINESS = os.getenv('ENABLE_ONEDRIVE_BUSINESS', 'True').lower() == 'true' and bool(
-    ONEDRIVE_CLIENT_ID_BUSINESS
-)
-
-ONEDRIVE_SHAREPOINT_URL = os.getenv('ONEDRIVE_SHAREPOINT_URL', '')
-
-ONEDRIVE_SHAREPOINT_TENANT_ID = os.getenv('ONEDRIVE_SHAREPOINT_TENANT_ID', '')
-
 # RAG Content Extraction
 CONTENT_EXTRACTION_ENGINE = os.getenv('CONTENT_EXTRACTION_ENGINE', '').lower()
 
@@ -1031,11 +995,6 @@ RAG_OPENAI_API_KEY = os.getenv('RAG_OPENAI_API_KEY', OPENAI_API_KEY)
 RAG_AZURE_OPENAI_BASE_URL = os.getenv('RAG_AZURE_OPENAI_BASE_URL', '')
 RAG_AZURE_OPENAI_API_KEY = os.getenv('RAG_AZURE_OPENAI_API_KEY', '')
 RAG_AZURE_OPENAI_API_VERSION = os.getenv('RAG_AZURE_OPENAI_API_VERSION', '')
-
-RAG_OLLAMA_BASE_URL = ''
-
-RAG_OLLAMA_API_KEY = ''
-
 
 ENABLE_LOCAL_WEB_FETCH = (
     os.getenv(
@@ -1777,18 +1736,8 @@ USER_PERMISSIONS_WORKSPACE_SKILLS_ALLOW_PUBLIC_SHARING = (
 )
 
 
-USER_PERMISSIONS_NOTES_ALLOW_SHARING = os.getenv('USER_PERMISSIONS_NOTES_ALLOW_SHARING', 'False').lower() == 'true'
-
-USER_PERMISSIONS_NOTES_ALLOW_PUBLIC_SHARING = (
-    os.getenv('USER_PERMISSIONS_NOTES_ALLOW_PUBLIC_SHARING', 'False').lower() == 'true'
-)
-
 USER_PERMISSIONS_FOLDERS_ALLOW_SHARING = os.getenv('USER_PERMISSIONS_FOLDERS_ALLOW_SHARING', 'False').lower() == 'true'
 
-
-USER_PERMISSIONS_CALENDAR_ALLOW_PUBLIC_SHARING = (
-    os.getenv('USER_PERMISSIONS_CALENDAR_ALLOW_PUBLIC_SHARING', 'False').lower() == 'true'
-)
 
 USER_PERMISSIONS_ACCESS_GRANTS_ALLOW_USERS = (
     os.getenv('USER_PERMISSIONS_ACCESS_GRANTS_ALLOW_USERS', 'True').lower() == 'true'
@@ -1823,16 +1772,6 @@ USER_PERMISSIONS_CHAT_REGENERATE_RESPONSE = (
 USER_PERMISSIONS_CHAT_RATE_RESPONSE = os.getenv('USER_PERMISSIONS_CHAT_RATE_RESPONSE', 'True').lower() == 'true'
 
 USER_PERMISSIONS_CHAT_EDIT = os.getenv('USER_PERMISSIONS_CHAT_EDIT', 'True').lower() == 'true'
-
-USER_PERMISSIONS_CHAT_SHARE = os.getenv('USER_PERMISSIONS_CHAT_SHARE', 'True').lower() == 'true'
-
-USER_PERMISSIONS_CHAT_ALLOW_PUBLIC_SHARING = (
-    os.getenv('USER_PERMISSIONS_CHAT_ALLOW_PUBLIC_SHARING', 'False').lower() == 'true'
-)
-
-USER_PERMISSIONS_CHAT_ALLOW_OPEN_SHARING = (
-    os.getenv('USER_PERMISSIONS_CHAT_ALLOW_OPEN_SHARING', 'False').lower() == 'true'
-)
 
 USER_PERMISSIONS_CHAT_EXPORT = os.getenv('USER_PERMISSIONS_CHAT_EXPORT', 'True').lower() == 'true'
 
@@ -1923,12 +1862,7 @@ DEFAULT_USER_PERMISSIONS = {
         'public_tools': USER_PERMISSIONS_WORKSPACE_TOOLS_ALLOW_PUBLIC_SHARING,
         'skills': USER_PERMISSIONS_WORKSPACE_SKILLS_ALLOW_SHARING,
         'public_skills': USER_PERMISSIONS_WORKSPACE_SKILLS_ALLOW_PUBLIC_SHARING,
-        'notes': USER_PERMISSIONS_NOTES_ALLOW_SHARING,
-        'public_notes': USER_PERMISSIONS_NOTES_ALLOW_PUBLIC_SHARING,
         'folders': USER_PERMISSIONS_FOLDERS_ALLOW_SHARING,
-        'public_chats': USER_PERMISSIONS_CHAT_ALLOW_PUBLIC_SHARING,
-        'open_chats': USER_PERMISSIONS_CHAT_ALLOW_OPEN_SHARING,
-        'public_calendars': USER_PERMISSIONS_CALENDAR_ALLOW_PUBLIC_SHARING,
     },
     'access_grants': {
         'allow_users': USER_PERMISSIONS_ACCESS_GRANTS_ALLOW_USERS,
@@ -1947,7 +1881,6 @@ DEFAULT_USER_PERMISSIONS = {
         'regenerate_response': USER_PERMISSIONS_CHAT_REGENERATE_RESPONSE,
         'rate_response': USER_PERMISSIONS_CHAT_RATE_RESPONSE,
         'edit': USER_PERMISSIONS_CHAT_EDIT,
-        'share': USER_PERMISSIONS_CHAT_SHARE,
         'export': USER_PERMISSIONS_CHAT_EXPORT,
         'import': USER_PERMISSIONS_CHAT_IMPORT,
         'stt': USER_PERMISSIONS_CHAT_STT,
@@ -2524,51 +2457,9 @@ if _google_oauth_authorize_params:
     except (JSONCodec.JSONDecodeError, TypeError):
         log.warning('GOOGLE_OAUTH_AUTHORIZE_PARAMS is not valid JSON, ignoring')
 
-MICROSOFT_CLIENT_ID = os.getenv('MICROSOFT_CLIENT_ID', '')
-
-MICROSOFT_CLIENT_SECRET = os.getenv('MICROSOFT_CLIENT_SECRET', '')
-
-MICROSOFT_CLIENT_TENANT_ID = os.getenv('MICROSOFT_CLIENT_TENANT_ID', '')
-
-MICROSOFT_CLIENT_LOGIN_BASE_URL = os.getenv('MICROSOFT_CLIENT_LOGIN_BASE_URL', 'https://login.microsoftonline.com')
-
-MICROSOFT_CLIENT_PICTURE_URL = os.getenv(
-    'MICROSOFT_CLIENT_PICTURE_URL',
-    'https://graph.microsoft.com/v1.0/me/photo/$value',
-)
-
-
-MICROSOFT_OAUTH_SCOPE = os.getenv('MICROSOFT_OAUTH_SCOPE', 'openid email profile')
-
-MICROSOFT_REDIRECT_URI = os.getenv('MICROSOFT_REDIRECT_URI', '')
-
-GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '')
-
-GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '')
-
-GITHUB_CLIENT_SCOPE = os.getenv('GITHUB_CLIENT_SCOPE', 'user:email')
-
-GITHUB_CLIENT_REDIRECT_URI = os.getenv('GITHUB_CLIENT_REDIRECT_URI', '')
-
-OAUTH_CLIENT_ID = os.getenv('OAUTH_CLIENT_ID', '')
-
-OAUTH_CLIENT_SECRET = os.getenv('OAUTH_CLIENT_SECRET', '')
-
-OPENID_PROVIDER_URL = os.getenv('OPENID_PROVIDER_URL', '')
-
-OPENID_END_SESSION_ENDPOINT = os.getenv('OPENID_END_SESSION_ENDPOINT', '')
-
-OPENID_REDIRECT_URI = os.getenv('OPENID_REDIRECT_URI', '')
-
-OAUTH_SCOPES = os.getenv('OAUTH_SCOPES', 'openid email profile')
-
 OAUTH_TIMEOUT = os.getenv('OAUTH_TIMEOUT', '')
 
-OAUTH_TOKEN_ENDPOINT_AUTH_METHOD = os.getenv('OAUTH_TOKEN_ENDPOINT_AUTH_METHOD', None)
-
 OAUTH_CODE_CHALLENGE_METHOD = os.getenv('OAUTH_CODE_CHALLENGE_METHOD', None)
-
-OAUTH_PROVIDER_NAME = os.getenv('OAUTH_PROVIDER_NAME', 'SSO')
 
 OAUTH_SUB_CLAIM = os.getenv('OAUTH_SUB_CLAIM', None)
 
@@ -2580,14 +2471,6 @@ OAUTH_PICTURE_CLAIM = os.getenv('OAUTH_PICTURE_CLAIM', 'picture')
 OAUTH_EMAIL_CLAIM = os.getenv('OAUTH_EMAIL_CLAIM', 'email')
 
 OAUTH_GROUPS_CLAIM = os.getenv('OAUTH_GROUPS_CLAIM', os.getenv('OAUTH_GROUP_CLAIM', 'groups'))
-
-FEISHU_CLIENT_ID = os.getenv('FEISHU_CLIENT_ID', '')
-
-FEISHU_CLIENT_SECRET = os.getenv('FEISHU_CLIENT_SECRET', '')
-
-FEISHU_OAUTH_SCOPE = os.getenv('FEISHU_OAUTH_SCOPE', 'contact:user.base:readonly')
-
-FEISHU_REDIRECT_URI = os.getenv('FEISHU_REDIRECT_URI', '')
 
 ENABLE_OAUTH_ROLE_MANAGEMENT = os.getenv('ENABLE_OAUTH_ROLE_MANAGEMENT', 'False').lower() == 'true'
 
@@ -2663,196 +2546,31 @@ def oauth_client_kwargs(scope: str, timeout: int | str | None, code_challenge_me
 
 
 async def load_oauth_providers():
+    """Register the single supported external sign-in provider."""
     config = await Config.get_namespace('oauth')
-    oauth_timeout = config.get('oauth.timeout')
-    oauth_code_challenge_method = config.get('oauth.code_challenge_method')
     OAUTH_PROVIDERS.clear()
     google_client_id = config.get('oauth.google.client_id')
     google_client_secret = config.get('oauth.google.client_secret')
-    if google_client_id and google_client_secret:
+    if not (google_client_id and google_client_secret):
+        return
 
-        def google_oauth_register(oauth: OAuth):
-            client = oauth.register(
-                name='google',
-                client_id=google_client_id,
-                client_secret=google_client_secret,
-                server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-                client_kwargs=oauth_client_kwargs(
-                    config.get('oauth.google.scope'), oauth_timeout, oauth_code_challenge_method
-                ),
-                redirect_uri=config.get('oauth.google.redirect_uri'),
-                **({'authorize_params': GOOGLE_OAUTH_AUTHORIZE_PARAMS} if GOOGLE_OAUTH_AUTHORIZE_PARAMS else {}),
-            )
-            return client
-
-        OAUTH_PROVIDERS['google'] = {
-            'register': google_oauth_register,
-        }
-
-    microsoft_client_id = config.get('oauth.microsoft.client_id')
-    microsoft_client_secret = config.get('oauth.microsoft.client_secret')
-    microsoft_client_tenant_id = config.get('oauth.microsoft.tenant_id')
-    microsoft_client_login_base_url = config.get('oauth.microsoft.login_base_url')
-    if microsoft_client_id and microsoft_client_secret and microsoft_client_tenant_id:
-
-        def microsoft_oauth_register(oauth: OAuth):
-            client = oauth.register(
-                name='microsoft',
-                client_id=microsoft_client_id,
-                client_secret=microsoft_client_secret,
-                server_metadata_url=f'{microsoft_client_login_base_url}/{microsoft_client_tenant_id}/v2.0/.well-known/openid-configuration?appid={microsoft_client_id}',
-                client_kwargs=oauth_client_kwargs(
-                    config.get('oauth.microsoft.scope'), oauth_timeout, oauth_code_challenge_method
-                ),
-                redirect_uri=config.get('oauth.microsoft.redirect_uri'),
-            )
-            return client
-
-        OAUTH_PROVIDERS['microsoft'] = {
-            'picture_url': config.get('oauth.microsoft.picture_url'),
-            'register': microsoft_oauth_register,
-        }
-
-    github_client_id = config.get('oauth.github.client_id')
-    github_client_secret = config.get('oauth.github.client_secret')
-    if github_client_id and github_client_secret:
-
-        def github_oauth_register(oauth: OAuth):
-            client = oauth.register(
-                name='github',
-                client_id=github_client_id,
-                client_secret=github_client_secret,
-                access_token_url='https://github.com/login/oauth/access_token',
-                authorize_url='https://github.com/login/oauth/authorize',
-                api_base_url='https://api.github.com',
-                userinfo_endpoint='https://api.github.com/user',
-                client_kwargs=oauth_client_kwargs(
-                    config.get('oauth.github.scope'), oauth_timeout, oauth_code_challenge_method
-                ),
-                redirect_uri=config.get('oauth.github.redirect_uri'),
-            )
-            return client
-
-        OAUTH_PROVIDERS['github'] = {
-            'register': github_oauth_register,
-            'sub_claim': 'id',
-        }
-
-    oauth_client_id = config.get('oauth.client_id')
-    oauth_client_secret = config.get('oauth.client_secret')
-    openid_provider_url = config.get('oauth.provider_url')
-    oauth_token_endpoint_auth_method = config.get('oauth.token_endpoint_auth_method')
-    if oauth_client_id and (oauth_client_secret or oauth_code_challenge_method) and openid_provider_url:
-
-        def oidc_oauth_register(oauth: OAuth):
-            client = oauth.register(
-                name='oidc',
-                client_id=oauth_client_id,
-                client_secret=oauth_client_secret,
-                server_metadata_url=openid_provider_url,
-                client_kwargs=oauth_client_kwargs(
-                    config.get('oauth.scopes'),
-                    oauth_timeout,
-                    oauth_code_challenge_method,
-                    **(
-                        {'token_endpoint_auth_method': oauth_token_endpoint_auth_method}
-                        if oauth_token_endpoint_auth_method
-                        else {}
-                    ),
-                ),
-                redirect_uri=config.get('oauth.redirect_uri'),
-            )
-            return client
-
-        OAUTH_PROVIDERS['oidc'] = {
-            'name': config.get('oauth.provider_name'),
-            'register': oidc_oauth_register,
-        }
-
-    feishu_client_id = config.get('oauth.feishu.client_id')
-    feishu_client_secret = config.get('oauth.feishu.client_secret')
-    if feishu_client_id and feishu_client_secret:
-
-        def feishu_oauth_register(oauth: OAuth):
-            client = oauth.register(
-                name='feishu',
-                client_id=feishu_client_id,
-                client_secret=feishu_client_secret,
-                access_token_url='https://open.feishu.cn/open-apis/authen/v2/oauth/token',
-                authorize_url='https://accounts.feishu.cn/open-apis/authen/v1/authorize',
-                api_base_url='https://open.feishu.cn/open-apis',
-                userinfo_endpoint='https://open.feishu.cn/open-apis/authen/v1/user_info',
-                client_kwargs={
-                    'scope': config.get('oauth.feishu.scope'),
-                    **({'timeout': int(oauth_timeout)} if oauth_timeout else {}),
-                },
-                redirect_uri=config.get('oauth.feishu.redirect_uri'),
-            )
-            return client
-
-        OAUTH_PROVIDERS['feishu'] = {
-            'register': feishu_oauth_register,
-            'sub_claim': 'user_id',
-        }
-
-    configured_providers = []
-    if google_client_id:
-        configured_providers.append('Google')
-    if microsoft_client_id:
-        configured_providers.append('Microsoft')
-    if github_client_id:
-        configured_providers.append('GitHub')
-    if feishu_client_id:
-        configured_providers.append('Feishu')
-
-    if configured_providers and not openid_provider_url and not config.get('oauth.end_session_endpoint'):
-        provider_list = ', '.join(configured_providers)
-        log.warning(
-            f'⚠️  OAuth providers configured ({provider_list}) but OPENID_PROVIDER_URL not set - logout will not work!'
-        )
-        log.warning(
-            f"Set OPENID_PROVIDER_URL to your OAuth provider's OpenID Connect discovery endpoint,"
-            f' or set OPENID_END_SESSION_ENDPOINT to a custom logout URL to fix logout functionality.'
+    def google_oauth_register(oauth: OAuth):
+        return oauth.register(
+            name='google',
+            client_id=google_client_id,
+            client_secret=google_client_secret,
+            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+            client_kwargs=oauth_client_kwargs(
+                config.get('oauth.google.scope'),
+                config.get('oauth.timeout'),
+                config.get('oauth.code_challenge_method'),
+            ),
+            redirect_uri=config.get('oauth.google.redirect_uri'),
+            **({'authorize_params': GOOGLE_OAUTH_AUTHORIZE_PARAMS} if GOOGLE_OAUTH_AUTHORIZE_PARAMS else {}),
         )
 
+    OAUTH_PROVIDERS['google'] = {'register': google_oauth_register}
 
-# LDAP
-
-ENABLE_LDAP = os.getenv('ENABLE_LDAP', 'false').lower() == 'true'
-
-LDAP_SERVER_LABEL = os.getenv('LDAP_SERVER_LABEL', 'LDAP Server')
-
-LDAP_SERVER_HOST = os.getenv('LDAP_SERVER_HOST', 'localhost')
-
-LDAP_SERVER_PORT = int(os.getenv('LDAP_SERVER_PORT', '389'))
-
-LDAP_ATTRIBUTE_FOR_MAIL = os.getenv('LDAP_ATTRIBUTE_FOR_MAIL', 'mail')
-
-LDAP_DEFAULT_EMAIL_DOMAIN = os.getenv('LDAP_DEFAULT_EMAIL_DOMAIN', '')
-
-LDAP_ATTRIBUTE_FOR_USERNAME = os.getenv('LDAP_ATTRIBUTE_FOR_USERNAME', 'uid')
-
-LDAP_APP_DN = os.getenv('LDAP_APP_DN', '')
-
-LDAP_APP_PASSWORD = os.getenv('LDAP_APP_PASSWORD', '')
-
-LDAP_SEARCH_BASE = os.getenv('LDAP_SEARCH_BASE', '')
-
-LDAP_SEARCH_FILTERS = os.getenv('LDAP_SEARCH_FILTER', os.getenv('LDAP_SEARCH_FILTERS', ''))
-
-LDAP_USE_TLS = os.getenv('LDAP_USE_TLS', 'True').lower() == 'true'
-
-LDAP_CA_CERT_FILE = os.getenv('LDAP_CA_CERT_FILE', '')
-
-LDAP_VALIDATE_CERT = os.getenv('LDAP_VALIDATE_CERT', 'True').lower() == 'true'
-
-LDAP_CIPHERS = os.getenv('LDAP_CIPHERS', 'ALL')
-
-ENABLE_LDAP_GROUP_MANAGEMENT = os.getenv('ENABLE_LDAP_GROUP_MANAGEMENT', 'False').lower() == 'true'
-
-ENABLE_LDAP_GROUP_CREATION = os.getenv('ENABLE_LDAP_GROUP_CREATION', 'False').lower() == 'true'
-
-LDAP_ATTRIBUTE_FOR_GROUPS = os.getenv('LDAP_ATTRIBUTE_FOR_GROUPS', 'memberOf')
 
 DEFAULT_CONFIG = {
     'skills.lazy_loading.enable': ENABLE_SKILL_LAZY_LOADING,
@@ -2860,9 +2578,6 @@ DEFAULT_CONFIG = {
     'skills.preview_max_chars': SKILL_PREVIEW_MAX_CHARS,
     'direct.enable': ENABLE_DIRECT_CONNECTIONS,
     'direct.integrations.enable': ENABLE_DIRECT_INTEGRATIONS,
-    'ollama.enable': False,
-    'ollama.base_urls': [],
-    'ollama.api_configs': {},
     'openai.enable': ENABLE_OPENAI_API,
     'openai.api_keys': OPENAI_API_KEYS,
     'openai.api_base_urls': OPENAI_API_BASE_URLS,
@@ -2895,9 +2610,6 @@ DEFAULT_CONFIG = {
     'google_drive.enable': ENABLE_GOOGLE_DRIVE_INTEGRATION,
     'google_drive.client_id': GOOGLE_DRIVE_CLIENT_ID,
     'google_drive.api_key': GOOGLE_DRIVE_API_KEY,
-    'onedrive.enable': ENABLE_ONEDRIVE_INTEGRATION,
-    'onedrive.sharepoint_url': ONEDRIVE_SHAREPOINT_URL,
-    'onedrive.sharepoint_tenant_id': ONEDRIVE_SHAREPOINT_TENANT_ID,
     'rag.content_extraction_engine': CONTENT_EXTRACTION_ENGINE,
     'rag.content_extraction.supported_media_mime_types': CONTENT_EXTRACTION_SUPPORTED_MEDIA_MIME_TYPES,
     'rag.datalab_marker_api_key': DATALAB_MARKER_API_KEY,
@@ -2978,8 +2690,6 @@ DEFAULT_CONFIG = {
     'rag.azure_openai.base_url': RAG_AZURE_OPENAI_BASE_URL,
     'rag.azure_openai.api_key': RAG_AZURE_OPENAI_API_KEY,
     'rag.azure_openai.api_version': RAG_AZURE_OPENAI_API_VERSION,
-    'rag.ollama.base_url': '',
-    'rag.ollama.api_key': '',
     'rag.youtube_loader_language': YOUTUBE_LOADER_LANGUAGE,
     'rag.youtube_loader_proxy_url': YOUTUBE_LOADER_PROXY_URL,
     'web.search.enable': ENABLE_WEB_SEARCH,
@@ -3232,36 +2942,13 @@ DEFAULT_CONFIG = {
     'oauth.google.client_secret': GOOGLE_CLIENT_SECRET,
     'oauth.google.scope': GOOGLE_OAUTH_SCOPE,
     'oauth.google.redirect_uri': GOOGLE_REDIRECT_URI,
-    'oauth.microsoft.client_id': MICROSOFT_CLIENT_ID,
-    'oauth.microsoft.client_secret': MICROSOFT_CLIENT_SECRET,
-    'oauth.microsoft.tenant_id': MICROSOFT_CLIENT_TENANT_ID,
-    'oauth.microsoft.login_base_url': MICROSOFT_CLIENT_LOGIN_BASE_URL,
-    'oauth.microsoft.picture_url': MICROSOFT_CLIENT_PICTURE_URL,
-    'oauth.microsoft.scope': MICROSOFT_OAUTH_SCOPE,
-    'oauth.microsoft.redirect_uri': MICROSOFT_REDIRECT_URI,
-    'oauth.github.client_id': GITHUB_CLIENT_ID,
-    'oauth.github.client_secret': GITHUB_CLIENT_SECRET,
-    'oauth.github.scope': GITHUB_CLIENT_SCOPE,
-    'oauth.github.redirect_uri': GITHUB_CLIENT_REDIRECT_URI,
-    'oauth.client_id': OAUTH_CLIENT_ID,
-    'oauth.client_secret': OAUTH_CLIENT_SECRET,
-    'oauth.provider_url': OPENID_PROVIDER_URL,
-    'oauth.end_session_endpoint': OPENID_END_SESSION_ENDPOINT,
-    'oauth.redirect_uri': OPENID_REDIRECT_URI,
-    'oauth.scopes': OAUTH_SCOPES,
     'oauth.timeout': OAUTH_TIMEOUT,
-    'oauth.token_endpoint_auth_method': OAUTH_TOKEN_ENDPOINT_AUTH_METHOD,
     'oauth.code_challenge_method': OAUTH_CODE_CHALLENGE_METHOD,
-    'oauth.provider_name': OAUTH_PROVIDER_NAME,
     'oauth.sub_claim': OAUTH_SUB_CLAIM,
     'oauth.username_claim': OAUTH_USERNAME_CLAIM,
     'oauth.picture_claim': OAUTH_PICTURE_CLAIM,
     'oauth.email_claim': OAUTH_EMAIL_CLAIM,
     'oauth.group_claim': OAUTH_GROUPS_CLAIM,
-    'oauth.feishu.client_id': FEISHU_CLIENT_ID,
-    'oauth.feishu.client_secret': FEISHU_CLIENT_SECRET,
-    'oauth.feishu.scope': FEISHU_OAUTH_SCOPE,
-    'oauth.feishu.redirect_uri': FEISHU_REDIRECT_URI,
     'oauth.enable_role_mapping': ENABLE_OAUTH_ROLE_MANAGEMENT,
     'oauth.enable_group_mapping': ENABLE_OAUTH_GROUP_MANAGEMENT,
     'oauth.enable_group_creation': ENABLE_OAUTH_GROUP_CREATION,
@@ -3275,24 +2962,6 @@ DEFAULT_CONFIG = {
     'oauth.update_name_on_login': OAUTH_UPDATE_NAME_ON_LOGIN,
     'oauth.update_email_on_login': OAUTH_UPDATE_EMAIL_ON_LOGIN,
     'oauth.audience': OAUTH_AUDIENCE,
-    'ldap.enable': ENABLE_LDAP,
-    'ldap.server.label': LDAP_SERVER_LABEL,
-    'ldap.server.host': LDAP_SERVER_HOST,
-    'ldap.server.port': LDAP_SERVER_PORT,
-    'ldap.server.attribute_for_mail': LDAP_ATTRIBUTE_FOR_MAIL,
-    'ldap.server.default_email_domain': LDAP_DEFAULT_EMAIL_DOMAIN,
-    'ldap.server.attribute_for_username': LDAP_ATTRIBUTE_FOR_USERNAME,
-    'ldap.server.app_dn': LDAP_APP_DN,
-    'ldap.server.app_password': LDAP_APP_PASSWORD,
-    'ldap.server.users_dn': LDAP_SEARCH_BASE,
-    'ldap.server.search_filter': LDAP_SEARCH_FILTERS,
-    'ldap.server.use_tls': LDAP_USE_TLS,
-    'ldap.server.ca_cert_file': LDAP_CA_CERT_FILE,
-    'ldap.server.validate_cert': LDAP_VALIDATE_CERT,
-    'ldap.server.ciphers': LDAP_CIPHERS,
-    'ldap.group.enable_management': ENABLE_LDAP_GROUP_MANAGEMENT,
-    'ldap.group.enable_creation': ENABLE_LDAP_GROUP_CREATION,
-    'ldap.server.attribute_for_groups': LDAP_ATTRIBUTE_FOR_GROUPS,
 }
 
 

@@ -353,7 +353,6 @@ async def generate_chat_tags(request: Request, form_data: dict, user=Depends(get
         )
 
 
-@router.post('/image_prompt/completions')
 async def generate_image_prompt(request: Request, form_data: dict, user=Depends(get_verified_user)):
     if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
         models = {

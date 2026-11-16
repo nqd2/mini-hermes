@@ -91,7 +91,7 @@ async def verify_database_parity(
             src_tables, src_schema = await src_conn.run_sync(_inspect_schema)
             tgt_tables, tgt_schema = await tgt_conn.run_sync(_inspect_schema)
 
-            # Check 1: Table Count & Names (must have all 49 mh_* tables)
+            # Check 1: Table count and names across the complete release schema.
             if src_tables != tgt_tables:
                 checks["1_table_names"] = False
                 discrepancies.append(

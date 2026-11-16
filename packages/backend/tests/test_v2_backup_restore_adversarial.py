@@ -277,7 +277,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
         # 5. Assert 100% parity across all dimensions
         assert parity.passed is True, f"Parity discrepancies found: {parity.discrepancies}"
         assert len(parity.discrepancies) == 0
-        assert parity.tables_verified == 49
+        assert parity.tables_verified == 101
         assert parity.total_rows_source == parity.total_rows_target
         assert parity.total_rows_source > 10  # Baseline + all adversarial entities
 

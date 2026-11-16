@@ -20,7 +20,6 @@
 	import { onMount, tick, getContext, createEventDispatcher } from 'svelte';
 
 	import { createPicker, getAuthToken } from '$lib/utils/google-drive-picker';
-	import { pickAndDownloadFile } from '$lib/utils/onedrive-file-picker';
 	import { KokoroWorker } from '$lib/workers/KokoroWorker';
 
 	const dispatch = createEventDispatcher();
@@ -99,7 +98,6 @@
 	import { matchKeybinding, Shortcut } from '$lib/shortcuts';
 	import { resolveLocalizedModelName } from '$lib/utils/localizedContent';
 
-	import { createNoteHandler } from '../notes/utils';
 	import { getSuggestionRenderer } from '../common/RichTextInput/suggestions';
 
 	import InputMenu from './MessageInput/InputMenu.svelte';
@@ -118,7 +116,6 @@
 
 	import XMark from '../icons/XMark.svelte';
 	import GlobeAlt from '../icons/GlobeAlt.svelte';
-	import Photo from '../icons/Photo.svelte';
 	import Wrench from '../icons/Wrench.svelte';
 	import ArrowUpLeft from '../icons/ArrowUpLeft.svelte';
 	import Cube from '../icons/Cube.svelte';
@@ -293,7 +290,6 @@
 	export let selectedSkillIds: string[] = [];
 	export let selectedFilterIds: string[] = [];
 
-	export let imageGenerationEnabled = false;
 	export let webSearchEnabled = false;
 	export let codeInterpreterEnabled = false;
 	export let toolApprovalMode = 'full';
@@ -350,7 +346,6 @@
 		selectedToolIds,
 		selectedSkillIds,
 		selectedFilterIds,
-		imageGenerationEnabled,
 		webSearchEnabled,
 		codeInterpreterEnabled
 	};
@@ -637,7 +632,6 @@
 		| 'vision'
 		| 'file_upload'
 		| 'web_search'
-		| 'image_generation'
 		| 'code_interpreter'
 		| 'terminal'
 		| 'builtin_tools';
@@ -674,13 +668,6 @@
 	$: webSearchCapableModels = getCapableModelIds(
 		selectedModelIds,
 		'web_search',
-		modelCapabilitiesById
-	);
-
-	let imageGenerationCapableModels = [];
-	$: imageGenerationCapableModels = getCapableModelIds(
-		selectedModelIds,
-		'image_generation',
 		modelCapabilitiesById
 	);
 
@@ -735,12 +722,6 @@
 		$config?.features?.enable_web_search &&
 		($_user.role === 'admin' || $_user?.permissions?.features?.web_search);
 
-	let showImageGenerationButton = false;
-	$: showImageGenerationButton =
-		selectedModelIds.length === imageGenerationCapableModels.length &&
-		$config?.features?.enable_image_generation &&
-		($_user.role === 'admin' || $_user?.permissions?.features?.image_generation);
-
 	let showCodeInterpreterButton = false;
 	$: showCodeInterpreterButton =
 		!$selectedTerminalId &&
@@ -757,8 +738,6 @@
 				($_user?.role === 'admin' || ($_user?.permissions?.chat?.stt ?? true))));
 
 	$: if (webSearchCapableModels.length < selectedModelIds.length) webSearchEnabled = false;
-	$: if (imageGenerationCapableModels.length < selectedModelIds.length)
-		imageGenerationEnabled = false;
 	$: if (codeInterpreterCapableModels.length < selectedModelIds.length)
 		codeInterpreterEnabled = false;
 	$: {
@@ -977,25 +956,6 @@
 		uploadTextFile: (file) => uploadFileHandler(file, true, { context: 'full' }),
 		processInputFiles: (files) => inputFilesHandler(files)
 	});
-
-	const createNote = async () => {
-		if (inputContent?.md.trim() === '' && inputContent?.html.trim() === '') {
-			toast.error($i18n.t('Cannot create an empty note.'));
-			return;
-		}
-
-		const res = await createNoteHandler(
-			dayjs().locale($i18n.language).format('YYYY-MM-DD'),
-			inputContent?.md,
-			inputContent?.html
-		);
-
-		if (res) {
-			// The draft has become a note; session storage can stop keeping a spare.
-			sessionStorage.removeItem('chat-input');
-			goto(`/notes/${res.id}`);
-		}
-	};
 
 	const resourceDropController = createResourceDropController({
 		getToken: () => localStorage.token,
@@ -1833,7 +1793,6 @@
 															selectedFilterIds = [];
 
 															webSearchEnabled = false;
-															imageGenerationEnabled = false;
 															codeInterpreterEnabled = false;
 														}
 													}}
@@ -1897,21 +1856,6 @@
 												);
 											}
 										}}
-										uploadOneDriveHandler={async (authorityType) => {
-											try {
-												const fileData = await pickAndDownloadFile(authorityType);
-												if (fileData) {
-													const file = new File([fileData.blob], fileData.name, {
-														type: fileData.blob.type || 'application/octet-stream'
-													});
-													await uploadFileHandler(file);
-												} else {
-													console.log('No file was selected from OneDrive');
-												}
-											} catch (error) {
-												console.error('OneDrive Error:', error);
-											}
-										}}
 										{onUpload}
 										onClose={async () => {
 											await tick();
@@ -1930,7 +1874,7 @@
 										</button>
 									</InputMenu>
 
-									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || showSkillsButton || (toggleFilters && toggleFilters.length > 0)}
+									{#if showWebSearchButton || showCodeInterpreterButton || showToolsButton || showSkillsButton || (toggleFilters && toggleFilters.length > 0)}
 										<div
 											class="flex self-center w-[0.0625rem] h-4 mx-1 bg-gray-200/50 dark:bg-gray-800/50 shrink-0"
 										></div>
@@ -1939,13 +1883,11 @@
 											selectedModels={selectedModelIds}
 											{toggleFilters}
 											{showWebSearchButton}
-											{showImageGenerationButton}
 											{showCodeInterpreterButton}
 											bind:selectedToolIds
 											bind:selectedSkillIds
 											bind:selectedFilterIds
 											bind:webSearchEnabled
-											bind:imageGenerationEnabled
 											bind:codeInterpreterEnabled
 											oauthRedirectHandler={(tool: {
 												id: string;
@@ -2156,27 +2098,6 @@
 												</button>
 											</Tooltip>
 										{/if}
-
-										{#if imageGenerationEnabled && showImageGenerationButton && $visibleControls['chat.selected_image_generation']}
-											<Tooltip content={$i18n.t('Image')} placement="top">
-												<button
-													aria-label={$i18n.t('Image')}
-													aria-pressed={imageGenerationEnabled}
-													on:click|preventDefault={() =>
-														(imageGenerationEnabled = !imageGenerationEnabled)}
-													type="button"
-													class="group p-[0.375rem] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {imageGenerationEnabled
-														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
-														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
-												>
-													<Photo className="size-4" strokeWidth="1.75" />
-													<div class="hidden group-hover:block">
-														<XMark className="size-4" strokeWidth="1.75" />
-													</div>
-												</button>
-											</Tooltip>
-										{/if}
-
 										{#if codeInterpreterEnabled && showCodeInterpreterButton && $visibleControls['chat.selected_code_interpreter']}
 											<Tooltip content={$i18n.t('Code Interpreter')} placement="top">
 												<button

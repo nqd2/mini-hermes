@@ -300,7 +300,7 @@ class AgentRepository:
                 .where(
                     AgentTurn.session_id == session_id,
                     AgentTurn.chat_message_id == chat_message_id,
-                    AgentTurn.status.in_(('waiting_approval', 'interrupted', 'paused')),
+                    AgentTurn.status.in_(('waiting_approval', 'waiting_user_input', 'interrupted', 'paused')),
                 )
                 .order_by(AgentTurn.sequence.desc())
                 .limit(1)
@@ -324,7 +324,7 @@ class AgentRepository:
                 turn = await db.scalar(select(AgentTurn).where(AgentTurn.id == turn_id).with_for_update())
                 if turn is None:
                     raise HTTPException(status_code=404, detail='Agent turn not found.')
-                if turn.status not in {'queued', 'interrupted', 'waiting_approval', 'paused'}:
+                if turn.status not in {'queued', 'interrupted', 'waiting_approval', 'waiting_user_input', 'paused'}:
                     raise HTTPException(status_code=409, detail='Agent turn cannot be claimed in its current state.')
                 unknown = await db.scalar(
                     select(AgentToolInvocation.id)
@@ -358,7 +358,7 @@ class AgentRepository:
         payload: dict | None = None,
         error: dict | None = None,
     ) -> AgentTurn:
-        if status not in {'waiting_approval', 'paused', 'failed', 'interrupted', 'cancelled'}:
+        if status not in {'waiting_approval', 'waiting_user_input', 'paused', 'failed', 'interrupted', 'cancelled'}:
             raise ValueError(f'unsupported turn state: {status}')
         async with self._session_factory() as db:
             async with db.begin():

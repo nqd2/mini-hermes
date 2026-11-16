@@ -66,7 +66,6 @@
 
 	export let showCommands = false;
 
-	export let imageGenerationEnabled = false;
 	export let codeInterpreterEnabled = false;
 	export let webSearchEnabled = false;
 	export let toolApprovalMode = 'full';
@@ -277,7 +276,6 @@
 						bind:selectedToolIds
 						bind:selectedSkillIds
 						bind:selectedFilterIds
-						bind:imageGenerationEnabled
 						bind:codeInterpreterEnabled
 						bind:webSearchEnabled
 						bind:atSelectedModel

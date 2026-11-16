@@ -39,7 +39,6 @@ export type ChatRequestFeatureDependencies = {
   showCallOverlay: boolean;
   callMode: string;
   bridgeConnected: boolean;
-  imageGenerationEnabled: boolean;
   codeInterpreterEnabled: boolean;
   webSearchActive: boolean;
   settingsMemory?: boolean | null;
@@ -52,7 +51,6 @@ export const buildChatRequestFeatures = ({
   showCallOverlay,
   callMode,
   bridgeConnected,
-  imageGenerationEnabled,
   codeInterpreterEnabled,
   webSearchActive,
   settingsMemory,
@@ -62,11 +60,6 @@ export const buildChatRequestFeatures = ({
   if (config?.features) {
     features = {
       voice: (showCallOverlay && callMode === 'current') || bridgeConnected,
-      image_generation:
-        config.features.enable_image_generation &&
-        (user?.role === 'admin' || user?.permissions?.features?.image_generation)
-          ? imageGenerationEnabled
-          : false,
       code_interpreter:
         config.features.enable_code_interpreter &&
         (user?.role === 'admin' || user?.permissions?.features?.code_interpreter)

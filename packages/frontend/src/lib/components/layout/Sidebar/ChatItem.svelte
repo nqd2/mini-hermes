@@ -50,7 +50,6 @@
 
 	import ChatMenu from './ChatMenu.svelte';
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
-	import ShareChatModal from '$lib/components/chat/ShareChatModal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import DragGhost from '$lib/components/common/DragGhost.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -243,7 +242,6 @@
 		onReadStateChange(res);
 	};
 
-	let showShareChatModal = false;
 	let confirmEdit = false;
 
 	let chatTitle = '';
@@ -615,7 +613,6 @@
 	{/if}
 {/snippet}
 
-<ShareChatModal bind:show={showShareChatModal} chatId={id} />
 
 <DeleteConfirmDialog
 	bind:show={showDeleteConfirm}
@@ -851,9 +848,6 @@
 						chatId={id}
 						cloneChatHandler={() => {
 							cloneChatHandler(id);
-						}}
-						shareHandler={() => {
-							showShareChatModal = true;
 						}}
 						{moveChatHandler}
 						archiveChatHandler={() => {

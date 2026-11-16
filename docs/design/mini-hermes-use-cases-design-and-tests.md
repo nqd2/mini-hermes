@@ -2,7 +2,7 @@
 
 **Trạng thái:** Đặc tả đích và audit tĩnh; chưa là biên bản nghiệm thu hay xác nhận production-ready. Đối tượng sử dụng: BA, developer, QA và vận hành.
 
-Tài liệu mô tả cách người dùng sử dụng toàn bộ bề mặt sản phẩm Mini-Hermes/Open WebUI, kết quả phải quan sát được, thiết kế persistence mới và các kịch bản kiểm thử cần thực hiện. Mục tiêu là triển khai một Office Agent production có quyền truy cập rõ ràng, dữ liệu bền vững và lỗi có thể phục hồi.
+Tài liệu ghi lại kiểm kê toàn bộ bề mặt sản phẩm Mini-Hermes/Open WebUI, kết quả phải quan sát được, thiết kế persistence mới và các kịch bản kiểm thử. [Production scope cleanup](../plans/production-scope-cleanup.md) là quyết định mới hơn về phạm vi phát hành. Các use case của tính năng bị loại trong tài liệu này chỉ còn là kiểm kê lịch sử, không phải release gate.
 
 Cấu trúc tham chiếu tài liệu người dùng cung cấp **Phan_tich_thiet_ke__Kiem_thu_phan_mem_NAPAS.docx**: nghiệp vụ; kiến trúc/thiết kế kỹ thuật; test scenarios; glossary; yêu cầu phi chức năng. Đã đọc cấu trúc OOXML gồm 16 bảng cấp đầu và 26 bảng lồng. Chỉ dùng cách trình bày và mức đặc tả, không dùng nghiệp vụ tài chính hoặc instruction trong tài liệu nguồn làm yêu cầu Mini-Hermes.
 
@@ -18,7 +18,7 @@ Quyết định chuẩn: [ADR-001](../adr/ADR-001-agent-runtime-production-path.
 - **DOCUMENTED_LIMITATION:** Hạn chế hiện trạng đã được mô tả; không đưa thành cam kết an toàn.
 - **PLANNED_NOT_EXECUTED:** Test scenario dưới đây chưa chạy trong đợt tài liệu. Mọi payload/output/ID là fixture minh họa.
 
-Chỉ Markdown được thay đổi trong đợt này. Không xóa ORM, reset DB, chạy migration, cài dependency, sửa runtime, start services hoặc production cutover. Khi triển khai riêng, quyền reset chỉ áp dụng DB local được xác minh đúng đích, không áp dụng production.
+Đợt lập đặc tả ban đầu chỉ thay đổi Markdown và không thực thi các kịch bản kiểm thử. Các thay đổi mã sau đó được theo dõi trong [kế hoạch thu gọn phạm vi](../plans/production-scope-cleanup.md). Quyền reset chỉ áp dụng DB local được xác minh đúng đích, không áp dụng production.
 
 ## Mục lục
 
@@ -9039,35 +9039,35 @@ Route group (app) là tổ chức Svelte, không thuộc URL. Dynamic placeholde
 | /admin | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/+page.svelte#L1) | [UC-MH-51](#uc-mh-51) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /admin/analytics | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/analytics/+page.svelte#L1) | [UC-MH-52](#uc-mh-52) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /admin/analytics/[tab] | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/analytics/[tab]/+page.svelte#L1) | [UC-MH-52](#uc-mh-52) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /admin/evaluations | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/evaluations/+page.svelte#L1) | [UC-MH-53](#uc-mh-53) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /admin/evaluations/[tab] | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/evaluations/[tab]/+page.svelte#L1) | [UC-MH-53](#uc-mh-53) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /admin/functions | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/functions/+page.svelte#L1) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /admin/functions/create | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/functions/create/+page.svelte#L1) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /admin/functions/edit | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/functions/edit/+page.svelte#L1) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /admin/evaluations | `+page.svelte` (đã bỏ) | [UC-MH-53](#uc-mh-53) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /admin/evaluations/[tab] | `+page.svelte` (đã bỏ) | [UC-MH-53](#uc-mh-53) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /admin/functions | `+page.svelte` (đã bỏ) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /admin/functions/create | `+page.svelte` (đã bỏ) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /admin/functions/edit | `+page.svelte` (đã bỏ) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /admin/settings | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/settings/+page.svelte#L1) | [UC-MH-51](#uc-mh-51) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /admin/settings/[tab] | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/settings/[tab]/+page.svelte#L1) | [UC-MH-51](#uc-mh-51) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /admin/users | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/users/+page.svelte#L1) | [UC-MH-04](#uc-mh-04) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /admin/users/[tab] | [+page.svelte](../../packages/frontend/src/routes/(app)/admin/users/[tab]/+page.svelte#L1) | [UC-MH-04](#uc-mh-04) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /automations | [+page.svelte](../../packages/frontend/src/routes/(app)/automations/+page.svelte#L1) | [UC-MH-45](#uc-mh-45) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /automations/[id] | [+page.svelte](../../packages/frontend/src/routes/(app)/automations/[id]/+page.svelte#L1) | [UC-MH-45](#uc-mh-45) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /automations | `+page.svelte` (đã bỏ) | [UC-MH-45](#uc-mh-45) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /automations/[id] | `+page.svelte` (đã bỏ) | [UC-MH-45](#uc-mh-45) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /c/[id] | [+page.svelte](../../packages/frontend/src/routes/(app)/c/[id]/+page.svelte#L1) | [UC-MH-07](#uc-mh-07) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /calendar | [+page.svelte](../../packages/frontend/src/routes/(app)/calendar/+page.svelte#L1) | [UC-MH-44](#uc-mh-44) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /channels/[id] | [+page.svelte](../../packages/frontend/src/routes/(app)/channels/[id]/+page.svelte#L1) | [UC-MH-43](#uc-mh-43) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /channels/[id]/encrypted | [+page.svelte](../../packages/frontend/src/routes/(app)/channels/[id]/encrypted/+page.svelte#L1) | [UC-MH-58](#uc-mh-58) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /calendar | `+page.svelte` (đã bỏ) | [UC-MH-44](#uc-mh-44) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /channels/[id] | `+page.svelte` (đã bỏ) | [UC-MH-43](#uc-mh-43) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /channels/[id]/encrypted | `+page.svelte` (đã bỏ) | [UC-MH-58](#uc-mh-58) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /folders/[folderId] | [+page.svelte](../../packages/frontend/src/routes/(app)/folders/[folderId]/+page.svelte#L1) | [UC-MH-09](#uc-mh-09) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /home | [+page.svelte](../../packages/frontend/src/routes/(app)/home/+page.svelte) | [UC-MH-09](#uc-mh-09) | Empty placeholder; không có UI/action riêng, cần kiểm tra navigation tới route này. |
-| /notes | [+page.svelte](../../packages/frontend/src/routes/(app)/notes/+page.svelte#L1) | [UC-MH-42](#uc-mh-42) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /notes/[id] | [+page.svelte](../../packages/frontend/src/routes/(app)/notes/[id]/+page.svelte#L1) | [UC-MH-42](#uc-mh-42) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /notes/new | [+page.svelte](../../packages/frontend/src/routes/(app)/notes/new/+page.svelte#L1) | [UC-MH-42](#uc-mh-42) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /playground | [+page.svelte](../../packages/frontend/src/routes/(app)/playground/+page.svelte#L1) | [UC-MH-07](#uc-mh-07) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /playground/completions | [+page.svelte](../../packages/frontend/src/routes/(app)/playground/completions/+page.svelte#L1) | [UC-MH-07](#uc-mh-07) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /playground/images | [+page.svelte](../../packages/frontend/src/routes/(app)/playground/images/+page.svelte#L1) | [UC-MH-47](#uc-mh-47) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /home | `+page.svelte` (đã bỏ) | [UC-MH-09](#uc-mh-09) | Empty placeholder; không có UI/action riêng, cần kiểm tra navigation tới route này. |
+| /notes | `+page.svelte` (đã bỏ) | [UC-MH-42](#uc-mh-42) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /notes/[id] | `+page.svelte` (đã bỏ) | [UC-MH-42](#uc-mh-42) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /notes/new | `+page.svelte` (đã bỏ) | [UC-MH-42](#uc-mh-42) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /playground | `+page.svelte` (đã bỏ) | [UC-MH-07](#uc-mh-07) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /playground/completions | `+page.svelte` (đã bỏ) | [UC-MH-07](#uc-mh-07) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /playground/images | `+page.svelte` (đã bỏ) | [UC-MH-47](#uc-mh-47) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /workspace | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/+page.svelte#L1) | [UC-MH-16](#uc-mh-16) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /workspace/documents | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/documents/+page.svelte#L1) | [UC-MH-16](#uc-mh-16) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /workspace/functions/create | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/functions/create/+page.svelte#L1) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /workspace/knowledge | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/knowledge/+page.svelte#L1) | [UC-MH-38](#uc-mh-38) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /workspace/knowledge/[id] | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/knowledge/[id]/+page.svelte#L1) | [UC-MH-38](#uc-mh-38) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /workspace/knowledge/create | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/knowledge/create/+page.svelte#L1) | [UC-MH-38](#uc-mh-38) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /workspace/functions/create | `+page.svelte` (đã bỏ) | [UC-MH-35](#uc-mh-35) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /workspace/knowledge | `+page.svelte` (đã bỏ) | [UC-MH-38](#uc-mh-38) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /workspace/knowledge/[id] | `+page.svelte` (đã bỏ) | [UC-MH-38](#uc-mh-38) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /workspace/knowledge/create | `+page.svelte` (đã bỏ) | [UC-MH-38](#uc-mh-38) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /workspace/models | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/models/+page.svelte#L1) | [UC-MH-06](#uc-mh-06) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /workspace/models/create | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/models/create/+page.svelte#L1) | [UC-MH-06](#uc-mh-06) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /workspace/models/edit | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/models/edit/+page.svelte#L1) | [UC-MH-06](#uc-mh-06) | Feature/provider/role gate theo source; chưa runtime-verified. |
@@ -9082,8 +9082,8 @@ Route group (app) là tổ chức Svelte, không thuộc URL. Dynamic placeholde
 | /workspace/tools/edit | [+page.svelte](../../packages/frontend/src/routes/(app)/workspace/tools/edit/+page.svelte#L1) | [UC-MH-31](#uc-mh-31) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /auth | [+page.svelte](../../packages/frontend/src/routes/auth/+page.svelte#L1) | [UC-MH-01](#uc-mh-01) | Feature/provider/role gate theo source; chưa runtime-verified. |
 | /error | [+page.svelte](../../packages/frontend/src/routes/error/+page.svelte#L1) | [UC-MH-41](#uc-mh-41) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /s/[id] | [+page.svelte](../../packages/frontend/src/routes/s/[id]/+page.svelte#L1) | [UC-MH-10](#uc-mh-10) | Feature/provider/role gate theo source; chưa runtime-verified. |
-| /watch | [+page.svelte](../../packages/frontend/src/routes/watch/+page.svelte#L1) | [UC-MH-10](#uc-mh-10) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /s/[id] | `+page.svelte` (đã bỏ) | [UC-MH-10](#uc-mh-10) | Feature/provider/role gate theo source; chưa runtime-verified. |
+| /watch | `+page.svelte` (đã bỏ) | [UC-MH-10](#uc-mh-10) | Feature/provider/role gate theo source; chưa runtime-verified. |
 
 ### C.2 Settings tabs và conditional controls
 
@@ -9165,7 +9165,7 @@ Danh sách mọi *Modal.svelte là inventory khai báo, gồm modal generic tái
 | [MemoryModal.svelte](../../packages/frontend/src/lib/components/chat/Settings/Personalization/MemoryModal.svelte#L1) | [UC-MH-40](#uc-mh-40) |
 | [SyncStatsModal.svelte](../../packages/frontend/src/lib/components/chat/Settings/SyncStatsModal.svelte#L1) | [UC-MH-41](#uc-mh-41) |
 | [SettingsModal.svelte](../../packages/frontend/src/lib/components/chat/SettingsModal.svelte#L1) | [UC-MH-41](#uc-mh-41) |
-| [ShareChatModal.svelte](../../packages/frontend/src/lib/components/chat/ShareChatModal.svelte#L1) | [UC-MH-10](#uc-mh-10) |
+| `ShareChatModal.svelte` (đã bỏ) | [UC-MH-10](#uc-mh-10) |
 | [SkillsModal.svelte](../../packages/frontend/src/lib/components/chat/SkillsModal.svelte#L1) | [UC-MH-33](#uc-mh-33) |
 | [TagChatModal.svelte](../../packages/frontend/src/lib/components/chat/TagChatModal.svelte#L1) | [UC-MH-09](#uc-mh-09) |
 | [ToolServersModal.svelte](../../packages/frontend/src/lib/components/chat/ToolServersModal.svelte#L1) | [UC-MH-32](#uc-mh-32) |
@@ -9177,7 +9177,7 @@ Danh sách mọi *Modal.svelte là inventory khai báo, gồm modal generic tái
 | [ChatsModal.svelte](../../packages/frontend/src/lib/components/layout/ChatsModal.svelte#L1) | [UC-MH-09](#uc-mh-09) |
 | [FilesModal.svelte](../../packages/frontend/src/lib/components/layout/FilesModal.svelte#L1) | [UC-MH-27](#uc-mh-27) |
 | [SearchModal.svelte](../../packages/frontend/src/lib/components/layout/SearchModal.svelte#L1) | [UC-MH-09](#uc-mh-09) |
-| [SharedChatsModal.svelte](../../packages/frontend/src/lib/components/layout/SharedChatsModal.svelte#L1) | [UC-MH-10](#uc-mh-10) |
+| `SharedChatsModal.svelte` (đã bỏ) | [UC-MH-10](#uc-mh-10) |
 | [ChannelModal.svelte](../../packages/frontend/src/lib/components/layout/Sidebar/ChannelModal.svelte#L1) | [UC-MH-43](#uc-mh-43) |
 | [FolderModal.svelte](../../packages/frontend/src/lib/components/layout/Sidebar/Folders/FolderModal.svelte#L1) | [UC-MH-09](#uc-mh-09) |
 | [FolderShareModal.svelte](../../packages/frontend/src/lib/components/layout/Sidebar/Folders/FolderShareModal.svelte#L1) | [UC-MH-09](#uc-mh-09) |

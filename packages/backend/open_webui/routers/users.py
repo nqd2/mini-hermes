@@ -213,12 +213,7 @@ class SharingPermissions(BaseModel):
     public_tools: bool = False
     skills: bool = False
     public_skills: bool = False
-    notes: bool = False
-    public_notes: bool = False
     folders: bool = False
-    public_chats: bool = False
-    open_chats: bool = False
-    public_calendars: bool = False
 
 
 class AccessGrantsPermissions(BaseModel):

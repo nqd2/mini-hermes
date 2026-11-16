@@ -58,7 +58,8 @@ class AgentTurn(Base):
         UniqueConstraint('session_id', 'idempotency_key', name='uq_agent_turn_session_idempotency'),
         Index('ix_agent_turn_session_chat_message', 'session_id', 'chat_message_id'),
         CheckConstraint(
-            "status IN ('queued', 'running', 'waiting_approval', 'paused', 'completed', 'failed', 'interrupted', 'cancelled')",
+            "status IN ('queued', 'running', 'waiting_approval', 'waiting_user_input', "
+            "'paused', 'completed', 'failed', 'interrupted', 'cancelled')",
             name='ck_agent_turn_status',
         ),
         Index('ix_agent_turn_claim', 'status', 'created_at', 'lease_until'),

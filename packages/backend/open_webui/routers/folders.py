@@ -4,7 +4,7 @@ import os
 import shutil
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
@@ -25,7 +25,6 @@ from open_webui.models.folders import (
     FolderUpdateForm,
 )
 from open_webui.models.groups import Groups
-from open_webui.models.shared_chats import ChatShareMode
 from open_webui.models.users import Users
 from open_webui.tasks import has_active_tasks
 from open_webui.utils.access_control import (
@@ -513,7 +512,7 @@ async def update_folder_is_expanded_by_id(
 
 class FolderAccessGrantsForm(BaseModel):
     access_grants: list[dict]
-    share_mode: ChatShareMode = None
+    share_mode: Literal['continue'] | None = None
 
 
 @router.post('/{id}/access/update')

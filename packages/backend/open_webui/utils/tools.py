@@ -49,16 +49,10 @@ from open_webui.tools.builtin import (
     add_memory,
     ask_user,
     calculate_timestamp,
-    create_automation,
-    create_calendar_event,
     create_tasks,
     create_tool,
-    delegate_task,
-    delete_automation,
-    delete_calendar_event,
     delete_memory,
     display_file,
-    edit_image,
     execute_code,
     fetch_url,
     generate_image,
@@ -66,50 +60,36 @@ from open_webui.tools.builtin import (
     grep_chat_files,
     grep_knowledge_files,
     kb_exec,
-    list_automations,
     list_chat_files,
     list_knowledge,
     list_knowledge_bases,
     list_memories,
     list_memory_paths,
-    notify,
     query_chat_files,
     query_knowledge_bases,
     query_knowledge_files,
     read_memory_path,
     read_agent_artifact,
     replace_memory_content,
-    replace_note_content,
-    search_calendar_events,
-    search_channel_messages,
-    search_channels,
     search_chats,
     search_knowledge_bases,
     search_knowledge_files,
     search_memories,
-    search_notes,
     search_web,
-    timer,
-    toggle_automation,
-    update_automation,
-    update_calendar_event,
     update_memory,
     update_task,
-    view_channel_message,
-    view_channel_thread,
     view_chat,
     view_file,
     view_knowledge_file,
-    view_note,
     view_skill,
     read_skill_file,
     grep_skill_files,
     create_skill,
     update_skill_files,
-    write_note,
 )
 from open_webui.utils.access_control import has_access, has_connection_access, has_permission
-from open_webui.utils.chat_id import is_saved_chat_id, is_temporary_chat_id
+from open_webui.utils.chat_id import is_saved_chat_id
+from open_webui.utils.document_image_consent import is_office_document_context
 from open_webui.utils.headers import (
     bearer_auth_header,
     get_custom_headers,
@@ -652,7 +632,6 @@ async def get_builtin_tools(
         'memories.enable',
         'web.search.enable',
         'image_generation.enable',
-        'images.edit.enable',
         'code_interpreter.enable',
         'notes.enable',
         'channels.enable',
@@ -787,11 +766,6 @@ async def get_builtin_tools(
             builtin_functions.append(kb_exec)
             builtin_functions.append(query_knowledge_files)
             builtin_functions.append(display_file)
-            # Notes attached to the model need view_note since kb_exec is file-only
-            if model_knowledge:
-                knowledge_types = {item.get('type') for item in model_knowledge}
-                if 'note' in knowledge_types:
-                    builtin_functions.append(view_note)
             if not model_knowledge:
                 builtin_functions.append(query_knowledge_bases)
                 builtin_functions.append(search_knowledge_bases)
@@ -803,8 +777,6 @@ async def get_builtin_tools(
             knowledge_types = {item.get('type') for item in model_knowledge}
             if 'file' in knowledge_types or 'collection' in knowledge_types:
                 builtin_functions.extend([view_file, view_knowledge_file, display_file])
-            if 'note' in knowledge_types:
-                builtin_functions.append(view_note)
         else:
             builtin_functions.extend(
                 [
@@ -822,15 +794,6 @@ async def get_builtin_tools(
     # Chats tools - search and fetch user's chat history
     if is_builtin_tool_enabled('chats'):
         builtin_functions.extend([search_chats, view_chat])
-
-    if (
-        is_builtin_tool_enabled('subagents')
-        and config.get('subagents.enable')
-        and getattr(request.state, 'internal', False) is not True
-        and getattr(request.state, 'direct', False) is not True
-        and not is_temporary_chat_id(metadata.get('chat_id'))
-    ):
-        builtin_functions.extend([delegate_task, timer])
 
     # Add memory tools when memory is enabled and the model allows this builtin category.
     if (
@@ -869,18 +832,10 @@ async def get_builtin_tools(
         is_builtin_tool_enabled('image_generation')
         and config.get('image_generation.enable')
         and get_model_capability('image_generation')
-        and features.get('image_generation')
         and await has_user_permission('image_generation')
+        and is_office_document_context(metadata)
     ):
         builtin_functions.append(generate_image)
-    if (
-        is_builtin_tool_enabled('image_generation')
-        and config.get('images.edit.enable')
-        and get_model_capability('image_generation')
-        and features.get('image_generation')
-        and await has_user_permission('image_generation')
-    ):
-        builtin_functions.append(edit_image)
 
     # Add code interpreter tool if builtin category enabled,
     # globally enabled, and allowed by model capability.
@@ -892,23 +847,6 @@ async def get_builtin_tools(
         and await has_user_permission('code_interpreter')
     ):
         builtin_functions.append(execute_code)
-
-    # Notes tools - search, view, create, and update user's notes
-    if is_note_chat or (
-        is_builtin_tool_enabled('notes') and config.get('notes.enable') and await has_user_permission('notes')
-    ):
-        builtin_functions.extend([search_notes, view_note, write_note, replace_note_content])
-
-    # Channels tools - search channels and messages
-    if is_builtin_tool_enabled('channels') and config.get('channels.enable') and await has_user_permission('channels'):
-        builtin_functions.extend(
-            [
-                search_channels,
-                search_channel_messages,
-                view_channel_thread,
-                view_channel_message,
-            ]
-        )
 
     # Skills tools - overview, targeted search, and bounded reads of relevant passages.
     skill_ids = sorted(set(extra_params.get('__skill_ids__') or []))
@@ -946,29 +884,6 @@ async def get_builtin_tools(
 
         builtin_functions.extend(get_agent_tools())
 
-    # Automation tools - create and manage scheduled automations from chat
-    if (
-        is_builtin_tool_enabled('automations')
-        and config.get('automations.enable')
-        and await has_user_permission('automations')
-    ):
-        builtin_functions.extend(
-            [create_automation, update_automation, list_automations, toggle_automation, delete_automation]
-        )
-
-    # Calendar tools - search/create/update/delete events
-    if is_builtin_tool_enabled('calendar') and config.get('calendar.enable') and await has_user_permission('calendar'):
-        builtin_functions.extend(
-            [search_calendar_events, create_calendar_event, update_calendar_event, delete_calendar_event]
-        )
-
-    if (
-        is_builtin_tool_enabled('notifications')
-        and config.get('ui.enable_user_webhooks')
-        and await has_user_permission('webhooks')
-    ):
-        builtin_functions.append(notify)
-
     if getattr(request.state, 'internal', False) is True:
         from open_webui.utils.subagents import MUTATING_MEMORY_TOOLS
 
@@ -997,23 +912,6 @@ async def get_builtin_tools(
         )
 
         spec = get_builtin_tool_spec(func)
-        if func.__name__ == 'delegate_task':
-            from open_webui.utils.subagents import get_subagent_models
-
-            parameters = spec.get('parameters', {})
-            properties = parameters.get('properties', {})
-            if not config.get('subagents.background_enabled'):
-                properties.pop('background', None)
-                if isinstance(parameters.get('required'), list):
-                    parameters['required'] = [name for name in parameters['required'] if name != 'background']
-
-            subagent_models = await get_subagent_models(request, UserModel(**user), model) if user else []
-            if subagent_models:
-                properties['model_id']['enum'] = [model['id'] for model in subagent_models]
-                spec['description'] += f' Available models: {JSONCodec.dumps(subagent_models)}'
-            else:
-                properties.pop('model_id', None)
-
         tools_dict[func.__name__] = {
             'tool_id': f'builtin:{func.__name__}',
             'callable': callable,

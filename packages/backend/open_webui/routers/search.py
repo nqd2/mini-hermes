@@ -1,4 +1,4 @@
-"""Permission-scoped workspace search. Shared snapshots never read the live chat."""
+"""Permission-scoped workspace search."""
 
 from typing import Literal
 from urllib.parse import urlencode
@@ -13,7 +13,6 @@ from open_webui.models.folders import Folder, Folders
 from open_webui.models.groups import Groups
 from open_webui.models.messages import Message
 from open_webui.models.notes import Note, PinnedNote, matching_page
-from open_webui.models.shared_chats import SharedChat
 from open_webui.models.users import User
 from open_webui.utils.access_control import has_permission
 from open_webui.utils.auth import get_verified_user
@@ -272,13 +271,7 @@ async def search_workspace(  # noqa: C901 — keep permission scoping and source
 
     sources = {}
     if 'chat' in enabled and kind in ('all', 'chat') and not scope.startswith('channel:'):
-        continue_shared = select(SharedChat.chat_id).where(
-            SharedChat.chat['share_mode'].as_string() == 'continue', granted('shared_chat', SharedChat.chat_id)
-        )
-        live_access = or_(
-            Chat.user_id == user.id, Chat.folder_id.in_(select(folders.c.id)), Chat.id.in_(continue_shared)
-        )
-        live_ids = select(Chat.id).where(live_access)
+        live_access = or_(Chat.user_id == user.id, Chat.folder_id.in_(select(folders.c.id)))
         rank = (
             title_rank(Chat.title, query)
             if query
@@ -297,7 +290,7 @@ async def search_workspace(  # noqa: C901 — keep permission scoping and source
         if 'pinned' in flags:
             stmt = stmt.where(Chat.pinned.is_(flags['pinned']))
         if 'shared' in flags:
-            stmt = stmt.where(Chat.share_id.isnot(None) if flags['shared'] else Chat.share_id.is_(None))
+            stmt = stmt.where(Chat.user_id != user.id if flags['shared'] else Chat.user_id == user.id)
         if folder_names:
             matched_folders = await Folders.search_folders_by_names(user.id, folder_names, db=db)
             stmt = stmt.where(Chat.folder_id.in_([folder.id for folder in matched_folders]))
@@ -314,18 +307,6 @@ async def search_workspace(  # noqa: C901 — keep permission scoping and source
                 else text(f'EXISTS (SELECT 1 FROM {tags} WHERE {tag} = :{key})').bindparams(**{key: tag_id})
             )
         sources['chat'] = (Chat, apply_match(stmt, Chat), rank, Chat.updated_at)
-        if not scope and sharing != 'mine' and not chat_filtered:
-            stmt = select(SharedChat).where(
-                granted('shared_chat', SharedChat.chat_id), ~SharedChat.chat_id.in_(live_ids)
-            )
-            if sharing == 'shared':
-                stmt = stmt.where(SharedChat.user_id != user.id)
-            sources['shared'] = (
-                SharedChat,
-                apply_match(stmt, SharedChat),
-                title_rank(SharedChat.title, query),
-                SharedChat.updated_at,
-            )
 
     if 'note' in enabled and kind in ('all', 'note') and not scope and not chat_filtered:
         pinned = select(PinnedNote.id).where(PinnedNote.note_id == Note.id, PinnedNote.user_id == user.id).exists()
@@ -399,21 +380,14 @@ async def search_workspace(  # noqa: C901 — keep permission scoping and source
         if row is None:
             continue  # Access may have been revoked between selecting IDs and hydrating.
         item = row[0]
-        if match.source in ('chat', 'shared'):
+        if match.source == 'chat':
             content, message_id = chat_passage(item.chat or {}, query)
-            snapshot = match.source == 'shared'
-            folder = None if snapshot else folder_map.get(item.folder_id)
-            context = (
-                'Shared snapshot'
-                if snapshot
-                else (folder.name if folder else ('Shared chat' if item.user_id != user.id else 'Personal chat'))
-            )
-            url = ('/s/' if snapshot else '/c/') + item.id
+            folder = folder_map.get(item.folder_id)
+            context = folder.name if folder else ('Shared chat' if item.user_id != user.id else 'Personal chat')
+            url = '/c/' + item.id
             if message_id:
                 url += '?' + urlencode({'message': message_id})
-            is_shared = (
-                snapshot or item.user_id != user.id or bool(item.share_id) or item.folder_id in shared_folder_ids
-            )
+            is_shared = item.user_id != user.id or item.folder_id in shared_folder_ids
             append_result(
                 match.source + ':' + item.id,
                 'chat',
@@ -423,7 +397,7 @@ async def search_workspace(  # noqa: C901 — keep permission scoping and source
                 url,
                 match.updated_at,
                 is_shared,
-                not snapshot and item.pinned and item.user_id == user.id,
+                item.pinned and item.user_id == user.id,
                 match.rank,
             )
         elif match.source == 'note':

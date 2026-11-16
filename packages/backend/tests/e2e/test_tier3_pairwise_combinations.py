@@ -1036,11 +1036,8 @@ def test_tc_t3_pw_24_provider_gateway_zero_ollama_filter():
     from open_webui.mini_hermes.provider_guard import apply_capability_constraints
     from open_webui.mini_hermes.provider_errors import ProviderCapabilityUnsupported
 
-    # 1. Application-wide config completely disables Ollama
-    assert config.ENABLE_OLLAMA_API is False
-    assert config.OLLAMA_BASE_URLS == []
-    assert config.OLLAMA_API_CONFIGS == {}
-    assert config.RAG_OLLAMA_BASE_URL == ""
+    # 1. Application-wide config has no Ollama product keys.
+    assert not any(key.startswith(('ollama.', 'rag.ollama.')) for key in config.DEFAULT_CONFIG)
 
     # 2. Model capabilities: OpenAI-compatible models support tools; local/unregistered fall back to conservative defaults
     gpt_caps = resolve_model_capabilities("gpt-4o", "https://api.openai.com/v1")

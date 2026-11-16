@@ -64,7 +64,6 @@
 	let selectedSkillIds: string[] = [];
 	let selectedFilterIds: string[] = [];
 	let webSearchEnabled = false;
-	let imageGenerationEnabled = false;
 	let codeInterpreterEnabled = false;
 	$: toolApprovalMode =
 		(params.tool_approval_mode ?? $settings.params?.tool_approval_mode) === 'ask' ? 'ask' : 'full';
@@ -306,7 +305,6 @@
 				: [],
 			features: {
 				web_search: webSearchEnabled,
-				image_generation: imageGenerationEnabled,
 				code_interpreter: codeInterpreterEnabled,
 				memory: $settings.memory ?? $config?.features?.enable_memories ?? false
 			},
@@ -452,7 +450,6 @@
 				bind:selectedSkillIds
 				bind:selectedFilterIds
 				bind:webSearchEnabled
-				bind:imageGenerationEnabled
 				bind:codeInterpreterEnabled
 				{toolApprovalMode}
 				onToolApprovalModeChange={(mode: string) => {

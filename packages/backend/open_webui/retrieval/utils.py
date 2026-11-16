@@ -1408,14 +1408,6 @@ async def get_sources_from_items(
                 chat and ((user.role == 'admin' and ENABLE_ADMIN_CHAT_ACCESS) or chat.user_id == user.id)
             )
 
-            if chat and not has_read_access:
-                has_read_access = await AccessGrants.has_access(
-                    user_id=user.id,
-                    resource_type='shared_chat',
-                    resource_id=chat.id,
-                    permission='read',
-                )
-
             if chat and not has_read_access and chat.folder_id:
                 folder = await Folders.get_folder_by_id(chat.folder_id)
                 has_read_access = folder and await has_folder_access(user.id, folder, 'read', db=None)

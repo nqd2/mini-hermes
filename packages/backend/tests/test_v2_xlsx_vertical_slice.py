@@ -203,13 +203,16 @@ def test_cursor_retired_build_rejected():
 
 
 @pytest.mark.asyncio
-async def test_xlsx_vertical_slice_e2e_path(disposable_pg_schema):
+async def test_xlsx_vertical_slice_e2e_path(disposable_pg_schema, monkeypatch):
     """End-to-End Vertical Slice: Ingest -> Parse/Index -> Inspect -> Read Range with 5952 budget."""
     schema_url, _ = disposable_pg_schema
     await bootstrap_v2_database(BootstrapConfig(database_url=schema_url, environment_id="development"))
 
     engine = create_async_engine(schema_url)
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+    import open_webui.mini_hermes.v2.routes as v2_routes
+
+    monkeypatch.setattr(v2_routes, "get_v2_session_factory", lambda: session_factory)
 
     with tempfile.TemporaryDirectory() as td:
         store = V2ObjectStore(base_dir=td, prefix="v2/")
@@ -275,9 +278,11 @@ async def test_xlsx_vertical_slice_e2e_path(disposable_pg_schema):
             # 5. Cursor continuation loop (lossless verification)
             all_collected_cells = list(page1["data"]["cells"])
             curr_cursor = page1["next_cursor"]
-            page_count = 1
+            seen_cursors = set()
 
             while curr_cursor is not None:
+                assert curr_cursor not in seen_cursors, "Cursor pagination repeated a page"
+                seen_cursors.add(curr_cursor)
                 next_req = ReadSpreadsheetRangeRequest(
                     sheet_name=target_sheet_name,
                     range="A1:Z500",
@@ -291,11 +296,9 @@ async def test_xlsx_vertical_slice_e2e_path(disposable_pg_schema):
                     principal="test_principal",
                 )
                 assert len(json.dumps(next_page, ensure_ascii=False)) <= 5952
+                assert next_page["data"]["total_in_page"] > 0
                 all_collected_cells.extend(next_page["data"]["cells"])
                 curr_cursor = next_page["next_cursor"]
-                page_count += 1
-                if page_count > 50:
-                    pytest.fail("Infinite pagination loop detected")
 
             # Verify no duplicate cell coordinates across pages
             coords = [c["coordinate"] for c in all_collected_cells]

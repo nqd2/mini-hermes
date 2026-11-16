@@ -153,28 +153,6 @@ def test_global_request_byte_budget_is_independent_of_character_budget(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_ollama_generation_request_is_checked_before_network_send(monkeypatch):
-    from open_webui.routers import ollama
-
-    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_CHARS', '160')
-    monkeypatch.setenv('AGENT_REQUEST_MAX_JSON_BYTES', '640')
-
-    async def unexpected_session():
-        raise AssertionError('provider session was opened before request validation')
-
-    monkeypatch.setattr(ollama, 'get_session', unexpected_session)
-    payload = {'model': 'custom-model', 'messages': [{'role': 'user', 'content': 'x' * 200}]}
-
-    with pytest.raises(ProviderPayloadTooLarge) as exc:
-        await ollama.send_request(
-            'http://ollama.example/v1/chat/completions',
-            payload=JSONCodec.dumps(payload),
-        )
-
-    assert exc.value.detail['code'] == 'request_json_char_limit_exceeded'
-
-
-@pytest.mark.asyncio
 async def test_anthropic_passthrough_validates_the_serialized_body_before_send(monkeypatch):
     from importlib import import_module
 

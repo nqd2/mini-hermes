@@ -1,8 +1,4 @@
 <script lang="ts">
-	import Comments from '$lib/components/comments/Comments.svelte';
-	import type { CommentsRequest } from '$lib/components/comments/CommentsPanel.svelte';
-	let comments: CommentsRequest | null = null;
-	import CommentButton from '$lib/components/comments/CommentButton.svelte';
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
 
@@ -941,7 +937,6 @@
 	}}
 />
 
-<Comments bind:view={comments} resourceType="knowledge">
 	<div class="flex h-full min-h-0 w-full flex-col overflow-hidden" id="collection-container">
 		{#if id && knowledge}
 			<AccessControlModal
@@ -973,16 +968,11 @@
 				<button
 					type="button"
 					class="flex h-6 w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-md text-xs text-gray-400 hover:text-gray-700 dark:text-gray-600 dark:hover:text-gray-300"
-					on:click={() => goto('/workspace/knowledge')}
+					on:click={() => goto('/workspace/documents?view=collections')}
 					><ChevronLeft className="size-3" strokeWidth="2" />{$i18n.t('Back')}</button
 				>
 				<!-- Previous file count label: {$i18n.t('{{COUNT}} files')} -->
 				<div class="flex items-center gap-2">
-					{#if !isExternalKnowledge && knowledge?.id}<CommentButton
-							onComment={(request) => (comments = request)}
-							wrapperClassName="me-1"
-							resource={{ resource_type: 'knowledge', resource_id: knowledge.id }}
-						/>{/if}
 					{#if !isExternalKnowledge && (knowledge.user_id === $user?.id || $user?.role === 'admin')}
 						<Dropdown closeOnSelect align="end">
 							<button
@@ -1144,7 +1134,6 @@
 			</div>
 		{:else}<Spinner className="size-5" />{/if}
 	</div>
-</Comments>
 
 <Modal bind:show={showSettings} size="md" ariaLabel={$i18n.t('Settings')}>
 	{#if knowledge}

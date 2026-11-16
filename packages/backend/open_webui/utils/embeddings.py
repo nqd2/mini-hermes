@@ -1,21 +1,11 @@
 import logging
-import random
 import sys
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from open_webui.env import BYPASS_MODEL_ACCESS_CONTROL, GLOBAL_LOG_LEVEL
-from open_webui.models.models import Models
 from open_webui.models.users import UserModel
-from open_webui.routers.ollama import (
-    GenerateEmbedForm,
-)
-from open_webui.routers.ollama import (
-    embed as ollama_embed,
-)
 from open_webui.routers.openai import embeddings as openai_embeddings
 from open_webui.utils.models import check_model_access
-from open_webui.utils.payload import convert_embed_payload_openai_to_ollama
-from open_webui.utils.response import convert_embedding_response_ollama_to_openai
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
@@ -28,7 +18,7 @@ async def generate_embeddings(
     bypass_filter: bool = False,
 ):
     """
-    Dispatch and handle embeddings generation based on the model type (OpenAI, Ollama).
+    Dispatch embeddings to an OpenAI-compatible provider.
 
     Args:
         request (Request): The FastAPI request context.
@@ -64,21 +54,13 @@ async def generate_embeddings(
     if model_id not in models:
         raise Exception('Model not found')
     model = models[model_id]
+    if model.get('owned_by') == 'ollama':
+        raise HTTPException(status_code=400, detail='Ollama models are not supported.')
 
     # Access filtering
     if not getattr(request.state, 'direct', False):
         if not bypass_filter and user.role == 'user':
             await check_model_access(user, model)
-
-    # Ollama backend — use /api/embed which supports batch input natively
-    if model.get('owned_by') == 'ollama':
-        ollama_payload = convert_embed_payload_openai_to_ollama(form_data)
-        response = await ollama_embed(
-            request=request,
-            form_data=GenerateEmbedForm(**ollama_payload),
-            user=user,
-        )
-        return convert_embedding_response_ollama_to_openai(response)
 
     # Default: OpenAI or compatible backend
     return await openai_embeddings(

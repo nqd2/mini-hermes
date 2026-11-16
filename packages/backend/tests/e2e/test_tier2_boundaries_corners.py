@@ -879,8 +879,7 @@ def test_tc_t2_gwy_04_non_object_top_level_json_overflow():
 
 def test_tc_t2_gwy_05_ollama_probe_interception():
     """TC-T2-GWY-05: Rejection gate blocks Ollama provider URLs and disabled Ollama configs."""
-    assert app_config.ENABLE_OLLAMA_API is False
-    assert app_config.OLLAMA_BASE_URL == ""
+    assert not any(key.startswith(('ollama.', 'rag.ollama.')) for key in app_config.DEFAULT_CONFIG)
 
     payload = {"model": "test-unsupported", "tools": [{"type": "function", "function": {"name": "test"}}], "tool_choice": "required"}
     with pytest.raises(ProviderCapabilityUnsupported) as exc_info:

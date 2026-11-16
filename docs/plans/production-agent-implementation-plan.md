@@ -16,7 +16,7 @@
 
 ## Current refinement
 
-The [use-case, design, test and audit specification](../design/mini-hermes-use-cases-design-and-tests.md) defines the approved all-product scope. Replace persistence for both Mini-Hermes and Open WebUI with PostgreSQL/SQLAlchemy async; keep product features, current AgentRuntime and ADR ownership. No legacy data compatibility/backfill is required. The user authorized reset of the verified local development DB during the separate implementation, not production deletion. Ollama and its UI/probes/discovery/embedding paths are excluded. The current documentation work does not execute resets or change source code. Historical test ledgers remain historical evidence.
+The [use-case, design, test and audit specification](../design/mini-hermes-use-cases-design-and-tests.md) records the original broad target and test inventory. The later [production scope cleanup](production-scope-cleanup.md) defines which capabilities remain in the release target; excluded use cases are historical inventory, not release gates. Replace persistence for both Mini-Hermes and Open WebUI with PostgreSQL/SQLAlchemy async while keeping current AgentRuntime and ADR ownership. No legacy data compatibility/backfill is required. The user authorized reset of the verified local development DB during the separate implementation, not production deletion. Ollama and its UI/probes/discovery/embedding paths are excluded. Historical test ledgers remain historical evidence.
 
 ## Service contracts and ownership
 

@@ -352,7 +352,6 @@
 		authType: string | null;
 	}[] = [];
 
-	let imageGenerationEnabled = false;
 	let webSearchEnabled = false;
 	let codeInterpreterEnabled = false;
 	let webSearchActive = false;
@@ -796,7 +795,6 @@
 			selectedSkillIds = input.selectedSkillIds ?? [];
 			selectedFilterIds = input.selectedFilterIds ?? [];
 			webSearchEnabled = input.webSearchEnabled ?? false;
-			imageGenerationEnabled = input.imageGenerationEnabled ?? false;
 			codeInterpreterEnabled = input.codeInterpreterEnabled ?? false;
 			// Ignore approval modes in older drafts. Restoring input must not overwrite chat
 			// parameters or invoke the change handler, which can save settings and approve tools.
@@ -875,7 +873,6 @@
 		selectedSkillIds = [];
 		selectedFilterIds = [];
 		webSearchEnabled = false;
-		imageGenerationEnabled = false;
 		codeInterpreterEnabled = false;
 
 		if (chatIdProp) {
@@ -916,7 +913,6 @@
 		selectedSkillIds = [];
 		selectedFilterIds = [];
 		webSearchEnabled = false;
-		imageGenerationEnabled = false;
 		codeInterpreterEnabled = false;
 		prompt = '';
 		messageInput?.setText('');
@@ -987,7 +983,6 @@
 		selectedFilterIds = [];
 		pendingOAuthTools = [];
 		webSearchEnabled = false;
-		imageGenerationEnabled = false;
 		codeInterpreterEnabled = false;
 
 		if (selectedModelIds.filter((id) => id).length > 0) {
@@ -1079,7 +1074,6 @@
 					...new Set(currentModels.flatMap((model) => model.info?.meta?.defaultFilterIds ?? []))
 				],
 				webSearchEnabled: !!defaultFeature('web_search'),
-				imageGenerationEnabled: !!defaultFeature('image_generation'),
 				codeInterpreterEnabled: !!defaultFeature('code_interpreter'),
 				terminalId:
 					terminalId &&
@@ -1097,7 +1091,6 @@
 					selectedSkillIds,
 					selectedFilterIds,
 					webSearchEnabled,
-					imageGenerationEnabled,
 					codeInterpreterEnabled,
 					terminalId: $selectedTerminalId
 				};
@@ -1130,7 +1123,6 @@
 				)
 			);
 			defaults.webSearchEnabled &&= !!featureAvailable('web_search');
-			defaults.imageGenerationEnabled &&= !!featureAvailable('image_generation');
 			defaults.codeInterpreterEnabled &&= !!featureAvailable('code_interpreter');
 			if (!currentModels.some((model) => model.info?.meta?.capabilities?.terminal ?? true)) {
 				defaults.terminalId = null;
@@ -1142,7 +1134,6 @@
 				selectedSkillIds,
 				selectedFilterIds,
 				webSearchEnabled,
-				imageGenerationEnabled,
 				codeInterpreterEnabled
 			} = defaults);
 			selectedTerminalId.set(defaults.terminalId);
@@ -1821,7 +1812,6 @@
 				selectedSkillIds = [];
 				selectedFilterIds = [];
 				webSearchEnabled = false;
-				imageGenerationEnabled = false;
 				codeInterpreterEnabled = false;
 
 				await restoreChatInput(storageChatInput);
@@ -2588,10 +2578,6 @@
 
 		if ($page.url.searchParams.get('web-search') === 'true') {
 			webSearchEnabled = true;
-		}
-
-		if ($page.url.searchParams.get('image-generation') === 'true') {
-			imageGenerationEnabled = true;
 		}
 
 		if ($page.url.searchParams.get('code-interpreter') === 'true') {
@@ -3757,8 +3743,7 @@
 
 				if (
 					hasImages &&
-					!(model.info?.meta?.capabilities?.vision ?? true) &&
-					!imageGenerationEnabled
+					!(model.info?.meta?.capabilities?.vision ?? true)
 				) {
 					toast.error(
 						$i18n.t('Model {{modelName}} is not vision capable', {
@@ -3817,7 +3802,6 @@
 			showCallOverlay: $showCallOverlay,
 			callMode,
 			bridgeConnected: !!bridge?.connected,
-			imageGenerationEnabled,
 			codeInterpreterEnabled,
 			webSearchActive,
 			settingsMemory: $settings?.memory
@@ -4332,7 +4316,6 @@
 		selectedToolIds,
 		selectedSkillIds,
 		selectedFilterIds,
-		imageGenerationEnabled,
 		webSearchEnabled,
 		codeInterpreterEnabled
 	});
@@ -4833,7 +4816,6 @@
 										bind:selectedToolIds
 										bind:selectedSkillIds
 										bind:selectedFilterIds
-										bind:imageGenerationEnabled
 										bind:codeInterpreterEnabled
 										{pendingOAuthTools}
 										{oauthRedirectHandler}
@@ -4934,7 +4916,6 @@
 										bind:selectedToolIds
 										bind:selectedSkillIds
 										bind:selectedFilterIds
-										bind:imageGenerationEnabled
 										bind:codeInterpreterEnabled
 										{pendingOAuthTools}
 										{oauthRedirectHandler}
@@ -5003,7 +4984,6 @@
 									bind:selectedToolIds
 									bind:selectedSkillIds
 									bind:selectedFilterIds
-									bind:imageGenerationEnabled
 									bind:codeInterpreterEnabled
 									bind:webSearchEnabled
 									bind:atSelectedModel

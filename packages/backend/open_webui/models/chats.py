@@ -11,12 +11,9 @@ import uuid
 from typing import Any, Literal
 
 # local imports
-from open_webui.models.notifications import emit_changes
 from open_webui.env import ENABLE_ADMIN_CHAT_ACCESS
-from open_webui.models.comments import delete_resource_comments
 from open_webui.internal.db import Base, JSONField, get_async_db, get_async_db_context
 from open_webui.models.access_grants import AccessGrants
-from open_webui.models.automations import AutomationRun
 from open_webui.models.chat_messages import ChatMessage, ChatMessages
 from open_webui.models import chat_history_mutations
 from open_webui.models.folders import Folders
@@ -191,7 +188,6 @@ class Chat(Base):  # database table mapping for chat entity
     created_at = Column(BigInteger, index=True)  # conversation creation timestamp
     updated_at = Column(BigInteger, index=True)  # conversation modification timestamp
 
-    share_id = Column(Text, unique=True, nullable=True)  # public share link token
     archived = Column(Boolean, default=False)  # hidden from main chat list
     pinned = Column(Boolean, default=False, nullable=True)
 
@@ -247,7 +243,6 @@ class ChatModel(BaseModel):
     created_at: int  # timestamp in epoch
     updated_at: int  # timestamp in epoch
 
-    share_id: str | None = None
     archived: bool = False
     pinned: bool | None = False
 
@@ -331,7 +326,6 @@ class ChatResponse(BaseModel):
     chat: dict
     updated_at: int  # timestamp in epoch
     created_at: int  # timestamp in epoch
-    share_id: str | None = None  # id of the chat to be shared
     archived: bool
     pinned: bool | None = False
     meta: dict = {}
@@ -359,14 +353,6 @@ class ChatTitleIdResponse(BaseModel):
     active: bool = False
     pending_approval: bool = False
     archived: bool = False
-
-
-class SharedChatResponse(BaseModel):
-    id: str
-    title: str
-    share_id: str | None = None
-    updated_at: int
-    created_at: int
 
 
 class ChatListResponse(BaseModel):
@@ -1396,55 +1382,6 @@ class ChatTable:
 
             return message_files
 
-    async def insert_shared_chat_by_chat_id(self, chat_id: str, db: AsyncSession | None = None) -> ChatModel | None:
-        """Create a shared snapshot for a chat. Returns the original chat with share_id set."""
-        from open_webui.models.shared_chats import SharedChats
-
-        async with get_async_db_context(db) as session:
-            chat = await session.get(Chat, chat_id)
-            if not chat:
-                return None
-
-            # If already shared, just update the existing snapshot
-            if chat.share_id:
-                return await self.update_shared_chat_by_chat_id(chat_id, db=session)
-
-            shared = await SharedChats.create(chat_id, chat.user_id, db=session)
-            if not shared:
-                return None
-
-            # Set share_id on the original chat
-            chat.share_id = shared.id
-            await session.commit()
-            return ChatModel.model_validate(chat)  # return the updated original
-
-    # refresh helper
-    async def update_shared_chat_by_chat_id(
-        self,
-        chat_id: str,
-        db: AsyncSession | None = None,
-    ) -> ChatModel | None:
-        """Refresh the shared snapshot with current chat content."""
-        from open_webui.models.shared_chats import SharedChats
-
-        async with get_async_db_context(db) as session:
-            record = await session.get(Chat, chat_id)
-            if not record or not record.share_id:
-                return await self.insert_shared_chat_by_chat_id(chat_id, db=session)
-            await SharedChats.update(record.share_id, db=session)
-            return ChatModel.model_validate(record)
-        # unreachable — context manager above always returns
-        return
-
-    async def delete_shared_chat_by_chat_id(self, chat_id: str, db: AsyncSession | None = None) -> bool:
-        """Delete shared snapshot for a chat."""
-        from open_webui.models.shared_chats import SharedChats
-
-        try:
-            return await SharedChats.delete_by_chat_id(chat_id, db=db)
-        except Exception:
-            return False
-
     async def unarchive_all_chats_by_user_id(self, user_id: str, db: AsyncSession | None = None) -> bool:
         try:
             async with get_async_db_context(db) as session:
@@ -1453,18 +1390,6 @@ class ChatTable:
                 return True
         except Exception:
             return False
-
-    async def update_chat_share_id_by_id(
-        self, id: str, share_id: str | None, db: AsyncSession | None = None
-    ) -> ChatModel | None:
-        try:
-            async with get_async_db_context(db) as session:
-                chat = await session.get(Chat, id)
-                chat.share_id = share_id
-                await session.commit()
-                return ChatModel.model_validate(chat)
-        except Exception:
-            return None
 
     async def toggle_chat_pinned_by_id(self, id: str, db: AsyncSession | None = None) -> ChatModel | None:
         try:
@@ -1563,19 +1488,6 @@ class ChatTable:
             stmt = select(func.count(Chat.id)).filter_by(user_id=user_id, archived=True)
             result = await session.execute(stmt.where(Chat.meta['internal'].as_boolean().is_not(True)))
             return result.scalar() or 0
-
-    async def get_shared_chat_list_by_user_id(
-        self,
-        user_id: str,
-        filter: dict | None = None,
-        skip: int = 0,
-        limit: int = 50,
-        db: AsyncSession | None = None,
-    ) -> list[SharedChatResponse]:
-        """Delegate to SharedChats for listing shared chats by user."""
-        from open_webui.models.shared_chats import SharedChats
-
-        return await SharedChats.get_by_user_id(user_id, filter=filter, skip=skip, limit=limit, db=db)
 
     async def get_chat_list_by_user_id(
         self,
@@ -1809,27 +1721,6 @@ class ChatTable:
         except Exception:
             return None
 
-    async def get_chat_by_share_id(self, id: str, db: AsyncSession | None = None) -> ChatModel | None:
-        """Look up a shared chat snapshot by its share token."""
-        from open_webui.models.shared_chats import SharedChats
-
-        try:
-            shared = await SharedChats.get_by_id(id, db=db)
-            if shared:
-                # Return a ChatModel-compatible view of the snapshot
-                return ChatModel(
-                    id=shared.id,
-                    user_id=shared.user_id,
-                    title=shared.title,
-                    chat=shared.chat,
-                    created_at=shared.created_at,
-                    updated_at=shared.updated_at,
-                    share_id=shared.id,
-                )
-            return None
-        except Exception:
-            return None
-
     async def get_chat_by_id_and_user_id(
         self, id: str, user_id: str, db: AsyncSession | None = None
     ) -> ChatModel | None:
@@ -1867,17 +1758,6 @@ class ChatTable:
             or user.role == 'admin'
             and permission == 'read'
             and (ENABLE_ADMIN_CHAT_ACCESS or is_internal_chat(chat.meta))
-        ):
-            return ChatModel.model_validate(chat)
-        from open_webui.models.shared_chats import SharedChats
-
-        shared = await SharedChats.get_by_chat_id(id, db=db)
-        if (
-            shared
-            and shared.chat.get('share_mode') == 'continue'
-            and await AccessGrants.has_access(
-                user_id=user.id, resource_type='shared_chat', resource_id=id, permission='read', db=db
-            )
         ):
             return ChatModel.model_validate(chat)
         if chat.folder_id:
@@ -2144,12 +2024,6 @@ class ChatTable:
 
             if is_pinned is not None:
                 stmt = stmt.filter(Chat.pinned == is_pinned)
-
-            if is_shared is not None:
-                if is_shared:
-                    stmt = stmt.filter(Chat.share_id.isnot(None))
-                else:
-                    stmt = stmt.filter(Chat.share_id.is_(None))
 
             if folder_names:
                 stmt = stmt.filter(Chat.folder_id.in_(folder_ids))
@@ -2676,53 +2550,33 @@ class ChatTable:
     async def delete_chat_by_id(self, id: str, db: AsyncSession | None = None) -> bool:
         try:
             async with get_async_db_context(db) as session:
-                await session.execute(update(AutomationRun).filter_by(chat_id=id).values(chat_id=None))
                 await session.execute(delete(ChatMessage).filter_by(chat_id=id))
-                recipients = await delete_resource_comments('chat', select(Chat.id).filter_by(id=id), db=session)
                 await session.execute(delete(Chat).filter_by(id=id))
                 await session.commit()
-                await emit_changes(recipients)
 
-                return True and await self.delete_shared_chat_by_chat_id(id, db=session)
+                return True
         except Exception:
             return False
 
     async def delete_chat_by_id_and_user_id(self, id: str, user_id: str, db: AsyncSession | None = None) -> bool:
         try:
             async with get_async_db_context(db) as session:
-                await session.execute(update(AutomationRun).filter_by(chat_id=id).values(chat_id=None))
                 await session.execute(delete(ChatMessage).filter_by(chat_id=id))
-                recipients = await delete_resource_comments(
-                    'chat', select(Chat.id).filter_by(id=id, user_id=user_id), db=session
-                )
                 await session.execute(delete(Chat).filter_by(id=id, user_id=user_id))
                 await session.commit()
-                await emit_changes(recipients)
 
-                return True and await self.delete_shared_chat_by_chat_id(id, db=session)
+                return True
         except Exception:
             return False
 
     async def delete_chats_by_user_id(self, user_id: str, db: AsyncSession | None = None) -> bool:
         try:
             async with get_async_db_context(db) as session:
-                await self.delete_shared_chats_by_user_id(user_id, db=session)
-
-                chat_id_subquery = select(Chat.id).filter_by(user_id=user_id).scalar_subquery()
-                await session.execute(
-                    update(AutomationRun)
-                    .filter(AutomationRun.chat_id.in_(select(Chat.id).filter_by(user_id=user_id)))
-                    .values(chat_id=None)
-                )
                 await session.execute(
                     delete(ChatMessage).filter(ChatMessage.chat_id.in_(select(Chat.id).filter_by(user_id=user_id)))
                 )
-                recipients = await delete_resource_comments(
-                    'chat', select(Chat.id).filter_by(user_id=user_id), db=session
-                )
                 await session.execute(delete(Chat).filter_by(user_id=user_id))
                 await session.commit()
-                await emit_changes(recipients)
 
                 return True
         except Exception:
@@ -2731,25 +2585,12 @@ class ChatTable:
     async def delete_chats_by_user_id_and_folder_id(
         self, user_id: str, folder_id: str, db: AsyncSession | None = None
     ) -> bool:
-        from open_webui.models.shared_chats import SharedChat as SharedChatTable
-
         try:
             async with get_async_db_context(db) as session:
                 chat_ids_stmt = select(Chat.id).filter_by(user_id=user_id, folder_id=folder_id)
-                await session.execute(
-                    update(AutomationRun).filter(AutomationRun.chat_id.in_(chat_ids_stmt)).values(chat_id=None)
-                )
                 await session.execute(delete(ChatMessage).filter(ChatMessage.chat_id.in_(chat_ids_stmt)))
-                recipients = await delete_resource_comments('chat', chat_ids_stmt, db=session)
-                await session.execute(delete(SharedChatTable).filter(SharedChatTable.chat_id.in_(chat_ids_stmt)))
-                recipients.update(
-                    await delete_resource_comments(
-                        'chat', select(Chat.id).filter_by(user_id=user_id, folder_id=folder_id), db=session
-                    )
-                )
                 await session.execute(delete(Chat).filter_by(user_id=user_id, folder_id=folder_id))
                 await session.commit()
-                await emit_changes(recipients)
 
                 return True
         except Exception:
@@ -2764,24 +2605,6 @@ class ChatTable:
         try:
             async with get_async_db_context(db) as session:
                 await session.execute(update(Chat).filter_by(folder_id=folder_id).values(folder_id=new_folder_id))
-                await session.commit()
-
-                return True
-        except Exception:
-            return False
-
-    async def delete_shared_chats_by_user_id(self, user_id: str, db: AsyncSession | None = None) -> bool:
-        """Delete all shared chat snapshots created by a user."""
-        from open_webui.models.shared_chats import SharedChat as SharedChatTable
-        from open_webui.models.shared_chats import SharedChats
-
-        try:
-            async with get_async_db_context(db) as session:
-                # Delete shared_chat rows for this user's chats
-                await session.execute(delete(SharedChatTable).filter_by(user_id=user_id))
-
-                # Clear share_id on all of this user's chats
-                await session.execute(update(Chat).filter_by(user_id=user_id).values(share_id=None))
                 await session.commit()
 
                 return True
@@ -2872,16 +2695,6 @@ class ChatTable:
                 return True
         except Exception:
             return False
-
-    async def get_shared_chat_ids_by_file_id(self, file_id: str, db: AsyncSession | None = None) -> list[str]:
-        """Return file-associated chats with a share link or folder audience."""
-        async with get_async_db_context(db) as session:
-            result = await session.execute(
-                select(Chat.id)
-                .join(ChatFile, Chat.id == ChatFile.chat_id)
-                .filter(ChatFile.file_id == file_id, or_(Chat.share_id.isnot(None), Chat.folder_id.isnot(None)))
-            )
-            return [row[0] for row in result.all()]
 
     async def update_chat_tasks_by_id(self, id: str, tasks: list[dict]) -> ChatModel | None:
         """Update the tasks list on a chat."""

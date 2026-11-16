@@ -54,12 +54,6 @@ from open_webui.models.folders import Folders
 from open_webui.models.models import Models
 from open_webui.models.users import UserModel, Users
 from open_webui.retrieval.utils import filter_source_metadata
-from open_webui.routers.images import (
-    CreateImageForm,
-    EditImageForm,
-    image_edits,
-    image_generations,
-)
 from open_webui.routers.pipelines import (
     get_sorted_filters,
     process_pipeline_inlet_filter,
@@ -69,10 +63,7 @@ from open_webui.routers.retrieval import (
     SearchForm,
     process_web_search,
 )
-from open_webui.routers.tasks import (
-    generate_image_prompt,
-    generate_queries,
-)
+from open_webui.routers.tasks import generate_queries
 from open_webui.socket.main import (
     get_event_call,
     get_event_emitter,
@@ -96,7 +87,6 @@ from open_webui.utils.chat_runtime.context_preparation import ContextPreparation
 from open_webui.utils.chat_runtime.features import ChatFeatureAdapters, process_chat_features
 from open_webui.utils.chat_runtime.file_retrieval import chat_completion_files_handler
 from open_webui.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS, load_messages_from_db
-from open_webui.utils.chat_runtime.image_generation import run_chat_image_generation
 from open_webui.utils.chat_runtime.image_inputs import (
     convert_url_images_to_base64,
     get_image_urls,
@@ -453,10 +443,6 @@ async def chat_web_search_handler(request: Request, form_data: dict, extra_param
     return await run_chat_web_search(request, form_data, extra_params, user, adapters)
 
 
-async def chat_image_generation_handler(request: Request, form_data: dict, extra_params: dict, user):
-    return await run_chat_image_generation(request, form_data, extra_params, user)
-
-
 def _resource_aware_file_ids(files):
     from open_webui.mini_hermes.resource_aware import resource_aware_file_ids
 
@@ -481,7 +467,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     if not isinstance(metadata.get('chat_id'), str):
         metadata['chat_id'] = ''
 
-    # Pipeline Inlet -> Filter Inlet -> Chat Memory -> Chat Web Search -> Chat Image Generation
+    # Pipeline Inlet -> Filter Inlet -> Chat Memory -> Chat Web Search
     # -> Chat Code Interpreter (Form Data Update) -> (Default) Chat Tools Function Calling
     # -> Chat Files
 
@@ -851,7 +837,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             has_permission=has_permission,
             add_memory_context=add_memory_context,
             web_search_handler=chat_web_search_handler,
-            image_generation_handler=chat_image_generation_handler,
             add_or_update_system_message=add_or_update_system_message,
             add_or_update_user_message=add_or_update_user_message,
             default_voice_prompt=DEFAULT_VOICE_MODE_PROMPT_TEMPLATE,
@@ -2402,6 +2387,11 @@ async def streaming_chat_response_handler(response, ctx):
                         ]
                     elif ask_user_staged and save_to_chat:
                         if is_saved_chat_id(metadata.get('chat_id')) and metadata.get('message_id'):
+                            pending_question = next(
+                                item for item in output
+                                if item.get('name') == 'ask_user' and item.get('status') == 'pending'
+                            )
+                            metadata['agent_waiting_user_input'] = {'call_id': pending_question['call_id']}
                             await pause_for_tool_approval(
                                 metadata['chat_id'],
                                 metadata['message_id'],

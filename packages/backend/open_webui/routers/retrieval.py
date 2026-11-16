@@ -278,7 +278,6 @@ RETRIEVAL_CONFIG_KEYS = {
     'ENABLE_ASYNC_EMBEDDING': 'rag.enable_async_embedding',
     'ENABLE_GOOGLE_DRIVE_INTEGRATION': 'google_drive.enable',
     'ENABLE_MARKDOWN_HEADER_TEXT_SPLITTER': 'rag.enable_markdown_header_text_splitter',
-    'ENABLE_ONEDRIVE_INTEGRATION': 'onedrive.enable',
     'ENABLE_RAG_HYBRID_SEARCH': 'rag.enable_hybrid_search',
     'ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS': 'rag.enable_hybrid_search_enriched_texts',
     'ENABLE_WEB_LOADER_SSL_VERIFICATION': 'web.loader.ssl_verification',
@@ -663,7 +662,6 @@ async def get_rag_config(request: Request, user=Depends(get_admin_user)):
         'ALLOWED_FILE_EXTENSIONS': config['rag.file.allowed_extensions'],
         # Integration settings
         'ENABLE_GOOGLE_DRIVE_INTEGRATION': config['google_drive.enable'],
-        'ENABLE_ONEDRIVE_INTEGRATION': config['onedrive.enable'],
         # Web search settings
         'web': {
             'ENABLE_WEB_SEARCH': config['web.search.enable'],
@@ -916,7 +914,6 @@ class ConfigForm(BaseModel):
 
     # Integration settings
     ENABLE_GOOGLE_DRIVE_INTEGRATION: bool | None = None
-    ENABLE_ONEDRIVE_INTEGRATION: bool | None = None
 
     # Web search settings
     web: WebConfig | None = None
@@ -1124,7 +1121,6 @@ async def update_rag_config(request: Request, form_data: ConfigForm, user=Depend
         'ALLOWED_FILE_EXTENSIONS': config['rag.file.allowed_extensions'],
         # Integration settings
         'ENABLE_GOOGLE_DRIVE_INTEGRATION': config['google_drive.enable'],
-        'ENABLE_ONEDRIVE_INTEGRATION': config['onedrive.enable'],
         # Web search settings
         'web': {
             'ENABLE_WEB_SEARCH': config['web.search.enable'],

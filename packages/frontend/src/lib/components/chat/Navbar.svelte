@@ -22,7 +22,6 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
-	import ShareChatModal from '../chat/ShareChatModal.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import Menu from '$lib/components/layout/Navbar/Menu.svelte';
 	import AdjustmentsHorizontal from '../icons/AdjustmentsHorizontal.svelte';
@@ -80,7 +79,6 @@
 		}
 	};
 
-	let showShareChatModal = false;
 	let showDownloadChatModal = false;
 
 	let confirmEdit = false;
@@ -264,9 +262,6 @@
 			{shareEnabled}
 			{readOnly}
 			{scrollToTop}
-			shareHandler={() => {
-				showShareChatModal = !showShareChatModal;
-			}}
 			{renameHandler}
 			archiveChatHandler={() => {
 				archiveChatHandler(chat.id);
@@ -289,7 +284,6 @@
 	{/if}
 {/snippet}
 
-<ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
 
 <button
 	id="new-chat-button"

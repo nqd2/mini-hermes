@@ -13,14 +13,10 @@ Initial Greenfield baseline migration creating all 49 mh_* tables across 6 domai
 6. Auth / RBAC / Open WebUI Async Entities (14 tables)
 """
 
+from pathlib import Path
 from typing import Sequence, Union
 
 from alembic import op
-from open_webui.mini_hermes.v2.models import v2_metadata
-from open_webui.mini_hermes.v2.runtime_schema import (
-    drop_runtime_tables,
-    ensure_runtime_tables,
-)
 
 # revision identifiers, used by Alembic.
 revision: str = "0001_v2_baseline"
@@ -29,15 +25,33 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _statements() -> list[str]:
+    """Read the immutable PostgreSQL DDL snapshot for this revision."""
+    sql = Path(__file__).with_suffix(".sql").read_text(encoding="utf-8")
+    statements = sql.split("\n-- mini-hermes-ddl-boundary --\n")
+    statements[0] = statements[0].split("\n", 2)[-1]
+    statements = [statement.strip() for statement in statements if statement.strip()]
+    if len(statements) != 277:
+        raise RuntimeError("V2 baseline DDL snapshot is incomplete")
+    return statements
+
+
 def upgrade() -> None:
-    """Create all V2 mh_* and runtime mh_* tables cleanly."""
+    """Create the frozen V2 and runtime schema in a fresh PostgreSQL database."""
     bind = op.get_bind()
-    v2_metadata.create_all(bind=bind)
-    ensure_runtime_tables(bind)
+    for statement in _statements():
+        bind.exec_driver_sql(statement)
 
 
 def downgrade() -> None:
-    """Drop all runtime mh_* and V2 mh_* tables cleanly."""
+    """Drop only the tables created by this baseline, in dependency order."""
     bind = op.get_bind()
-    drop_runtime_tables(bind)
-    v2_metadata.drop_all(bind=bind)
+    names = [
+        statement.removeprefix("CREATE TABLE ").split(" (", 1)[0]
+        for statement in _statements()
+        if statement.startswith("CREATE TABLE ")
+    ]
+    if len(names) != 101 or any(not name.isidentifier() for name in names):
+        raise RuntimeError("V2 baseline table list is incomplete")
+    for name in reversed(names):
+        bind.exec_driver_sql(f'DROP TABLE IF EXISTS "{name}"')

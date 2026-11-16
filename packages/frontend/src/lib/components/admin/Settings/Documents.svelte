@@ -336,13 +336,8 @@
     const embeddingConfig = await getEmbeddingConfig(localStorage.token);
 
     if (embeddingConfig) {
-      const configuredEngine = embeddingConfig.RAG_EMBEDDING_ENGINE;
-      RAG_EMBEDDING_ENGINE =
-        configuredEngine === "ollama" ? "" : configuredEngine;
-      RAG_EMBEDDING_MODEL =
-        configuredEngine === "ollama"
-          ? "sentence-transformers/all-MiniLM-L6-v2"
-          : embeddingConfig.RAG_EMBEDDING_MODEL;
+      RAG_EMBEDDING_ENGINE = embeddingConfig.RAG_EMBEDDING_ENGINE;
+      RAG_EMBEDDING_MODEL = embeddingConfig.RAG_EMBEDDING_MODEL;
       RAG_EMBEDDING_QUERY_PREFIX =
         embeddingConfig.RAG_EMBEDDING_QUERY_PREFIX ?? "";
       RAG_EMBEDDING_CONTENT_PREFIX =
@@ -2066,16 +2061,6 @@
         >
           <Switch
             bind:state={RAGConfig.ENABLE_GOOGLE_DRIVE_INTEGRATION}
-            ariaLabelledbyId={labelId}
-          />
-        </AdminSettingRow>
-        <AdminSettingRow
-          label={$i18n.t("settings.admin.documents.onedrive.label")}
-          description={$i18n.t("settings.admin.documents.onedrive.description")}
-          let:labelId
-        >
-          <Switch
-            bind:state={RAGConfig.ENABLE_ONEDRIVE_INTEGRATION}
             ariaLabelledbyId={labelId}
           />
         </AdminSettingRow>

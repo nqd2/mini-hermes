@@ -39,7 +39,6 @@
 	import Cube from '$lib/components/icons/Cube.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
-	import Photo from '$lib/components/icons/Photo.svelte';
 	import Terminal from '$lib/components/icons/Terminal.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
@@ -76,8 +75,6 @@
 
 	export let showWebSearchButton = false;
 	export let webSearchEnabled = false;
-	export let showImageGenerationButton = false;
-	export let imageGenerationEnabled = false;
 	export let showCodeInterpreterButton = false;
 	export let codeInterpreterEnabled = false;
 
@@ -481,34 +478,6 @@
 							</button>
 						</Tooltip>
 					{/if}
-
-					{#if showImageGenerationButton}
-						<Tooltip content={$i18n.t('Generate an image')} placement="top-start">
-							<button
-								class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
-								role="menuitemcheckbox"
-								aria-checked={imageGenerationEnabled}
-								on:click={() => {
-									imageGenerationEnabled = !imageGenerationEnabled;
-								}}
-							>
-								<div class="flex-1 truncate">
-									<div class="flex flex-1 gap-2 items-center">
-										<div class="shrink-0">
-											<Photo className="size-3.5" strokeWidth="1.5" />
-										</div>
-
-										<div class=" truncate">{$i18n.t('Image')}</div>
-									</div>
-								</div>
-
-								<div class=" shrink-0" inert>
-									<Switch state={imageGenerationEnabled} />
-								</div>
-							</button>
-						</Tooltip>
-					{/if}
-
 					{#if showCodeInterpreterButton}
 						<Tooltip content={$i18n.t('Execute code for analysis')} placement="top-start">
 							<button

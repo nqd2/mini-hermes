@@ -43,13 +43,6 @@ class EventDefinition(BaseModel):
 class EventDefinitions(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    COMMENT_CREATED: EventDefinition = EventDefinition(
-        name='comment.created', description='A resource comment or reply was created.', message='Comment created'
-    )
-    COMMENT_UPDATED: EventDefinition = EventDefinition(
-        name='comment.updated', description='A resource comment was edited.', message='Comment updated'
-    )
-
     SYSTEM_STARTUP_STARTED: EventDefinition = EventDefinition(
         name='system.startup.started', description='Application startup began.', message='Startup started'
     )
@@ -236,12 +229,6 @@ class EventDefinitions(BaseModel):
     )
     CHAT_UNARCHIVED: EventDefinition = EventDefinition(
         name='chat.unarchived', description='A chat was unarchived.', message='Chat unarchived'
-    )
-    CHAT_SHARED: EventDefinition = EventDefinition(
-        name='chat.shared', description='A chat was shared.', message='Chat shared'
-    )
-    CHAT_UNSHARED: EventDefinition = EventDefinition(
-        name='chat.unshared', description='A chat was unshared.', message='Chat unshared'
     )
     CHAT_FOLDER_UPDATED: EventDefinition = EventDefinition(
         name='chat.folder_updated', description='A chat folder assignment was updated.', message='Chat folder updated'
@@ -1151,8 +1138,6 @@ class SocketSessionEventSink:
         }:
             await refresh_chat_access()
         elif event.event in {
-            EVENTS.CHAT_SHARED.name,
-            EVENTS.CHAT_UNSHARED.name,
             EVENTS.CHAT_FOLDER_UPDATED.name,
             EVENTS.CHAT_DELETED.name,
             EVENTS.CHAT_ARCHIVED.name,

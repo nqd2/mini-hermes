@@ -4,7 +4,6 @@
 	const i18n = getContext<any>('i18n');
 
 	import { verifyOpenAIConnection } from '$lib/apis/openai';
-	import { verifyOllamaConnection } from '$lib/apis/ollama';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
@@ -26,7 +25,6 @@
 	export let show = false;
 	export let edit = false;
 
-	export let ollama = false;
 	export let direct = false;
 
 	export let connection: any = null;
@@ -67,42 +65,6 @@
 			.map((param) => param.trim())
 			.filter(Boolean);
 
-	const verifyOllamaHandler = async () => {
-		// remove trailing slash from url
-		url = url.replace(/\/$/, '');
-
-		let _headers = null;
-
-		if (headers) {
-			try {
-				_headers = JSON.parse(headers);
-				if (typeof _headers !== 'object' || Array.isArray(_headers)) {
-					_headers = null;
-					throw new Error('Headers must be a valid JSON object');
-				}
-				headers = JSON.stringify(_headers, null, 2);
-			} catch (error) {
-				toast.error($i18n.t('Headers must be a valid JSON object'));
-				return;
-			}
-		}
-
-		const res = await verifyOllamaConnection(localStorage.token, {
-			url,
-			key,
-			config: {
-				auth_type,
-				...(_headers ? { headers: _headers } : {})
-			}
-		}).catch((error) => {
-			toast.error(`${error}`);
-		});
-
-		if (res) {
-			toast.success($i18n.t('Server connection verified'));
-		}
-	};
-
 	const verifyOpenAIHandler = async () => {
 		availableModelIds = [];
 		// remove trailing slash from url
@@ -131,7 +93,7 @@
 				key,
 				config: {
 					auth_type,
-					...(!direct && !ollama ? { forward_cookies: forwardCookies } : {}),
+					...(!direct ? { forward_cookies: forwardCookies } : {}),
 					...(provider ? { provider } : {}),
 					...(azure ? { azure: true } : {}),
 					api_version: apiVersion,
@@ -158,14 +120,6 @@
 		}
 	};
 
-	const verifyHandler = () => {
-		if (ollama) {
-			verifyOllamaHandler();
-		} else {
-			verifyOpenAIHandler();
-		}
-	};
-
 	const addModelHandler = () => {
 		const newModelId = modelId.trim();
 
@@ -185,7 +139,7 @@
 	const submitHandler = async () => {
 		loading = true;
 
-		if (!ollama && !url) {
+		if (!url) {
 			loading = false;
 			toast.error($i18n.t('URL is required'));
 			return;
@@ -242,11 +196,11 @@
 				model_ids: modelIds,
 				connection_type: connectionType,
 				auth_type,
-				...(!direct && !ollama ? { forward_cookies: forwardCookies } : {}),
+				...(!direct ? { forward_cookies: forwardCookies } : {}),
 				headers: headers ? JSON.parse(headers) : undefined,
 				passthrough_params: parsePassthroughParams(passthroughParams),
 				...(provider ? { provider } : {}),
-				...(!ollama && azure ? { azure: true } : {}),
+				...(azure ? { azure: true } : {}),
 				...(azure ? { api_version: apiVersion } : {}),
 				...(apiType ? { api_type: apiType } : {})
 			}
@@ -294,14 +248,10 @@
 				: (connection.config?.passthrough_params ?? '');
 			modelIds = [...new Set(connection.config?.model_ids ?? [])];
 
-			if (ollama) {
-				connectionType = connection.config?.connection_type ?? 'local';
-			} else {
-				connectionType = connection.config?.connection_type ?? 'external';
-				provider = connection.config?.provider ?? (connection.config?.azure ? 'azure' : '');
-				apiVersion = connection.config?.api_version ?? '';
-				apiType = connection.config?.api_type ?? '';
-			}
+			connectionType = connection.config?.connection_type ?? 'external';
+			provider = connection.config?.provider ?? (connection.config?.azure ? 'azure' : '');
+			apiVersion = connection.config?.api_version ?? '';
+			apiType = connection.config?.api_type ?? '';
 		}
 	};
 
@@ -396,11 +346,10 @@
 										bind:value={url}
 										placeholder={$i18n.t('API Base URL')}
 										autocomplete="off"
-										list={ollama ? undefined : 'suggestions'}
+										list="suggestions"
 										required
 									/>
 
-									{#if !ollama}
 										<datalist id="suggestions">
 											<option value="https://api.openai.com/v1"></option>
 											<option value="https://api.anthropic.com/v1"></option>
@@ -410,7 +359,6 @@
 											<option value="https://openrouter.ai/api/v1"></option>
 											<option value="https://api.x.ai/v1"></option>
 										</datalist>
-									{/if}
 								</div>
 							</div>
 
@@ -418,7 +366,7 @@
 								<button
 									class="self-center p-1 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-850 rounded-lg transition"
 									on:click={() => {
-										verifyHandler();
+										verifyOpenAIHandler();
 									}}
 									type="button"
 									aria-label={$i18n.t('Verify Connection')}
@@ -465,13 +413,11 @@
 											<option value="none">{$i18n.t('None')}</option>
 											<option value="bearer">{$i18n.t('Bearer')}</option>
 
-											{#if !ollama}
 												<option value="session">{$i18n.t('Session')}</option>
 												{#if !direct}
 													<option value="system_oauth">{$i18n.t('OAuth')}</option>
 													<option value="microsoft_entra_id">{$i18n.t('Entra ID')}</option>
 												{/if}
-											{/if}
 										</select>
 									</div>
 
@@ -504,7 +450,7 @@
 							</div>
 						</div>
 
-						{#if !ollama && !direct}
+						{#if !direct}
 							<div class="flex flex-row justify-between items-center w-full mt-1">
 								<label
 									for="api-type-toggle"
@@ -554,7 +500,7 @@
 						</div>
 
 						{#if showAdvanced}
-							{#if !direct && !ollama}
+							{#if !direct}
 								<div class="flex items-center justify-between gap-3 mt-2">
 									<div>
 										<label for="forward-cookies" class="text-xs text-gray-500">
@@ -600,7 +546,7 @@
 								</div>
 							{/if}
 
-							{#if !ollama && !direct}
+							{#if !direct}
 								<div class="flex gap-2 mt-2">
 									<div class="flex flex-col w-full">
 										<label
@@ -656,7 +602,7 @@
 								</div>
 							</div>
 
-							{#if !ollama && !direct}
+							{#if !direct}
 								<div class="flex flex-row justify-between items-center w-full mt-2">
 									<label
 										for="provider-select"
@@ -742,14 +688,7 @@
 										class={`text-gray-500 text-xs text-center py-2 px-10
 								`}
 									>
-										{#if ollama}
-											{$i18n.t(
-												'Leave empty to include all models from "{{url}}/api/tags" endpoint',
-												{
-													url: url
-												}
-											)}
-										{:else if azure}
+										{#if azure}
 											{$i18n.t('Deployment names are required for Azure OpenAI')}
 											<!-- {$i18n.t('Leave empty to include all models from "{{url}}" endpoint', {
 											url: `${url}/openai/deployments`

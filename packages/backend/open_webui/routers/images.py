@@ -565,7 +565,6 @@ async def upload_image(request, image_data, content_type, metadata, user, db=Non
     }
 
 
-@router.post('/generations')
 async def generate_images(request: Request, form_data: CreateImageForm, user=Depends(get_verified_user)):
     image_config = await get_image_config()
     if not image_config.ENABLE_IMAGE_GENERATION:
@@ -861,7 +860,6 @@ class EditImageForm(BaseModel):
     background: str | None = None
 
 
-@router.post('/edit')
 async def edit_images(request: Request, form_data: EditImageForm, user=Depends(get_verified_user)):
     # Authorize the direct route like /generations and the edit_image tool: enforce the
     # global image-edit switch and the per-user image-generation permission. The internal

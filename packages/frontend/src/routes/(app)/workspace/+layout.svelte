@@ -14,7 +14,6 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getModelItems } from '$lib/apis/models';
-	import { searchKnowledgeBases } from '$lib/apis/knowledge';
 	import { getPromptItems } from '$lib/apis/prompts';
 	import { getSkillItems } from '$lib/apis/skills';
 	import { getToolList } from '$lib/apis/tools';
@@ -39,7 +38,9 @@
 		loadWorkspaceCounts();
 	}
 
-	$: activeWorkspaceSection = $page.url.pathname.split('/')[2] ?? '';
+	$: activeWorkspaceSection = $page.url.pathname.startsWith('/workspace/knowledge')
+		? 'documents'
+		: ($page.url.pathname.split('/')[2] ?? '');
 	$: visibleActions = $workspaceActions.filter((action) => action.visible ?? true);
 
 	const getCount = (res: any) => res?.total ?? (Array.isArray(res) ? res.length : null);
@@ -47,19 +48,15 @@
 
 	const loadWorkspaceCounts = async () => {
 		const canViewModels = $user?.role === 'admin' || $user?.permissions?.workspace?.models;
-		const canViewKnowledge = $user?.role === 'admin' || $user?.permissions?.workspace?.knowledge;
 		const canViewPrompts = $user?.role === 'admin' || $user?.permissions?.workspace?.prompts;
 		const canViewSkills = $user?.role === 'admin' || $user?.permissions?.workspace?.skills;
 		const canViewTools =
 			$config?.features?.enable_tools &&
 			($user?.role === 'admin' || $user?.permissions?.workspace?.tools);
 
-		const [modelRes, knowledgeRes, promptRes, skillRes, toolRes] = await Promise.all([
+		const [modelRes, promptRes, skillRes, toolRes] = await Promise.all([
 			canViewModels
 				? getModelItems(localStorage.token, null, null, null, null, null, 1).catch(() => null)
-				: null,
-			canViewKnowledge
-				? searchKnowledgeBases(localStorage.token, null, null, 1, null).catch(() => null)
 				: null,
 			canViewPrompts
 				? getPromptItems(localStorage.token, null, null, null, null, null, 1).catch(() => null)
@@ -70,7 +67,6 @@
 
 		workspaceCounts.set({
 			models: getCount(modelRes),
-			knowledge: getCount(knowledgeRes),
 			prompts: getCount(promptRes),
 			skills: getCount(skillRes),
 			tools: getCount(toolRes)
@@ -166,24 +162,6 @@
 									<span>{$i18n.t('Models')}</span>
 									<span class="text-sm opacity-60">
 										{formatCount($workspaceCounts.models)}
-									</span>
-								</a>
-							{/if}
-
-							{#if $user?.role === 'admin' || $user?.permissions?.workspace?.knowledge}
-								<a
-									draggable="false"
-									data-sveltekit-keepfocus
-									aria-current={activeWorkspaceSection === 'knowledge' ? 'page' : null}
-									class="min-w-fit px-1 text-sm inline-flex items-center gap-1 {activeWorkspaceSection ===
-									'knowledge'
-										? 'text-gray-900 dark:text-gray-100'
-										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition select-none"
-									href="/workspace/knowledge"
-								>
-									<span>{$i18n.t('Knowledge')}</span>
-									<span class="text-sm opacity-60">
-										{formatCount($workspaceCounts.knowledge)}
 									</span>
 								</a>
 							{/if}

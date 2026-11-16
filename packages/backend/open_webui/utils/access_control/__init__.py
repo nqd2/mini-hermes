@@ -222,11 +222,7 @@ _SHARING_PERMISSION_KEYS = {
     'prompt': ('sharing.prompts', 'sharing.public_prompts', None),
     'tool': ('sharing.tools', 'sharing.public_tools', None),
     'skill': ('sharing.skills', 'sharing.public_skills', None),
-    'note': ('sharing.notes', 'sharing.public_notes', None),
     'folder': ('sharing.folders', None, None),
-    'channel': (None, 'sharing.public_channels', None),
-    'calendar': (None, 'sharing.public_calendars', None),
-    'shared_chat': (None, 'sharing.public_chats', 'sharing.open_chats'),
 }
 
 

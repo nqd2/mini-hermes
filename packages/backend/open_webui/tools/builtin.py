@@ -33,6 +33,7 @@ from open_webui.routers.images import (
 from open_webui.routers.retrieval import search_web as _search_web
 from open_webui.tools.knowledge_fs import kb_exec  # noqa: F401 — re-exported
 from open_webui.utils.chat_id import is_saved_chat_id
+from open_webui.utils.document_image_consent import has_approved_document_image_choice, is_office_document_context
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.notifications import notify_target
 from open_webui.utils.sanitize import sanitize_code
@@ -230,6 +231,28 @@ async def fetch_url(
 # Image generation tools
 
 
+async def _document_image_generation_allowed(
+    metadata: dict | None,
+    chat_id: str | None,
+    message_id: str | None,
+    user_data: dict | None,
+) -> bool:
+    if not is_office_document_context(metadata) or not is_saved_chat_id(chat_id) or not message_id or not user_data:
+        return False
+    try:
+        user = UserModel(**user_data)
+    except Exception:
+        return False
+
+    chat = await Chats.get_accessible_chat_by_id(chat_id, user, permission='write')
+    if not chat:
+        return False
+    message = await Chats.get_message_by_id_and_message_id(chat_id, message_id)
+    if not message or (message.get('user_id') or chat.user_id) != user.id:
+        return False
+    return has_approved_document_image_choice(message.get('output'))
+
+
 async def generate_image(
     prompt: str,
     size: Optional[str] = None,
@@ -242,7 +265,12 @@ async def generate_image(
     __event_call__: callable = None,
 ) -> str:
     """
-    Generate an image based on a text prompt.
+    Generate an image for an Office document after the user explicitly chose it.
+
+    Before calling this tool, call ask_user by itself with the id
+    `document_image_generation`. Its first option must be labelled `Generate image` and
+    its second option must decline generation. Call this tool only after the user chose
+    `Generate image` for the current Office-document turn.
 
     :param prompt: A detailed description of the image to generate
     :param size: Optional output size in WIDTHxHEIGHT pixels (e.g. "1536x1024"), supported by the configured image model.
@@ -251,6 +279,8 @@ async def generate_image(
     """
     if __request__ is None:
         return JSONCodec.dumps({'error': 'Request context not available'})
+    if not await _document_image_generation_allowed(__metadata__, __chat_id__, __message_id__, __user__):
+        return JSONCodec.dumps({'error': 'Document image generation requires a saved user choice.'})
 
     try:
         user = UserModel(**__user__) if __user__ else None
@@ -413,7 +443,7 @@ async def ask_user(
     :param questions: 1-3 question objects, each with id, header, question, and 2-3 options. Each option needs label and description.
         List the option you recommend first; the UI labels the first option Recommended.
     :param allow_other: Whether users may enter a free-form answer instead of choosing one of the options
-    :param timeout_ms: How long the browser should keep the prompt open before cancelling it
+    :param timeout_ms: Legacy display hint. Saved questions remain durable until answered or denied.
     :return: JSON with status and answers keyed by question id
     """
     try:

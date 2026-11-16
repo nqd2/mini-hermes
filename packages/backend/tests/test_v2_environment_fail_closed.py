@@ -75,7 +75,7 @@ async def test_startup_validation_succeeds_on_valid_v2_database(disposable_pg_sc
     result = await check_async_database_environment(schema_url, expected_environment_id="development")
     assert result["valid"] is True
     assert result["environment_name"] == "development"
-    assert result["tables_count"] == 49
+    assert result["tables_count"] == 101
 
 
 @pytest.mark.asyncio

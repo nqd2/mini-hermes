@@ -14,7 +14,6 @@
 	// Suggestions only; support depends on the provider and model.
 	// OpenAI: https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
 	// OpenRouter: https://openrouter.ai/docs/api_reference/parameters
-	// Ollama: https://docs.ollama.com/modelfile and https://docs.ollama.com/api/chat
 	const suggestions: Record<string, string[]> = {
 		service_tier: ['auto', 'default', 'flex', 'priority', 'fast'],
 		reasoning_effort: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],

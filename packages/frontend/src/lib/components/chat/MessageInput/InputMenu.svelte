@@ -20,11 +20,9 @@
 	import Database from '$lib/components/icons/Database.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
-	import PageEdit from '$lib/components/icons/PageEdit.svelte';
 	import Chats from './InputMenu/Chats.svelte';
 	import Files from './InputMenu/Files.svelte';
 	import PersonalFiles from './InputMenu/PersonalFiles.svelte';
-	import Notes from './InputMenu/Notes.svelte';
 	import Knowledge from './InputMenu/Knowledge.svelte';
 	import AttachWebpageModal from './AttachWebpageModal.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
@@ -43,7 +41,6 @@
 	export let inputFilesHandler: Function;
 
 	export let uploadGoogleDriveHandler: Function;
-	export let uploadOneDriveHandler: Function;
 
 	export let onUpload: Function;
 	export let onClose: Function;
@@ -355,40 +352,7 @@
 						</Tooltip>
 					{/if}
 
-					{#if ($config?.features?.enable_notes ?? false) && ($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true)) && $visibleControls['chat.attach_notes']}
-						<Tooltip
-							content={fileUploadCapableModels.length !== selectedModels.length
-								? $i18n.t('Model(s) do not support file upload')
-								: !fileUploadEnabled
-									? $i18n.t('You do not have permission to upload files.')
-									: ''}
-							className="w-full"
-						>
-							<button
-								role="menuitem"
-								class="flex gap-2 w-full items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40 rounded-xl text-left {!fileUploadEnabled
-									? 'opacity-50'
-									: ''}"
-								on:click={() => {
-									if (fileUploadEnabled) {
-										tab = 'notes';
-									}
-								}}
-							>
-								<PageEdit />
 
-								<div class="flex items-center w-full justify-between">
-									<div class=" line-clamp-1">
-										{$i18n.t('Attach Notes')}
-									</div>
-
-									<div class="text-gray-500">
-										<ChevronRight />
-									</div>
-								</div>
-							</button>
-						</Tooltip>
-					{/if}
 
 					{#if $visibleControls['chat.attach_knowledge']}
 						<Tooltip
@@ -505,113 +469,7 @@
 							</button>
 						{/if}
 
-						{#if $config?.features?.enable_onedrive_integration && ($config?.features?.enable_onedrive_personal || $config?.features?.enable_onedrive_business)}
-							<button
-								role="menuitem"
-								class="flex gap-2 w-full items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40 rounded-xl text-left {!fileUploadEnabled
-									? 'opacity-50'
-									: ''}"
-								on:click={() => {
-									tab = 'microsoft_onedrive';
-								}}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 32 32"
-									class="size-3.5"
-									fill="none"
-								>
-									<mask
-										id="mask0_87_7796"
-										style="mask-type:alpha"
-										maskUnits="userSpaceOnUse"
-										x="0"
-										y="6"
-										width="32"
-										height="20"
-									>
-										<path
-											d="M7.82979 26C3.50549 26 0 22.5675 0 18.3333C0 14.1921 3.35322 10.8179 7.54613 10.6716C9.27535 7.87166 12.4144 6 16 6C20.6308 6 24.5169 9.12183 25.5829 13.3335C29.1316 13.3603 32 16.1855 32 19.6667C32 23.0527 29 26 25.8723 25.9914L7.82979 26Z"
-											fill="#C4C4C4"
-										/>
-									</mask>
-									<g mask="url(#mask0_87_7796)">
-										<path
-											d="M7.83017 26.0001C5.37824 26.0001 3.18957 24.8966 1.75391 23.1691L18.0429 16.3335L30.7089 23.4647C29.5926 24.9211 27.9066 26.0001 26.0004 25.9915C23.1254 26.0001 12.0629 26.0001 7.83017 26.0001Z"
-											fill="url(#paint0_linear_87_7796)"
-										/>
-										<path
-											d="M25.5785 13.3149L18.043 16.3334L30.709 23.4647C31.5199 22.4065 32.0004 21.0916 32.0004 19.6669C32.0004 16.1857 29.1321 13.3605 25.5833 13.3337C25.5817 13.3274 25.5801 13.3212 25.5785 13.3149Z"
-											fill="url(#paint1_linear_87_7796)"
-										/>
-										<path
-											d="M7.06445 10.7028L18.0423 16.3333L25.5779 13.3148C24.5051 9.11261 20.6237 6 15.9997 6C12.4141 6 9.27508 7.87166 7.54586 10.6716C7.3841 10.6773 7.22358 10.6877 7.06445 10.7028Z"
-											fill="url(#paint2_linear_87_7796)"
-										/>
-										<path
-											d="M1.7535 23.1687L18.0425 16.3331L7.06471 10.7026C3.09947 11.0792 0 14.3517 0 18.3331C0 20.1665 0.657197 21.8495 1.7535 23.1687Z"
-											fill="url(#paint3_linear_87_7796)"
-										/>
-									</g>
-									<defs>
-										<linearGradient
-											id="paint0_linear_87_7796"
-											x1="4.42591"
-											y1="24.6668"
-											x2="27.2309"
-											y2="23.2764"
-											gradientUnits="userSpaceOnUse"
-										>
-											<stop stop-color="#2086B8" />
-											<stop offset="1" stop-color="#46D3F6" />
-										</linearGradient>
-										<linearGradient
-											id="paint1_linear_87_7796"
-											x1="23.8302"
-											y1="19.6668"
-											x2="30.2108"
-											y2="15.2082"
-											gradientUnits="userSpaceOnUse"
-										>
-											<stop stop-color="#1694DB" />
-											<stop offset="1" stop-color="#62C3FE" />
-										</linearGradient>
-										<linearGradient
-											id="paint2_linear_87_7796"
-											x1="8.51037"
-											y1="7.33333"
-											x2="23.3335"
-											y2="15.9348"
-											gradientUnits="userSpaceOnUse"
-										>
-											<stop stop-color="#0D3D78" />
-											<stop offset="1" stop-color="#063B83" />
-										</linearGradient>
-										<linearGradient
-											id="paint3_linear_87_7796"
-											x1="-0.340429"
-											y1="19.9998"
-											x2="14.5634"
-											y2="14.4649"
-											gradientUnits="userSpaceOnUse"
-										>
-											<stop stop-color="#16589B" />
-											<stop offset="1" stop-color="#1464B7" />
-										</linearGradient>
-									</defs>
-								</svg>
 
-								<div class="flex items-center w-full justify-between">
-									<div class=" line-clamp-1">
-										{$i18n.t('Microsoft OneDrive')}
-									</div>
-
-									<div class="text-gray-500">
-										<ChevronRight />
-									</div>
-								</div>
-							</button>
-						{/if}
 					{/if}
 				</div>
 			{:else if tab === 'tool_permissions'}
@@ -686,26 +544,6 @@
 
 					<Knowledge {onSelect} />
 				</div>
-			{:else if tab === 'notes'}
-				<div class="flex max-h-72 flex-col overflow-hidden" in:fly={{ x: 20, duration: 150 }}>
-					<button
-						role="menuitem"
-						class="flex w-full shrink-0 justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal select-none cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
-						on:click={() => {
-							tab = '';
-						}}
-					>
-						<ChevronLeft />
-
-						<div class="flex items-center w-full justify-between">
-							<div>
-								{$i18n.t('Notes')}
-							</div>
-						</div>
-					</button>
-
-					<Notes {onSelect} />
-				</div>
 			{:else if tab === 'files'}
 				<div class="flex max-h-72 flex-col overflow-hidden" in:fly={{ x: 20, duration: 150 }}>
 					<button
@@ -758,56 +596,7 @@
 
 					<Chats {onSelect} />
 				</div>
-			{:else if tab === 'microsoft_onedrive'}
-				<div in:fly={{ x: 20, duration: 150 }}>
-					<button
-						role="menuitem"
-						class="flex w-full justify-between gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal select-none cursor-pointer rounded-xl hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
-						on:click={() => {
-							tab = '';
-						}}
-					>
-						<ChevronLeft />
 
-						<div class="flex items-center w-full justify-between">
-							<div>
-								{$i18n.t('Microsoft OneDrive')}
-							</div>
-						</div>
-					</button>
-
-					{#if $config?.features?.enable_onedrive_personal}
-						<button
-							role="menuitem"
-							class="flex w-full gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40 rounded-xl text-left"
-							type="button"
-							on:click={() => {
-								uploadOneDriveHandler('personal');
-								show = false;
-							}}
-						>
-							<div class="flex flex-col">
-								<div class="line-clamp-1">{$i18n.t('Microsoft OneDrive (personal)')}</div>
-							</div>
-						</button>
-					{/if}
-
-					{#if $config?.features?.enable_onedrive_business}
-						<button
-							role="menuitem"
-							class="flex w-full gap-2 items-center h-[1.6875rem] px-2 text-[0.8125rem] font-normal select-none cursor-pointer hover:bg-gray-50/40 dark:hover:bg-gray-800/40 rounded-xl text-left"
-							type="button"
-							on:click={() => {
-								uploadOneDriveHandler('organizations');
-								show = false;
-							}}
-						>
-							<div class="line-clamp-1">
-								{$i18n.t('Microsoft OneDrive (work/school)')}
-							</div>
-						</button>
-					{/if}
-				</div>
 			{/if}
 		</DropdownMenu>
 	</div>

@@ -2,7 +2,6 @@ import logging
 
 from open_webui.models.access_grants import AccessGrants
 from open_webui.models.channels import Channels
-from open_webui.models.chats import Chats
 from open_webui.models.files import Files
 from open_webui.models.folders import FolderModel
 from open_webui.models.groups import Groups
@@ -58,7 +57,6 @@ async def has_access_to_file(
     - Knowledge bases (ownership or access grants)
     - Shared workspace models that attach the file directly
     - Channels the user is a member of
-    - Shared chats
     - Shared notes whose owner owns the attached file (read only)
 
     NOTE: This does NOT check direct file ownership — callers should check
@@ -100,23 +98,6 @@ async def has_access_to_file(
     channels = await Channels.get_channels_by_file_id_and_user_id(file_id, user.id, db=db)
     if access_type == 'read' and channels:
         return True
-
-    # Check if the file is associated with any chats the user has access to
-    shared_chat_ids = await Chats.get_shared_chat_ids_by_file_id(file_id, db=db)
-    if access_type == 'read' and shared_chat_ids:
-        accessible_ids = await AccessGrants.get_accessible_resource_ids(
-            user_id=user.id,
-            resource_type='shared_chat',
-            resource_ids=shared_chat_ids,
-            permission='read',
-            user_group_ids=user_group_ids,
-            db=db,
-        )
-        if accessible_ids:
-            return True
-        for chat_id in shared_chat_ids:
-            if await Chats.get_accessible_chat_by_id(chat_id, user, db=db):
-                return True
 
     # Note attachment JSON is user-controlled, so only the file owner's notes can grant access.
     if access_type == 'read':

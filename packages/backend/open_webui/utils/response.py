@@ -5,7 +5,6 @@ from uuid import uuid4
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.misc import (
     chat_completion_chunk_template,
-    chat_completion_message_template,
 )
 
 
@@ -158,80 +157,6 @@ def update_usage_snapshot(current: dict | None, incoming: dict | None) -> dict:
     return result
 
 
-def convert_ollama_tool_call_to_chat_completions(tool_calls: list) -> list:
-    openai_tool_calls = []
-    for tool_call in tool_calls:
-        function = tool_call.get('function', {})
-        openai_tool_call = {
-            'index': tool_call.get('index', function.get('index', 0)),
-            'id': tool_call.get('id', f'call_{str(uuid4())}'),
-            'type': 'function',
-            'function': {
-                'name': function.get('name', ''),
-                'arguments': JSONCodec.dumps(function.get('arguments', {})),
-            },
-        }
-        openai_tool_calls.append(openai_tool_call)
-    return openai_tool_calls
-
-
-def convert_ollama_usage_to_chat_completions(data: dict) -> dict:
-    input_tokens = usage_counter(data.get('prompt_eval_count')) or 0
-    output_tokens = usage_counter(data.get('eval_count')) or 0
-    total_tokens = input_tokens + output_tokens
-
-    result = {
-        # Standardized fields
-        'input_tokens': input_tokens,
-        'output_tokens': output_tokens,
-        'total_tokens': total_tokens,
-        # OpenAI-compatible fields (for backward compatibility)
-        'prompt_tokens': input_tokens,
-        'completion_tokens': output_tokens,
-        # Ollama-specific metrics
-        'response_token/s': (
-            round(
-                ((data.get('eval_count', 0) / (data.get('eval_duration', 0) / 10_000_000)) * 100),
-                2,
-            )
-            if data.get('eval_duration', 0) > 0
-            else 'N/A'
-        ),
-        'prompt_token/s': (
-            round(
-                ((data.get('prompt_eval_count', 0) / (data.get('prompt_eval_duration', 0) / 10_000_000)) * 100),
-                2,
-            )
-            if data.get('prompt_eval_duration', 0) > 0
-            else 'N/A'
-        ),
-        'total_duration': data.get('total_duration', 0),
-        'load_duration': data.get('load_duration', 0),
-        'prompt_eval_count': data.get('prompt_eval_count', 0),
-        'prompt_eval_duration': data.get('prompt_eval_duration', 0),
-        'eval_count': data.get('eval_count', 0),
-        'eval_duration': data.get('eval_duration', 0),
-        'approximate_total': (lambda s: f'{s // 3600}h{(s % 3600) // 60}m{s % 60}s')(
-            (data.get('total_duration', 0) or 0) // 1_000_000_000
-        ),
-    }
-
-    for source, fields in (
-        ('prompt_eval_count', ('input_tokens', 'prompt_tokens', 'prompt_eval_count')),
-        ('eval_count', ('output_tokens', 'completion_tokens', 'eval_count')),
-    ):
-        if usage_counter(data.get(source)) is None:
-            for field in fields:
-                result.pop(field, None)
-            result.pop('total_tokens', None)
-    for key in ('total_duration', 'load_duration', 'prompt_eval_duration', 'eval_duration'):
-        if key not in data:
-            result.pop(key, None)
-    if 'total_duration' not in data:
-        result.pop('approximate_total', None)
-    return result
-
-
 def convert_responses_usage_to_chat_completions(usage: dict | None) -> dict:
     result = normalize_usage(usage)
     for source, target in (('input_tokens', 'prompt_tokens'), ('output_tokens', 'completion_tokens')):
@@ -246,72 +171,6 @@ def get_responses_finish_reason(response: dict, has_tool_calls: bool = False) ->
         reason = (response.get('incomplete_details') or {}).get('reason')
         return 'content_filter' if reason == 'content_filter' else 'length'
     return 'tool_calls' if has_tool_calls else 'stop'
-
-
-def convert_ollama_response_to_chat_completions(ollama_response: dict) -> dict:
-    model = ollama_response.get('model', 'ollama')
-    message_content = ollama_response.get('message', {}).get('content', '')
-    reasoning_content = ollama_response.get('message', {}).get('thinking', None)
-    tool_calls = ollama_response.get('message', {}).get('tool_calls', None)
-    openai_tool_calls = None
-
-    if tool_calls:
-        openai_tool_calls = convert_ollama_tool_call_to_chat_completions(tool_calls)
-
-    data = ollama_response
-
-    usage = convert_ollama_usage_to_chat_completions(data)
-
-    response = chat_completion_message_template(model, message_content, reasoning_content, openai_tool_calls, usage)
-    if not openai_tool_calls and ollama_response.get('done_reason'):
-        response['choices'][0]['finish_reason'] = ollama_response['done_reason']
-    return response
-
-
-async def convert_ollama_stream_to_chat_completions(ollama_streaming_response):
-    has_tool_calls = False
-    # All chunks in a single completion must share the same id (OpenAI spec).
-    completion_id = f'chatcmpl-{str(uuid4())}'
-    first = True
-    async for data in ollama_streaming_response.body_iterator:
-        data = JSONCodec.loads(data)
-
-        model = data.get('model', 'ollama')
-        message = data.get('message') or {}
-        message_content = message.get('content', None)
-        reasoning_content = message.get('thinking', None)
-        tool_calls = message.get('tool_calls', None)
-        openai_tool_calls = None
-
-        if tool_calls:
-            openai_tool_calls = convert_ollama_tool_call_to_chat_completions(tool_calls)
-            has_tool_calls = True
-
-        done = data.get('done', False)
-        done_reason = data.get('done_reason')
-
-        usage = None
-        if done:
-            usage = convert_ollama_usage_to_chat_completions(data)
-
-        data = chat_completion_chunk_template(
-            model, message_content, reasoning_content, openai_tool_calls, usage, message_id=completion_id
-        )
-
-        # First chunk must carry delta.role (OpenAI spec).
-        if first:
-            data['choices'][0]['delta']['role'] = 'assistant'
-            first = False
-
-        if done and has_tool_calls:
-            data['choices'][0]['finish_reason'] = 'tool_calls'
-        elif done_reason:
-            data['choices'][0]['finish_reason'] = done_reason
-
-        line = f'data: {JSONCodec.dumps(data)}\n\n'
-        yield line
-
-    yield 'data: [DONE]\n\n'
 
 
 async def convert_responses_stream_to_chat_completions(body_iterator):
@@ -403,75 +262,6 @@ async def convert_responses_stream_to_chat_completions(body_iterator):
     # Let the wrapped stream finish outlet filters and usage logging before clients disconnect.
     if done:
         yield 'data: [DONE]\n\n'
-
-
-def convert_embedding_response_ollama_to_openai(response) -> dict:
-    """
-    Convert the response from Ollama embeddings endpoint to the OpenAI-compatible format.
-
-    Args:
-        response (dict): The response from the Ollama API,
-            e.g. {"embedding": [...], "model": "..."}
-            or {"embeddings": [{"embedding": [...], "index": 0}, ...], "model": "..."}
-
-    Returns:
-        dict: Response adapted to OpenAI's embeddings API format.
-            e.g. {
-                "object": "list",
-                "data": [
-                    {"object": "embedding", "embedding": [...], "index": 0},
-                    ...
-                ],
-                "model": "...",
-            }
-    """
-    # Ollama batch-style output from /api/embed
-    # Response format: {"embeddings": [[0.1, 0.2, ...], [0.3, 0.4, ...]], "model": "..."}
-    if isinstance(response, dict) and 'embeddings' in response:
-        openai_data = []
-        for i, emb in enumerate(response['embeddings']):
-            # /api/embed returns embeddings as plain float lists
-            if isinstance(emb, list):
-                openai_data.append(
-                    {
-                        'object': 'embedding',
-                        'embedding': emb,
-                        'index': i,
-                    }
-                )
-            # Also handle dict format for robustness
-            elif isinstance(emb, dict):
-                openai_data.append(
-                    {
-                        'object': 'embedding',
-                        'embedding': emb.get('embedding'),
-                        'index': emb.get('index', i),
-                    }
-                )
-        return {
-            'object': 'list',
-            'data': openai_data,
-            'model': response.get('model'),
-        }
-    # Ollama single output
-    elif isinstance(response, dict) and 'embedding' in response:
-        return {
-            'object': 'list',
-            'data': [
-                {
-                    'object': 'embedding',
-                    'embedding': response['embedding'],
-                    'index': 0,
-                }
-            ],
-            'model': response.get('model'),
-        }
-    # Already OpenAI-compatible?
-    elif isinstance(response, dict) and 'data' in response and isinstance(response['data'], list):
-        return response
-
-    # Fallback: return as is if unrecognized
-    return response
 
 
 def get_response_delta_key(delta_data: dict):

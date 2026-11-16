@@ -52,7 +52,7 @@ class MfaChallenge(BaseModel):
     type: Literal['enroll', 'verify', 'replace', 'recover']
     expires_at: int
     attempts: int = Field(default=0, ge=0)
-    auth_method: Literal['password', 'ldap', 'oauth', 'trusted_header', 'system', 'api']
+    auth_method: Literal['password', 'oauth', 'trusted_header', 'system', 'api']
     auth_time: int
     session_stamp: str | None = None
     secret: str | None = None
@@ -172,11 +172,6 @@ SigninResult = SessionUserResponse | MfaChallengeResponse | PendingUserResponse
 
 class SigninForm(BaseModel):
     email: str
-    password: str
-
-
-class LdapForm(BaseModel):
-    user: str
     password: str
 
 

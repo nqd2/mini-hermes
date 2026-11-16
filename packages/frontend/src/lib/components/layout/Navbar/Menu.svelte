@@ -1,5 +1,4 @@
 <script lang="ts">
-	import CommentButton from '$lib/components/comments/CommentButton.svelte';
 	import { toast } from 'svelte-sonner';
 	import { getContext, tick } from 'svelte';
 
@@ -35,7 +34,6 @@
 	import Cube from '$lib/components/icons/Cube.svelte';
 	import Map from '$lib/components/icons/Map.svelte';
 	import Folder from '$lib/components/icons/Folder.svelte';
-	import Share from '$lib/components/icons/Share.svelte';
 	import ArchiveBox from '$lib/components/icons/ArchiveBox.svelte';
 	import GarbageBin from '$lib/components/icons/GarbageBin.svelte';
 	import Messages from '$lib/components/chat/Messages.svelte';
@@ -48,7 +46,6 @@
 	export let shareEnabled: boolean = false;
 	export let readOnly: boolean = false;
 
-	export let shareHandler: Function;
 	export let renameHandler: Function;
 	export let moveChatHandler: Function;
 
@@ -430,29 +427,6 @@
 				<hr class="border-gray-50/30 dark:border-gray-800/30 mx-1 my-0.5" />
 			{/if}
 
-			{#if !readOnly && !$temporaryChatEnabled && ($user?.role === 'admin' || ($user.permissions?.chat?.share ?? true))}
-				<button
-					draggable="false"
-					class="flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer select-none hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
-					id="chat-share-button"
-					on:click={() => {
-						shareHandler();
-					}}
-				>
-					<Share className="size-3.5" strokeWidth="1.5" />
-					<div class="flex items-center">{$i18n.t('Share')}</div>
-				</button>
-			{/if}
-
-			{#if chat?.id && !$temporaryChatEnabled}
-				<CommentButton
-					onComment={() => showTabs.set('comments')}
-					menu
-					resource={{ resource_type: 'chat', resource_id: chat.id }}
-					onOpen={() => (show = false)}
-					className="flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] cursor-pointer select-none hover:bg-gray-50/40 dark:hover:bg-gray-800/40"
-				/>
-			{/if}
 
 			{#if $user?.role === 'admin' || ($user.permissions?.chat?.export ?? true)}
 				<DropdownSub contentClass="select-none z-50">

@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { user } from '$lib/stores';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import Knowledge from '$lib/components/workspace/Knowledge.svelte';
+
+	$: showCollections = $page.url.searchParams.get('view') === 'collections';
 
 	type DocumentItem = {
 		id: string;
@@ -172,12 +178,29 @@
 		} catch (error) { statusMessage = String(error); }
 	}
 
-	onMount(() => { refresh(); timer = setInterval(refresh, 3000); });
+	onMount(() => {
+		if (!showCollections) refresh();
+		timer = setInterval(() => { if (!showCollections) refresh(); }, 3000);
+	});
 	onDestroy(() => clearInterval(timer));
+
+	function openTab(view: 'files' | 'collections') {
+		goto(view === 'collections' ? '/workspace/documents?view=collections' : '/workspace/documents');
+		if (view === 'files') refresh();
+	}
 </script>
 
 <div class="mx-auto max-w-5xl p-6 text-gray-900 dark:text-gray-100">
-	<h1 class="text-2xl font-semibold">Documents</h1>
+	<h1 class="text-2xl font-semibold">Document library</h1>
+	<nav class="mt-4 flex gap-2 border-b pb-2" aria-label="Document library">
+		<button class="rounded-lg px-3 py-1.5 text-sm {showCollections ? 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800' : 'bg-gray-100 font-semibold dark:bg-gray-800'}" aria-current={!showCollections ? 'page' : undefined} onclick={() => openTab('files')}>Files</button>
+		{#if $user?.role === 'admin' || $user?.permissions?.workspace?.knowledge}
+			<button class="rounded-lg px-3 py-1.5 text-sm {showCollections ? 'bg-gray-100 font-semibold dark:bg-gray-800' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}" aria-current={showCollections ? 'page' : undefined} onclick={() => openTab('collections')}>Collections</button>
+		{/if}
+	</nav>
+	{#if showCollections && ($user?.role === 'admin' || $user?.permissions?.workspace?.knowledge)}
+		<div class="mt-6"><Knowledge /></div>
+	{:else}
 	<p class="mt-1 text-sm text-gray-500">Upload Office or PDF files, or import a Google Docs, Sheets or Slides link. Agent edits appear as previews for your confirmation.</p>
 	<div class="mt-6 flex flex-wrap items-center gap-3">
 		<label class="cursor-pointer rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -244,4 +267,5 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
 </div>

@@ -7,15 +7,11 @@ import re
 import time
 import urllib
 import uuid
-from ssl import CERT_NONE, CERT_REQUIRED, PROTOCOL_TLS
 
 import jwt
 from aiohttp import BasicAuth, ClientSession
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, Response
-from ldap3 import NONE, Connection, Server, Tls
-from ldap3.utils.conv import escape_filter_chars
-from ldap3.utils.dn import parse_dn
 from open_webui.config import (
     ENABLE_PASSWORD_AUTH,
     OAUTH_PROVIDERS,
@@ -45,7 +41,6 @@ from open_webui.models.auths import (
     AddUserResponse,
     ApiKey,
     Auths,
-    LdapForm,
     SessionUserInfoResponse,
     SigninForm,
     SigninResult,
@@ -121,52 +116,21 @@ ADMIN_CONFIG_KEYS = {
     'DEFAULT_INTERFACE_SETTINGS': 'ui.default_interface_settings',
     'I18N': 'ui.i18n',
     'JWT_EXPIRES_IN': 'auth.jwt_expiry',
-    'ENABLE_COMMUNITY_SHARING': 'ui.enable_community_sharing',
     'ENABLE_MESSAGE_RATING': 'ui.enable_message_rating',
     'ENABLE_FOLDERS': 'folders.enable',
     'FOLDER_MAX_FILE_COUNT': 'folders.max_file_count',
-    'AUTOMATION_MAX_COUNT': 'automations.max_count',
-    'AUTOMATION_MIN_INTERVAL': 'automations.min_interval',
-    'ENABLE_AUTOMATIONS': 'automations.enable',
-    'ENABLE_CHANNELS': 'channels.enable',
-    'ENABLE_COMMENTS': 'comments.enable',
     'ENABLE_NOTIFICATIONS': 'notifications.enable',
-    'ENABLE_ENCRYPTED_CHANNELS': 'channels.encryption.enable',
-    'ENABLE_APPS': 'apps.enable',
-    'CHANNEL_MODEL_RESPONSE_MODE': 'channels.model_response_mode',
-    'ENABLE_CALENDAR': 'calendar.enable',
     'ENABLE_MEMORIES': 'memories.enable',
     'ENABLE_MEMORY_SYSTEM_CONTEXT': 'memories.system_context.enable',
     'ENABLE_SKILL_LAZY_LOADING': 'skills.lazy_loading.enable',
     'SKILL_CONTENT_MAX_CHARS': 'skills.content_max_chars',
     'SKILL_PREVIEW_MAX_CHARS': 'skills.preview_max_chars',
-    'ENABLE_NOTES': 'notes.enable',
-    'ENABLE_USER_WEBHOOKS': 'ui.enable_user_webhooks',
     'ENABLE_USER_STATUS': 'users.enable_status',
     'PENDING_USER_OVERLAY_TITLE': 'ui.pending_user_overlay_title',
     'PENDING_USER_OVERLAY_CONTENT': 'ui.pending_user_overlay_content',
     'RESPONSE_WATERMARK': 'ui.watermark',
 }
 
-LDAP_SERVER_CONFIG_KEYS = {
-    'label': 'ldap.server.label',
-    'host': 'ldap.server.host',
-    'port': 'ldap.server.port',
-    'attribute_for_mail': 'ldap.server.attribute_for_mail',
-    'default_email_domain': 'ldap.server.default_email_domain',
-    'attribute_for_username': 'ldap.server.attribute_for_username',
-    'app_dn': 'ldap.server.app_dn',
-    'app_dn_password': 'ldap.server.app_password',
-    'search_base': 'ldap.server.users_dn',
-    'search_filters': 'ldap.server.search_filter',
-    'use_tls': 'ldap.server.use_tls',
-    'certificate_path': 'ldap.server.ca_cert_file',
-    'validate_cert': 'ldap.server.validate_cert',
-    'ciphers': 'ldap.server.ciphers',
-    'enable_group_management': 'ldap.group.enable_management',
-    'enable_group_creation': 'ldap.group.enable_creation',
-    'attribute_for_groups': 'ldap.server.attribute_for_groups',
-}
 
 
 async def get_config_values(key_map: dict[str, str]) -> dict:
@@ -353,301 +317,6 @@ async def update_password(
             raise HTTPException(400, detail=ERROR_MESSAGES.INCORRECT_PASSWORD)
     else:
         raise HTTPException(400, detail=ERROR_MESSAGES.INVALID_CRED)
-
-
-def _unescape_ldap_dn_value(value: str) -> str:
-    """Resolve RFC 4514 escapes in a DN value, e.g. ``CN=Sales\\, EMEA`` -> ``Sales, EMEA``.
-
-    Consecutive ``\\XX`` hex escapes encode UTF-8 bytes and are decoded together.
-    """
-    hexdigits = '0123456789abcdefABCDEF'
-    result = []
-    pos = 0
-    length = len(value)
-    while pos < length:
-        char = value[pos]
-        if char == '\\' and pos + 1 < length:
-            if pos + 2 < length and value[pos + 1] in hexdigits and value[pos + 2] in hexdigits:
-                byte_values = bytearray()
-                while (
-                    pos + 2 < length
-                    and value[pos] == '\\'
-                    and value[pos + 1] in hexdigits
-                    and value[pos + 2] in hexdigits
-                ):
-                    byte_values.append(int(value[pos + 1 : pos + 3], 16))
-                    pos += 3
-                result.append(byte_values.decode('utf-8', errors='replace'))
-            else:
-                # Backslash escaping a literal special char, e.g. "\," or "\+".
-                result.append(value[pos + 1])
-                pos += 2
-        else:
-            result.append(char)
-            pos += 1
-    return ''.join(result)
-
-
-def extract_group_cn_from_dn(group_dn: str) -> str | None:
-    """Return the first CN component of an LDAP group DN, or None.
-
-    Uses ``parse_dn`` so escaped separators inside a value (e.g. a group whose
-    name contains a comma) are handled correctly instead of naively splitting
-    on ``,``.
-    """
-    for attr_type, attr_value, _ in parse_dn(group_dn):
-        if attr_type.upper() == 'CN':
-            return _unescape_ldap_dn_value(attr_value)
-    return None
-
-
-# LDAP Authentication
-@router.post('/ldap', response_model=SigninResult)
-async def ldap_auth(
-    request: Request,
-    response: Response,
-    form_data: LdapForm,
-    db: AsyncSession = Depends(get_async_session),
-):
-    # Security checks FIRST - before loading any config
-    if not await Config.get('ldap.enable'):
-        raise HTTPException(400, detail='LDAP authentication is not enabled')
-
-    if not ENABLE_PASSWORD_AUTH:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ERROR_MESSAGES.ACTION_PROHIBITED,
-        )
-
-    # Reject empty passwords before attempting the LDAP bind.
-    # Per RFC 4513 §5.1.2, a Simple Bind with a non-empty DN but empty
-    # password is "unauthenticated simple authentication" — many LDAP
-    # servers (OpenLDAP default, some AD configs) return success for these,
-    # which would grant access without valid credentials.
-    if not form_data.password or not form_data.password.strip():
-        raise HTTPException(400, detail=ERROR_MESSAGES.INVALID_CRED)
-
-    # NOW load LDAP config variables
-    LDAP_SERVER_LABEL = await Config.get('ldap.server.label')
-    LDAP_SERVER_HOST = await Config.get('ldap.server.host')
-    LDAP_SERVER_PORT = await Config.get('ldap.server.port')
-    LDAP_ATTRIBUTE_FOR_MAIL = await Config.get('ldap.server.attribute_for_mail')
-    LDAP_DEFAULT_EMAIL_DOMAIN = await Config.get('ldap.server.default_email_domain')
-    LDAP_ATTRIBUTE_FOR_USERNAME = await Config.get('ldap.server.attribute_for_username')
-    LDAP_SEARCH_BASE = await Config.get('ldap.server.users_dn')
-    LDAP_SEARCH_FILTERS = await Config.get('ldap.server.search_filter')
-    LDAP_APP_DN = await Config.get('ldap.server.app_dn')
-    LDAP_APP_PASSWORD = await Config.get('ldap.server.app_password')
-    LDAP_USE_TLS = await Config.get('ldap.server.use_tls')
-    LDAP_CA_CERT_FILE = await Config.get('ldap.server.ca_cert_file')
-    LDAP_VALIDATE_CERT = CERT_REQUIRED if await Config.get('ldap.server.validate_cert') else CERT_NONE
-    LDAP_CIPHERS = await Config.get('ldap.server.ciphers') if await Config.get('ldap.server.ciphers') else 'ALL'
-
-    try:
-        tls = Tls(
-            validate=LDAP_VALIDATE_CERT,
-            version=PROTOCOL_TLS,
-            ca_certs_file=LDAP_CA_CERT_FILE,
-            ciphers=LDAP_CIPHERS,
-        )
-    except Exception as e:
-        log.error(f'TLS configuration error: {str(e)}')
-        raise HTTPException(400, detail='Failed to configure TLS for LDAP connection.')
-
-    try:
-        server = Server(
-            host=LDAP_SERVER_HOST,
-            port=LDAP_SERVER_PORT,
-            get_info=NONE,
-            use_ssl=LDAP_USE_TLS,
-            tls=tls,
-        )
-        connection_app = Connection(
-            server,
-            LDAP_APP_DN,
-            LDAP_APP_PASSWORD,
-            auto_bind='NONE',
-            authentication='SIMPLE' if LDAP_APP_DN else 'ANONYMOUS',
-        )
-        if not await asyncio.to_thread(connection_app.bind):
-            raise HTTPException(400, detail='Application account bind failed')
-
-        ENABLE_LDAP_GROUP_MANAGEMENT = await Config.get('ldap.group.enable_management')
-        ENABLE_LDAP_GROUP_CREATION = await Config.get('ldap.group.enable_creation')
-        LDAP_ATTRIBUTE_FOR_GROUPS = await Config.get('ldap.server.attribute_for_groups')
-
-        search_attributes = [
-            f'{LDAP_ATTRIBUTE_FOR_USERNAME}',
-            f'{LDAP_ATTRIBUTE_FOR_MAIL}',
-            'cn',
-        ]
-        if ENABLE_LDAP_GROUP_MANAGEMENT:
-            search_attributes.append(f'{LDAP_ATTRIBUTE_FOR_GROUPS}')
-            log.info('LDAP Group Management enabled. Adding %s to search attributes', LDAP_ATTRIBUTE_FOR_GROUPS)
-        log.info('LDAP search attributes: %s', search_attributes)
-
-        search_success = await asyncio.to_thread(
-            connection_app.search,
-            search_base=LDAP_SEARCH_BASE,
-            search_filter=f'(&({LDAP_ATTRIBUTE_FOR_USERNAME}={escape_filter_chars(form_data.user.lower())}){LDAP_SEARCH_FILTERS})',
-            attributes=search_attributes,
-        )
-        if not search_success or not connection_app.entries:
-            raise HTTPException(400, detail='User not found in the LDAP server')
-
-        entry = connection_app.entries[0]
-        entry_username = entry[f'{LDAP_ATTRIBUTE_FOR_USERNAME}'].value
-        email = entry[f'{LDAP_ATTRIBUTE_FOR_MAIL}'].value  # retrieve the Attribute value
-        if not email and LDAP_DEFAULT_EMAIL_DOMAIN:
-            default_email = f'{form_data.user}@{LDAP_DEFAULT_EMAIL_DOMAIN}'
-            if validate_email_format(default_email):
-                email = default_email
-
-        username_list = []  # list of usernames from LDAP attribute
-        if isinstance(entry_username, list):
-            username_list = [str(name).lower() for name in entry_username]
-        else:
-            username_list = [str(entry_username).lower()]
-
-        # TODO: support multiple emails if LDAP returns a list
-        if not email:
-            raise HTTPException(400, 'User does not have a valid email address.')
-        elif isinstance(email, str):
-            email = email.lower()
-        elif isinstance(email, list):
-            email = email[0].lower()
-        else:
-            email = str(email).lower()
-
-        cn = str(entry['cn'])  # common name
-        user_dn = entry.entry_dn  # user distinguished name
-
-        user_groups = []
-        if ENABLE_LDAP_GROUP_MANAGEMENT and LDAP_ATTRIBUTE_FOR_GROUPS in entry:
-            group_dns = entry[LDAP_ATTRIBUTE_FOR_GROUPS]
-            log.info('LDAP raw group DNs for user %s: %s', username_list, group_dns)
-
-            if group_dns:
-                log.info('LDAP group_dns original: %s', group_dns)
-                log.info('LDAP group_dns type: %s', type(group_dns))
-                log.info('LDAP group_dns length: %s', len(group_dns))
-
-                if hasattr(group_dns, 'value'):
-                    group_dns = group_dns.value
-                    log.info('Extracted .value property: %s', group_dns)
-                elif hasattr(group_dns, '__iter__') and not isinstance(group_dns, (str, bytes)):
-                    group_dns = list(group_dns)
-                    log.info('Converted to list: %s', group_dns)
-
-                if isinstance(group_dns, list):
-                    group_dns = [str(item) for item in group_dns]
-                else:
-                    group_dns = [str(group_dns)]
-
-                log.info('LDAP group_dns after processing - type: %s, length: %s', type(group_dns), len(group_dns))
-
-                for group_idx, group_dn in enumerate(group_dns):
-                    group_dn = str(group_dn)
-                    log.info('Processing group DN #%s: %s', group_idx + 1, group_dn)
-
-                    try:
-                        group_cn = extract_group_cn_from_dn(group_dn)
-
-                        if group_cn:
-                            user_groups.append(group_cn)
-                        else:
-                            log.warning(f'Could not extract CN from group DN: {group_dn}')
-                    except Exception as e:
-                        log.warning(f'Failed to extract group name from DN {group_dn}: {e}')
-
-                log.info('LDAP groups for user %s: %s (total: %s)', username_list, user_groups, len(user_groups))
-            else:
-                log.info('No groups found for user %s', username_list)
-        elif ENABLE_LDAP_GROUP_MANAGEMENT:
-            log.warning(
-                f'LDAP Group Management enabled but {LDAP_ATTRIBUTE_FOR_GROUPS} attribute not found in user entry'
-            )
-
-        if username_list and form_data.user.lower() in username_list:
-            if (await get_mfa_config()).ENABLE_MFA:
-                existing = await Users.get_user_by_email(email, db=db)
-                if existing:
-                    await limit_account(existing.id, 'password')
-            connection_user = Connection(
-                server,
-                user_dn,
-                form_data.password,
-                auto_bind='NONE',
-                authentication='SIMPLE',
-            )
-            if not await asyncio.to_thread(connection_user.bind):
-                raise HTTPException(400, 'Authentication failed.')
-
-            user = await Users.get_user_by_email(email, db=db)
-            if not user:
-                try:
-                    # Insert with default role first to avoid TOCTOU race on
-                    # first-user registration.  Matches signup_handler pattern.
-                    user = await Auths.insert_new_auth(
-                        email=email,
-                        password=str(uuid.uuid4()),
-                        name=cn,
-                        role=await Config.get('ui.default_user_role'),
-                        db=db,
-                    )
-
-                    if not user:
-                        raise HTTPException(500, detail=ERROR_MESSAGES.CREATE_USER_ERROR)
-
-                    # Atomically check if this is the only user *after* the
-                    # insert.  Only the single user present should become admin.
-                    if await Users.get_num_users(db=db) == 1:
-                        await Users.update_user_role_by_id(user.id, 'admin', db=db)
-                        user = await Users.get_user_by_id(user.id, db=db)
-
-                    await apply_default_group_assignment(
-                        await Config.get('ui.default_group_id'),
-                        user.id,
-                        db=db,
-                    )
-
-                    await publish_event(
-                        request,
-                        EVENTS.USER_CREATED,
-                        actor=user,
-                        subject_id=user.id,
-                        source='ldap',
-                        data={'role': user.role},
-                    )
-
-                except HTTPException:
-                    raise
-                except Exception as err:
-                    log.error(f'LDAP user creation error: {str(err)}')
-                    raise HTTPException(500, detail='Internal error occurred during LDAP user creation.')
-
-            user = await Auths.authenticate_user_by_email(email, db=db)
-
-            if user:
-                if ENABLE_LDAP_GROUP_MANAGEMENT and user_groups:
-                    try:
-                        if ENABLE_LDAP_GROUP_CREATION:
-                            await Groups.create_groups_by_group_names(user.id, user_groups, db=db)
-                        await Groups.sync_groups_by_group_names(user.id, user_groups, db=db)
-                        log.info('Successfully synced groups for user %s: %s', user.id, user_groups)
-                    except Exception as e:
-                        log.error(f'Failed to sync groups for user {user.id}: {e}')
-
-                return await create_signin_response(request, user, db, response, set_cookie=True, source='ldap')
-            else:
-                raise HTTPException(400, detail=ERROR_MESSAGES.INVALID_CRED)
-        else:
-            raise HTTPException(400, 'User record mismatch.')
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f'LDAP authentication error: {str(e)}')
-        raise HTTPException(400, detail='LDAP authentication failed.')
 
 
 # Sign In
@@ -940,23 +609,9 @@ async def signout(request: Request, response: Response, db: AsyncSession = Depen
     if oauth_session_id:
         response.delete_cookie('oauth_session_id')
 
-        # If a custom end_session_endpoint is configured (e.g. AWS Cognito), redirect
-        # there directly instead of attempting OIDC discovery.
-        openid_end_session_endpoint = await Config.get('oauth.end_session_endpoint')
-        if openid_end_session_endpoint:
-            return JSONResponse(
-                status_code=200,
-                content={
-                    'status': True,
-                    'redirect_url': openid_end_session_endpoint,
-                },
-                headers=response.headers,
-            )
-
-        openid_provider_url = await Config.get('oauth.provider_url')
         oauth_server_metadata_url = (
             request.app.state.oauth_manager.get_server_metadata_url(session.provider) if session else None
-        ) or openid_provider_url
+        )
 
         if session and oauth_server_metadata_url:
             oauth_id_token = session.token.get('id_token')
@@ -1163,27 +818,15 @@ class AdminConfig(MfaConfigForm):
     DEFAULT_INTERFACE_SETTINGS: dict | None = None
     I18N: dict[str, dict[str, StrictStr]] | None = None
     JWT_EXPIRES_IN: str
-    ENABLE_COMMUNITY_SHARING: bool
     ENABLE_MESSAGE_RATING: bool
     ENABLE_FOLDERS: bool
     FOLDER_MAX_FILE_COUNT: int | str | None = None
-    AUTOMATION_MAX_COUNT: int | str | None = None
-    AUTOMATION_MIN_INTERVAL: int | str | None = None
-    ENABLE_AUTOMATIONS: bool
-    ENABLE_CHANNELS: bool
-    ENABLE_COMMENTS: bool = False
     ENABLE_NOTIFICATIONS: bool = True
-    ENABLE_ENCRYPTED_CHANNELS: bool = False
-    ENABLE_APPS: bool = False
-    CHANNEL_MODEL_RESPONSE_MODE: str = 'thread'
-    ENABLE_CALENDAR: bool
     ENABLE_MEMORIES: bool
     ENABLE_MEMORY_SYSTEM_CONTEXT: bool
     ENABLE_SKILL_LAZY_LOADING: bool = False
     SKILL_CONTENT_MAX_CHARS: int | None = Field(default=None, gt=0, strict=True)
     SKILL_PREVIEW_MAX_CHARS: int | None = Field(default=None, gt=0, strict=True)
-    ENABLE_NOTES: bool
-    ENABLE_USER_WEBHOOKS: bool
     ENABLE_USER_STATUS: bool
     PENDING_USER_OVERLAY_TITLE: str | None = None
     PENDING_USER_OVERLAY_CONTENT: str | None = None
@@ -1224,14 +867,8 @@ async def update_admin_config(request: Request, form_data: AdminConfig, user=Dep
             updates.pop(key, None)
     if 'ENABLE_LOGIN_FORM' not in form_data.model_fields_set:
         updates.pop('ui.enable_login_form', None)
-    if 'ENABLE_ENCRYPTED_CHANNELS' not in form_data.model_fields_set:
-        updates.pop('channels.encryption.enable', None)
-    if 'ENABLE_COMMENTS' not in form_data.model_fields_set:
-        updates.pop('comments.enable', None)
     if 'ENABLE_NOTIFICATIONS' not in form_data.model_fields_set:
         updates.pop('notifications.enable', None)
-    if 'ENABLE_APPS' not in form_data.model_fields_set:
-        updates.pop('apps.enable', None)
     if 'I18N' not in form_data.model_fields_set:
         updates.pop('ui.i18n', None)
     if 'ENABLE_SKILL_LAZY_LOADING' not in form_data.model_fields_set:
@@ -1242,10 +879,6 @@ async def update_admin_config(request: Request, form_data: AdminConfig, user=Dep
         updates.pop('skills.preview_max_chars', None)
     updates['ui.default_interface_settings'] = form_data.DEFAULT_INTERFACE_SETTINGS or {}
     updates['folders.max_file_count'] = int(form_data.FOLDER_MAX_FILE_COUNT) if form_data.FOLDER_MAX_FILE_COUNT else ''
-    updates['automations.max_count'] = int(form_data.AUTOMATION_MAX_COUNT) if form_data.AUTOMATION_MAX_COUNT else ''
-    updates['automations.min_interval'] = (
-        int(form_data.AUTOMATION_MIN_INTERVAL) if form_data.AUTOMATION_MIN_INTERVAL else ''
-    )
 
     if form_data.DEFAULT_USER_ROLE not in ['pending', 'user', 'admin']:
         updates.pop('ui.default_user_role', None)
@@ -1263,77 +896,11 @@ async def update_admin_config(request: Request, form_data: AdminConfig, user=Dep
     return {**(await get_config_values(ADMIN_CONFIG_KEYS)), 'sessions_revoked': changed}
 
 
-class LdapServerConfig(BaseModel):
-    label: str
-    host: str
-    port: int | None = None
-    attribute_for_mail: str = 'mail'
-    default_email_domain: str = ''
-    attribute_for_username: str = 'uid'
-    app_dn: str
-    app_dn_password: str
-    search_base: str
-    search_filters: str = ''
-    use_tls: bool = True
-    certificate_path: str | None = None
-    validate_cert: bool = True
-    ciphers: str | None = 'ALL'
-    enable_group_management: bool = False
-    enable_group_creation: bool = False
-    attribute_for_groups: str = 'memberOf'
-
-
-@router.get('/admin/config/ldap/server', response_model=LdapServerConfig)
-async def get_ldap_server(request: Request, user=Depends(get_admin_user)):
-    return await get_config_values(LDAP_SERVER_CONFIG_KEYS)
-
-
-@router.post('/admin/config/ldap/server')
-async def update_ldap_server(request: Request, form_data: LdapServerConfig, user=Depends(get_admin_user)):
-    required_fields = [
-        'label',
-        'host',
-        'attribute_for_mail',
-        'attribute_for_username',
-        'search_base',
-    ]
-    for key in required_fields:
-        value = getattr(form_data, key)
-        if not value:
-            raise HTTPException(400, detail=ERROR_MESSAGES.REQUIRED_FIELD_EMPTY(key))
-
-    # The group attribute is what group management reads from the directory
-    # entry; an empty value would make group sync silently do nothing.
-    if form_data.enable_group_management and not (form_data.attribute_for_groups or '').strip():
-        raise HTTPException(400, detail=ERROR_MESSAGES.REQUIRED_FIELD_EMPTY('attribute_for_groups'))
-
-    updates = config_updates(form_data.model_dump(), LDAP_SERVER_CONFIG_KEYS)
-    updates['ldap.server.app_dn'] = form_data.app_dn or ''
-    updates['ldap.server.app_password'] = form_data.app_dn_password or ''
-    await Config.upsert(updates)
-    return await get_config_values(LDAP_SERVER_CONFIG_KEYS)
-
-
-@router.get('/admin/config/ldap')
-async def get_ldap_config(request: Request, user=Depends(get_admin_user)):
-    return {'ENABLE_LDAP': await Config.get('ldap.enable')}
-
-
-class LdapConfigForm(BaseModel):
-    enable_ldap: bool | None = None
-
-
-@router.post('/admin/config/ldap')
-async def update_ldap_config(request: Request, form_data: LdapConfigForm, user=Depends(get_admin_user)):
-    await Config.upsert({'ldap.enable': form_data.enable_ldap})
-    return {'ENABLE_LDAP': await Config.get('ldap.enable')}
-
-
 # API Key
 
 
 class OAuthConfigForm(BaseModel):
-    """All OAuth/OIDC settings exposed to the admin panel."""
+    """Google sign-in and shared OAuth policy exposed to the admin panel."""
 
     # General OAuth
     ENABLE_OAUTH: bool | None = None
@@ -1355,16 +922,12 @@ class OAuthConfigForm(BaseModel):
     OAUTH_GROUP_CLAIM: str | None = None
     OAUTH_GROUP_DEFAULT_SHARE: bool | str | None = None
 
-    # OIDC provider settings
-    OAUTH_PROVIDER_NAME: str | None = None
-    OPENID_PROVIDER_URL: str | None = None
-    OAUTH_CLIENT_ID: str | None = None
-    OAUTH_CLIENT_SECRET: str | None = None
-    OPENID_REDIRECT_URI: str | None = None
-    OAUTH_SCOPES: str | None = None
+    # Google sign-in connection
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_REDIRECT_URI: str | None = None
+    GOOGLE_OAUTH_SCOPE: str | None = None
     OAUTH_CODE_CHALLENGE_METHOD: str | None = None
-    OAUTH_TOKEN_ENDPOINT_AUTH_METHOD: str | None = None
-    OPENID_END_SESSION_ENDPOINT: str | None = None
     OAUTH_TIMEOUT: int | str | None = None
     OAUTH_CLIENT_TIMEOUT: int | str | None = None
 
@@ -1406,15 +969,11 @@ OAUTH_CONFIG_KEYS = {
     'ENABLE_OAUTH_GROUP_CREATION': 'oauth.enable_group_creation',
     'OAUTH_GROUP_CLAIM': 'oauth.group_claim',
     'OAUTH_GROUP_DEFAULT_SHARE': 'oauth.group_default_share',
-    'OAUTH_PROVIDER_NAME': 'oauth.provider_name',
-    'OPENID_PROVIDER_URL': 'oauth.provider_url',
-    'OAUTH_CLIENT_ID': 'oauth.client_id',
-    'OAUTH_CLIENT_SECRET': 'oauth.client_secret',
-    'OPENID_REDIRECT_URI': 'oauth.redirect_uri',
-    'OAUTH_SCOPES': 'oauth.scopes',
+    'GOOGLE_CLIENT_ID': 'oauth.google.client_id',
+    'GOOGLE_CLIENT_SECRET': 'oauth.google.client_secret',
+    'GOOGLE_REDIRECT_URI': 'oauth.google.redirect_uri',
+    'GOOGLE_OAUTH_SCOPE': 'oauth.google.scope',
     'OAUTH_CODE_CHALLENGE_METHOD': 'oauth.code_challenge_method',
-    'OAUTH_TOKEN_ENDPOINT_AUTH_METHOD': 'oauth.token_endpoint_auth_method',
-    'OPENID_END_SESSION_ENDPOINT': 'oauth.end_session_endpoint',
     'OAUTH_TIMEOUT': 'oauth.timeout',
     'OAUTH_CLIENT_TIMEOUT': 'oauth.client.timeout',
     'OAUTH_EMAIL_CLAIM': 'oauth.email_claim',
@@ -1477,7 +1036,7 @@ async def get_oauth_config(request: Request, user=Depends(get_admin_user)):
 @router.post('/admin/config/oauth', response_model=OAuthConfigResponse)
 async def update_oauth_config(request: Request, form_data: OAuthConfigForm, user=Depends(get_admin_user)):
     try:
-        oauth_client_kwargs(form_data.OAUTH_SCOPES, form_data.OAUTH_TIMEOUT, form_data.OAUTH_CODE_CHALLENGE_METHOD)
+        oauth_client_kwargs(form_data.GOOGLE_OAUTH_SCOPE, form_data.OAUTH_TIMEOUT, form_data.OAUTH_CODE_CHALLENGE_METHOD)
     except ValueError as e:
         raise HTTPException(400, detail=str(e))
     await Config.upsert(oauth_config_updates(form_data.model_dump(exclude_none=True)))

@@ -257,6 +257,67 @@ async def test_runtime_resume_from_fresh_instance_preserves_turn_and_event_order
     ]
     assert [event.sequence for event in events] == list(range(1, len(events) + 1))
 
+
+@pytest.mark.asyncio
+async def test_user_question_wait_survives_runtime_restart(pg_repository):
+    repository, sessions = pg_repository
+    metadata = {}
+    runtime = AgentRuntime(repository, worker_id='question-worker')
+
+    async def ask():
+        metadata['agent_waiting_user_input'] = {'call_id': 'ask-1'}
+        return {'paused': True}
+
+    await runtime.start(
+        owner_id='owner-1', chat_id='chat-question', chat_message_id='message-1',
+        user_message_id='user-message-1', model_id='model-a',
+        request_payload={'messages': [{'role': 'user', 'content': 'choose'}]},
+        metadata=metadata, handler=ask,
+    )
+    turn_id = metadata['agent_turn_id']
+    status = await runtime.get_status(turn_id, owner_id='owner-1')
+    assert status['status'] == 'waiting_user_input'
+    assert [event.event_type for event in await repository.list_events(turn_id)][-1] == 'turn.waiting_user_input'
+
+    reopened = AgentRuntime(AgentRepository(sessions), worker_id='resumed-question-worker')
+    with pytest.raises(HTTPException) as denied:
+        await reopened.resume(turn_id, owner_id='other-user', handler=lambda: None)
+    assert denied.value.status_code == 404
+
+    async def answer():
+        return {'status': 'answered'}
+
+    await reopened.resume(turn_id, owner_id='owner-1', handler=answer)
+    assert (await reopened.get_status(turn_id, owner_id='owner-1'))['status'] == 'completed'
+
+
+@pytest.mark.asyncio
+async def test_streamed_user_question_is_persisted_before_replay(pg_repository):
+    from starlette.responses import StreamingResponse
+
+    repository, _ = pg_repository
+    runtime = AgentRuntime(repository)
+    metadata = {}
+
+    async def chunks():
+        yield b'data: question\n\n'
+
+    async def ask():
+        metadata['agent_waiting_user_input'] = {'call_id': 'ask-stream-1'}
+        return StreamingResponse(chunks(), media_type='text/event-stream')
+
+    response = await runtime.start(
+        owner_id='owner-1', chat_id='chat-stream-question', chat_message_id='message-1',
+        user_message_id='user-message-1', model_id='model-a',
+        request_payload={'messages': [{'role': 'user', 'content': 'choose'}]},
+        metadata=metadata, handler=ask,
+    )
+    assert [chunk async for chunk in response.body_iterator] == [b'data: question\n\n']
+    status = await runtime.get_status(metadata['agent_turn_id'], owner_id='owner-1')
+    assert status['status'] == 'waiting_user_input'
+    page = await runtime.stream(metadata['agent_turn_id'], owner_id='owner-1')
+    assert [event.event_type for event in page['events']][-1] == 'turn.waiting_user_input'
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('retry_safe', [True, False])
 async def test_killed_worker_recovery_preserves_checkpoint_and_classifies_tool_outcome(

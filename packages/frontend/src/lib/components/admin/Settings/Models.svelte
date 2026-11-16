@@ -1084,9 +1084,7 @@
 											content={marked.parse(
 												!!model?.meta?.description
 													? model?.meta?.description
-													: model?.ollama?.digest
-														? `${model?.ollama?.digest} **(${model?.ollama?.modified_at})**`
-														: model.id
+													: model.id
 											)}
 											allowHTML={true}
 											className="min-w-0 flex-1"

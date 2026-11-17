@@ -1,6 +1,6 @@
 # Mini-Hermes tiered model routing and release notes
 
-**Status:** Conversational design approved 2026-11-18; written-spec review pending.
+**Status:** Written specification approved 2026-11-18; implementation plans prepared separately.
 
 ## Purpose and constraints
 

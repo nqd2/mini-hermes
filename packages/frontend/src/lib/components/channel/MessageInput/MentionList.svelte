@@ -262,9 +262,6 @@
 									alt={item?.data?.name ?? item.id}
 									class="size-4 shrink-0 rounded-full object-cover"
 									on:error={(e) => {
-										// LICENSE covers this Open WebUI fallback logo.
-										// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-										// https://docs.openwebui.com/license.
 										e.currentTarget.src = '/favicon.png';
 									}}
 								/>
@@ -274,9 +271,6 @@
 									alt={item?.label ?? item.id}
 									class="size-4 shrink-0 rounded-full object-cover"
 									on:error={(e) => {
-										// LICENSE covers this Open WebUI fallback logo.
-										// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-										// https://docs.openwebui.com/license.
 										e.currentTarget.src = '/favicon.png';
 									}}
 								/>

@@ -348,7 +348,6 @@ type Config = {
 		stt: { engine: string };
 		tts: { engine: string; voice: string; split_on: string };
 	};
-	license_metadata: any;
 	status: boolean;
 	name: string;
 	version: string;

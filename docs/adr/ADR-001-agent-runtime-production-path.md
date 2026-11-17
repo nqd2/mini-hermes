@@ -6,7 +6,7 @@
 
 ## Decision
 
-Mini-Hermes keeps its current AgentRuntime as the only production execution path. DeerFlow is a conditional replacement candidate and is not a default migration. Open WebUI remains the product UI and owns authentication, RBAC, chat, and model management. Keep its existing license and copyright notices. Track the rolling 30-day user count; revisit licensing or branding only if real usage creates a need.
+Mini-Hermes keeps its current AgentRuntime as the only production execution path. DeerFlow is a conditional replacement candidate and is not a default migration. Open WebUI remains the product UI and owns authentication, RBAC, chat, and model management. Track the rolling 30-day user count; revisit licensing or branding only if real usage creates a need.
 
 Production-grade reliability, security, recovery, observability, and data-integrity requirements remain in scope. A 99.9% availability target is an internal objective, not a committed SLA.
 

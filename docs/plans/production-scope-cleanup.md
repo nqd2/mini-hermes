@@ -12,7 +12,7 @@ The earlier [use-case inventory](../design/mini-hermes-use-cases-design-and-test
 - Make `ask_user` a durable AgentRuntime wait: no browser timeout, owner-scoped answer/cancel, idempotent resume, and recovery after reload or restart. This is distinct from tool and document approval.
 - Keep local document-skill sandboxing. Remove external terminal, file browser and remote desktop integrations.
 - Remove OneDrive, non-Google SSO/SCIM, Ollama, Notes, Channels, encrypted channels, comments, Calendar, Automations, Apps, audio, Playground, public/community chat sharing, user webhooks, Subagents, arena/leaderboard UI and legacy Functions/Pipelines execution after required capability moves to MCP/Skill Runtime.
-- Preserve current Open WebUI license and copyright notices and rolling 30-day user tracking.
+
 
 ## Implementation sequence
 

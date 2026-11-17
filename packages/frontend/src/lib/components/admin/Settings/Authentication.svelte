@@ -493,9 +493,6 @@
 							/>
 						</AdminSettingField>
 
-						<!-- LICENSE covers this Open WebUI wordmark.
-						Do not alter, remove, obscure, or replace it except as LICENSE permits:
-						https://docs.openwebui.com/license. -->
 						<AdminSettingRow
 							label={$i18n.t('settings.admin.authentication.roleMapping.label')}
 							description={$i18n.t('settings.admin.authentication.roleMapping.description')}
@@ -550,9 +547,6 @@
 							</AdminSettingField>
 						{/if}
 
-						<!-- LICENSE covers this Open WebUI wordmark.
-						Do not alter, remove, obscure, or replace it except as LICENSE permits:
-						https://docs.openwebui.com/license. -->
 						<AdminSettingRow
 							label={$i18n.t('settings.admin.authentication.enableOauthGroupManagement.label')}
 							description={$i18n.t(

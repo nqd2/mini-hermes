@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Work in the supplied checkout; do not create a worktree. Keep `references/open-webui` unchanged and preserve Open WebUI license and copyright notices.
+- Work in the supplied checkout; do not create a worktree. Keep `references/open-webui` unchanged
 - Keep the current AgentRuntime as the production path, one immutable engine binding per conversation, and Revision Service as the only document commit authority.
 - Keep the 95,000-character internal preparation limit and 100,000-character final serialized JSON limit, measured after provider transforms and before HTTP.
 - Use existing stack/dependencies, PostgreSQL and SQLAlchemy async. Do not reset production data or run a production migration/cutover as part of this plan.
@@ -134,6 +134,6 @@
 
 - [ ] Write an end-to-end test with disposable PostgreSQL, stub provider responses, a Free account, and a Plus account; assert six logical IDs are tier-filtered, Plus calls across two configured providers consume the same monthly limit, Free never reaches a paid model, and restart/retry does not double-charge.
 - [ ] Run `python -m pytest tests/test_mh_tier_end_to_end.py -q` with `MH_TEST_POSTGRES_URL`; confirm expected failures before any final integration fix.
-- [ ] Make only integration fixes required by the test; document admin key/pool setup, Free capacity assumptions, UTC reset, errors, privacy review, and migration/rollback steps. Record the rolling 30-day user count in release monitoring without changing the current license position.
+- [ ] Make only integration fixes required by the test; document admin key/pool setup, Free capacity assumptions, UTC reset, errors, privacy review, and migration/rollback steps.
 - [ ] Run all focused backend tier tests, relevant AgentRuntime/auth/model tests, full frontend Vitest, `git diff --check`, and staging security/recovery/load gates. Report exact pass/fail results; a local suite alone does not authorize production rollout.
 - [ ] Commit the verified guide and integration tests. Do not apply production migration, canary, or traffic cutover without separate approval.

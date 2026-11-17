@@ -1,5 +1,4 @@
 <script lang="ts">
-	import DOMPurify from 'dompurify';
 	import { v4 as uuidv4 } from 'uuid';
 
 	import { getBackendConfig, getVersionUpdates } from '$lib/apis';
@@ -197,9 +196,6 @@
 								{$i18n.t('settings.admin.general.help.label')}
 							</div>
 							<div class="mt-0.5 text-gray-400 dark:text-gray-600">
-								<!-- LICENSE covers this Open WebUI wordmark.
-								Do not alter, remove, obscure, or replace it except as LICENSE permits:
-								https://docs.openwebui.com/license. -->
 								{$i18n.t('settings.admin.general.help.description')}
 							</div>
 						</div>
@@ -232,55 +228,9 @@
 					</div>
 				</div>
 
-				<div class="text-xs">
-					<!-- LICENSE covers this Open WebUI license attribution.
-					Do not alter, remove, obscure, or replace it except as LICENSE permits:
-					https://docs.openwebui.com/license. -->
-					<div class="text-gray-600 dark:text-gray-400">
-						{$i18n.t('settings.admin.general.license.label')}
-					</div>
-
-					{#if $config?.license_metadata}
-						<a
-							href="https://docs.openwebui.com/enterprise"
-							target="_blank"
-							class="mt-0.5 block text-gray-500"
-						>
-							<span class="capitalize text-black dark:text-white"
-								>{$config?.license_metadata?.type} license</span
-							>
-							{$i18n.t('registered to')}
-							<span class="capitalize text-black dark:text-white"
-								>{$config?.license_metadata?.organization_name}</span
-							>
-							for
-							<span class="text-black dark:text-white"
-								>{$config?.license_metadata?.seats ?? 'Unlimited'} users.</span
-							>
-						</a>
-						{#if $config?.license_metadata?.html}
-							<div class="mt-0.5 text-gray-500">
-								{@html DOMPurify.sanitize($config?.license_metadata?.html)}
-							</div>
-						{/if}
-					{:else}
-						<a
-							class="mt-0.5 block text-gray-400 transition-colors hover:text-gray-700 dark:text-gray-600 dark:hover:text-gray-300"
-							href="https://docs.openwebui.com/enterprise"
-							target="_blank"
-						>
-							{$i18n.t(
-								'Upgrade to a licensed plan for enhanced capabilities, including custom theming and branding, and dedicated support.'
-							)}
-						</a>
-					{/if}
-				</div>
 			</AdminSettingSection>
 
 			<AdminSettingSection title={$i18n.t('settings.admin.general.sections.features.title')}>
-				<!-- LICENSE covers this Open WebUI Community wordmark.
-				Do not alter, remove, obscure, or replace it except as LICENSE permits:
-				https://docs.openwebui.com/license. -->
 				<AdminSettingRow
 					label={$i18n.t('settings.admin.general.messageRating.label')}
 					description={$i18n.t('settings.admin.general.messageRating.description')}

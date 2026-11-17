@@ -226,9 +226,6 @@
 			return null;
 		});
 
-		// LICENSE covers this Open WebUI Community wordmark.
-		// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-		// https://docs.openwebui.com/license.
 		toast.success($i18n.t('Redirecting you to Open WebUI Community'));
 
 		const url = 'https://openwebui.com';
@@ -335,9 +332,6 @@
 <WorkspaceAccessModal bind:this={accessModal} resourceType="tools" onUpdated={init} />
 
 <svelte:head>
-	<!-- LICENSE covers this Open WebUI browser-title identifier.
-	Do not alter, remove, obscure, or replace it except as LICENSE permits:
-	https://docs.openwebui.com/license. -->
 	<title>
 		{$i18n.t('Tools')} / {$WEBUI_NAME}
 	</title>

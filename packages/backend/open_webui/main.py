@@ -94,7 +94,6 @@ from open_webui.env import (
     EXTERNAL_PWA_MANIFEST_URL,
     GLOBAL_LOG_LEVEL,
     INSTANCE_ID,
-    LICENSE_KEY,
     LOG_FORMAT,
     MAX_BODY_LOG_SIZE,
     # Redis
@@ -202,7 +201,6 @@ from open_webui.utils.auth import (
     decode_token,
     get_admin_user,
     get_http_authorization_cred,
-    get_license_data,
     get_verified_user,
     is_valid_token,
 )
@@ -328,10 +326,6 @@ https://github.com/open-webui/open-webui
     try:
         print(banner)
     except UnicodeEncodeError:
-        # Stdout can't encode the box-drawing banner (Windows cp1252, redirected/headless stdout); fall back to ASCII.
-        # LICENSE covers this Open WebUI CLI identifier.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         print(f'Open WebUI v{VERSION} - building the best AI user interface.\nhttps://github.com/open-webui/open-webui')
 
 
@@ -389,10 +383,6 @@ async def lifespan(app: FastAPI):
     )
     app.state.revision_outbox_dispatcher = asyncio.create_task(revision_outbox_dispatch_loop(app))
     await publish_event(request, EVENTS.SYSTEM_STARTUP_STARTED, source='system')
-
-    license_task = None
-    if LICENSE_KEY:
-        license_task = asyncio.create_task(asyncio.to_thread(get_license_data, app, LICENSE_KEY))
 
     # Create admin account from env vars if specified and no users exist
     if WEBUI_ADMIN_EMAIL and WEBUI_ADMIN_PASSWORD:
@@ -467,14 +457,6 @@ async def lifespan(app: FastAPI):
             log.warning(f'Failed to initialize tool servers at startup: {e}')
 
     # Mark application as ready to accept traffic from a startup perspective.
-    if license_task:
-        try:
-            await asyncio.wait_for(asyncio.shield(license_task), timeout=2)
-        except asyncio.TimeoutError:
-            log.warning('License data retrieval is still pending; continuing startup without it')
-        except Exception as e:
-            log.warning(f'License data retrieval failed during startup: {e}')
-
     app.state.startup_complete = True
     await publish_event(request, EVENTS.SYSTEM_STARTUP_COMPLETED, source='system')
 
@@ -556,9 +538,6 @@ async def revision_outbox_dispatch_loop(app: FastAPI, *, interval_seconds: int =
 # response_model routes keep FastAPI's Pydantic fast path either way.
 apply_orjson_http_json()
 
-# LICENSE covers this Open WebUI API metadata identifier.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 app = FastAPI(
     title='Open WebUI',
     docs_url='/docs' if ENV == 'dev' else None,
@@ -587,13 +566,7 @@ app.state.oauth_client_manager = oauth_client_manager
 app.state.instance_id = None
 app.state.redis = None
 
-# LICENSE covers this Open WebUI branding surface, including name, logo,
-# visual, textual, symbolic identifiers, metadata, and surrounding UI.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 app.state.WEBUI_NAME = WEBUI_NAME
-app.state.LICENSE_METADATA = None
-app.state.USER_COUNT = None
 app.state.EXTERNAL_PWA_MANIFEST_URL = EXTERNAL_PWA_MANIFEST_URL
 
 
@@ -2399,8 +2372,6 @@ async def get_app_config(request: Request):
     if user is None:
         onboarding = not await Users.has_users()
 
-    license_metadata = getattr(app.state, 'LICENSE_METADATA', None)
-    user_count = await Users.get_num_users() if license_metadata else None
     config = await Config.get_many(
         'oauth.enable',
         'oauth.auto_redirect',
@@ -2527,7 +2498,6 @@ async def get_app_config(request: Request):
                 'default_pinned_models': config.get('ui.default_pinned_models'),
                 'default_prompt_suggestions': config.get('ui.prompt_suggestions'),
                 'default_prompt_suggestions_i18n': config.get('ui.prompt_suggestions_i18n'),
-                **({'user_count': user_count} if user_count is not None else {}),
                 'code': {
                     'engine': config.get('code_execution.engine'),
                     'interpreter_engine': config.get('code_interpreter.engine'),
@@ -2553,14 +2523,6 @@ async def get_app_config(request: Request):
                     'response_watermark': config.get('ui.watermark'),
                     'iframe_csp': IFRAME_CSP,
                 },
-                'license_metadata': license_metadata,
-                **(
-                    {
-                        'active_entries': user_count,
-                    }
-                    if user.role == 'admin' and user_count is not None
-                    else {}
-                ),
             }
             if user is not None and (user.role in ['admin', 'user'])
             else {
@@ -2572,16 +2534,6 @@ async def get_app_config(request: Request):
                         }
                     }
                     if user and user.role == 'pending'
-                    else {}
-                ),
-                **(
-                    {
-                        'metadata': {
-                            'login_footer': license_metadata.get('login_footer', ''),
-                            'auth_logo_position': license_metadata.get('auth_logo_position', ''),
-                        }
-                    }
-                    if license_metadata
                     else {}
                 ),
             }
@@ -2995,10 +2947,6 @@ async def oauth_backchannel_logout(
 async def get_manifest_json():
     external_pwa_manifest_url = getattr(app.state, 'EXTERNAL_PWA_MANIFEST_URL', None)
     if external_pwa_manifest_url:
-        # LICENSE covers this install-time Open WebUI branding surface, including
-        # names, logos, manifests, metadata, and surrounding UI.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         session = await get_session()
         async with session.get(
             external_pwa_manifest_url,
@@ -3007,10 +2955,6 @@ async def get_manifest_json():
             r.raise_for_status()
             return await r.json()
     else:
-        # LICENSE covers this generated Open WebUI install branding surface,
-        # including names, logos, manifests, metadata, and surrounding UI.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         return {
             'name': app.state.WEBUI_NAME,
             'short_name': app.state.WEBUI_NAME,
@@ -3019,9 +2963,6 @@ async def get_manifest_json():
             'display': 'standalone',
             'background_color': '#343541',
             'icons': [
-                # LICENSE covers this Open WebUI install icon.
-                # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-                # https://docs.openwebui.com/license.
                 {
                     'src': '/static/logo.png',
                     'type': 'image/png',
@@ -3046,9 +2987,6 @@ async def get_manifest_json():
 @app.get('/opensearch.xml')
 async def get_opensearch_xml():
     webui_url = await Config.get('webui.url')
-    # LICENSE covers this Open WebUI search identifier.
-    # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-    # https://docs.openwebui.com/license.
     xml_content = rf"""
     <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" xmlns:moz="http://www.mozilla.org/2006/browser/search/">
     <ShortName>{app.state.WEBUI_NAME}</ShortName>

@@ -259,7 +259,7 @@
 			atSelectedModel?.info?.meta?.background_image_url ||
 			$models.find((model) => model.id === selectedModels[selectedModelIdx])?.info?.meta
 				?.background_image_url ||
-			($settings?.backgroundImageUrl ?? $config?.license_metadata?.background_image_url);
+			$settings?.backgroundImageUrl;
 
 	let atSelectedModel: Model | undefined;
 	let selectedModelIds: string[] = [];
@@ -4411,9 +4411,6 @@
 </script>
 
 <svelte:head>
-	<!-- LICENSE covers this Open WebUI browser-title identifier.
-	Do not alter, remove, obscure, or replace it except as LICENSE permits:
-	https://docs.openwebui.com/license. -->
 	<title>
 		{$settings.showChatTitleInTab !== false && $chatTitle
 			? `${$chatTitle.length > 30 ? `${$chatTitle.slice(0, 30)}...` : $chatTitle} / ${$WEBUI_NAME}`

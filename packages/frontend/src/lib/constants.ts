@@ -1,9 +1,5 @@
 // import { version } from '../../package.json';
 
-// LICENSE covers this Open WebUI branding surface, including name, logo,
-// visual, textual, symbolic identifiers, metadata, and surrounding UI.
-// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-// https://docs.openwebui.com/license.
 export const APP_NAME = 'Open WebUI';
 
 export const WEBUI_HOSTNAME = '';

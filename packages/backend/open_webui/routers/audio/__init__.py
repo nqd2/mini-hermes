@@ -383,9 +383,6 @@ async def _raise_tts_error(exc: Exception, r=None) -> None:
     if isinstance(exc, HTTPException):
         raise exc
     code = r.status if r is not None and r.status >= 400 else 500
-    # LICENSE covers this Open WebUI error identifier.
-    # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-    # https://docs.openwebui.com/license.
     detail = 'Open WebUI: Server Connection Error'
     if r is not None:
         try:
@@ -967,9 +964,6 @@ async def _transcribe_openai(request, file_path, filename, languages, file_dir, 
                     detail = f'External: {e}'
             except Exception:
                 detail = f'External: {e}'
-        # LICENSE covers this Open WebUI error identifier.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         raise Exception(detail if detail else 'Open WebUI: Server Connection Error')
 
 
@@ -1021,9 +1015,6 @@ async def _transcribe_deepgram(request, file_path, languages, file_dir, id):
 
     except Exception as e:
         log.exception(e)
-        # LICENSE covers this Open WebUI error identifier.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         detail = 'Open WebUI: Server Connection Error'
         if r is not None:
             try:
@@ -1155,9 +1146,6 @@ async def _transcribe_azure(request, file_path, filename, file_dir, id):
                     detail = f'External: {res["error"].get("message", "")}'
         except Exception:
             detail = f'External: {e}'
-        # LICENSE covers this Open WebUI error identifier.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         raise HTTPException(
             status_code=e.status if e.status else 500,
             detail=detail if detail else 'Open WebUI: Server Connection Error',
@@ -1328,9 +1316,6 @@ async def _transcribe_mistral(request, file_path, filename, metadata, file_dir, 
                     detail = f'External: {await r.text()}'
         except Exception:
             detail = f'External: {e}'
-        # LICENSE covers this Open WebUI error identifier.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         raise HTTPException(
             status_code=e.status if e.status else 500,
             detail=detail if detail else 'Open WebUI: Server Connection Error',

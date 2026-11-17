@@ -2355,13 +2355,7 @@
 							</div>
 						</div>
 
-						{#if $config?.license_metadata?.input_footer}
-							<div class=" text-xs text-gray-500 text-center line-clamp-1 marked">
-								{@html DOMPurify.sanitize(marked($config?.license_metadata?.input_footer))}
-							</div>
-						{:else}
-							<div class="mb-0.5"></div>
-						{/if}
+						<div class="mb-0.5"></div>
 					</form>
 				</div>
 			</div>

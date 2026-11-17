@@ -50,9 +50,6 @@
 	</h2>
 
 	<div class="flex-1 min-h-0 overflow-y-auto scrollbar-hover pr-1.5">
-		<!-- LICENSE covers this Open WebUI About identifier.
-		Do not alter, remove, obscure, or replace it except as LICENSE permits:
-		https://docs.openwebui.com/license. -->
 		<UserSettingSection
 			title={`${$WEBUI_NAME} ${$i18n.t('settings.personal.about.sections.version.title')}`}
 			first
@@ -113,21 +110,7 @@
 		</UserSettingSection>
 
 		<UserSettingSection title={$i18n.t('settings.personal.about.sections.community.title')}>
-			{#if $config?.license_metadata}
-				<!-- LICENSE covers this Open WebUI license attribution.
-				Do not alter, remove, obscure, or replace it except as LICENSE permits:
-				https://docs.openwebui.com/license. -->
-				<div class="text-xs text-gray-600 dark:text-gray-400">
-					{#if !$WEBUI_NAME.includes('Open WebUI')}
-						<span>{$WEBUI_NAME}</span> -
-					{/if}
-
-					<span class="capitalize">{$config?.license_metadata?.type}</span>
-					{$i18n.t('license purchased by')}
-					<span class="capitalize">{$config?.license_metadata?.organization_name}</span>
-				</div>
-			{:else}
-				<div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-600">
+			<div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-600">
 					<a
 						class="hover:text-gray-700 dark:hover:text-gray-400"
 						href="https://discord.gg/5rJgQTnV4s"
@@ -143,8 +126,7 @@
 						href="https://github.com/open-webui/open-webui"
 						target="_blank">GitHub</a
 					>
-				</div>
-			{/if}
+			</div>
 
 			<div class="text-xs text-gray-400 dark:text-gray-500">
 				{$i18n.t('Emoji graphics provided by')}
@@ -154,24 +136,6 @@
 				<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC-BY 4.0</a>.
 			</div>
 
-			<div class="text-xs text-gray-400 dark:text-gray-500">
-				<!-- LICENSE covers this Open WebUI copyright attribution.
-				Do not alter, remove, obscure, or replace it except as LICENSE permits:
-				https://docs.openwebui.com/license. -->
-				{$i18n.t('Copyright (c)')}
-				{new Date().getFullYear()}
-				<a href="https://openwebui.com" target="_blank" class="underline">Open WebUI Inc.</a>
-				<a href="https://github.com/open-webui/open-webui/blob/main/LICENSE" target="_blank"
-					>{$i18n.t('All rights reserved.')}</a
-				>
-			</div>
-
-			<div class="text-xs text-gray-400 dark:text-gray-500">
-				{$i18n.t('Created by')}
-				<a class="text-gray-500 dark:text-gray-400" href="https://github.com/tjbck" target="_blank"
-					>Tim J. Baek</a
-				>
-			</div>
 		</UserSettingSection>
 	</div>
 </div>

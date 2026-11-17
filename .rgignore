@@ -1,0 +1,11 @@
+# Keep Open WebUI legal artifacts out of routine code searches.
+/packages/backend/LICENSE
+/packages/backend/LICENSE_HISTORY
+/packages/backend/LICENSE_NOTICE
+/packages/frontend/LICENSE
+/packages/frontend/LICENSE_HISTORY
+/packages/frontend/LICENSE_NOTICE
+/references/open-webui/LICENSE
+/references/open-webui/LICENSE_HISTORY
+/references/open-webui/LICENSE_NOTICE
+/references/open-webui/CONTRIBUTOR_LICENSE_AGREEMENT

@@ -636,9 +636,6 @@
 					<Switch bind:state={STT_MISTRAL_USE_CHAT_COMPLETIONS} ariaLabelledbyId={labelId} />
 				</AdminSettingRow>
 			{:else if STT_ENGINE === ''}
-				<!-- LICENSE covers this Open WebUI wordmark.
-					Do not alter, remove, obscure, or replace it except as LICENSE permits:
-					https://docs.openwebui.com/license. -->
 				<AdminSettingField
 					label={$i18n.t('settings.admin.audio.sttWhisperModel.label')}
 					description={$i18n.t('settings.admin.audio.sttWhisperModel.description')}
@@ -837,9 +834,6 @@
 					</SettingsSelect>
 				</AdminSettingField>
 			{:else if TTS_ENGINE === 'transformers'}
-				<!-- LICENSE covers this Open WebUI wordmark.
-					Do not alter, remove, obscure, or replace it except as LICENSE permits:
-					https://docs.openwebui.com/license. -->
 				<AdminSettingField
 					label={$i18n.t('settings.admin.audio.ttsModel.label')}
 					description={$i18n.t('settings.admin.audio.ttsModel.description')}

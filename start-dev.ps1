@@ -10,7 +10,7 @@ $backendEnv = Join-Path $repo 'packages\backend\.env'
 $frontendEnv = Join-Path $repo 'packages\frontend\.env'
 
 if (-not (Test-Path -LiteralPath $python)) {
-    throw 'Python venv missing. Run: uv venv --python 3.12 .venv; uv pip install --python .venv\Scripts\python.exe -r packages\backend\requirements-mini-hermes.lock'
+    throw 'Python venv missing. Run: uv venv --python 3.12 .venv; uv pip install --python .venv\Scripts\python.exe -r packages\backend\requirements-agent-runtime.lock'
 }
 if (-not (Test-Path -LiteralPath $backendEnv)) {
     throw 'Backend env missing. Copy packages\backend\.env.example to packages\backend\.env and fill it.'

@@ -10,9 +10,9 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes import worker
-from open_webui.mini_hermes.drive import DriveClient, DriveError, sheet_range
-from open_webui.mini_hermes.models import (
+from weai.documents import worker
+from weai.documents.drive import DriveClient, DriveError, sheet_range
+from weai.documents.models import (
     Document,
     DocumentChunk,
     DriveCredential,
@@ -25,8 +25,8 @@ from open_webui.mini_hermes.models import (
     SyncJob,
     now,
 )
-from open_webui.mini_hermes.oauth import save_refresh_token
-from open_webui.mini_hermes.service import commit_preview, create_document, create_preview, owned_document
+from weai.documents.oauth import save_refresh_token
+from weai.documents.service import commit_preview, create_document, create_preview, owned_document
 
 
 class MemoryStore:
@@ -133,11 +133,11 @@ async def test_preview_commit_is_idempotent_and_owned():
             await owned_document(db, doc.id, 'other')
         assert error.value.status_code == 404
         preview = await create_preview(db, doc, 'owner', [{'op': 'replace_text', 'find': 'Before', 'replace': 'After'}])
-        from open_webui.mini_hermes.service import build_preview
+        from weai.documents.service import build_preview
         await build_preview(db, store, preview)
         assert preview.artifact_sha256 in preview.preview_key
         assert preview.patch_hash == __import__(
-            'open_webui.mini_hermes.revision_service', fromlist=['compute_patch_hash']
+            'weai.documents.revision_service', fromlist=['compute_patch_hash']
         ).compute_patch_hash(
             base_revision=preview.base_revision,
             base_sha256=preview.base_sha256,
@@ -175,7 +175,7 @@ async def test_preview_commit_is_idempotent_and_owned():
 
 @pytest.mark.asyncio
 async def test_drive_refresh_tokens_are_encrypted_per_user(monkeypatch):
-    monkeypatch.setenv('MH_TOKEN_ENCRYPTION_KEY', 'test-only-key')
+    monkeypatch.setenv('AGENT_RUNTIME_TOKEN_ENCRYPTION_KEY', 'test-only-key')
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: DriveCredential.__table__.create(sync))

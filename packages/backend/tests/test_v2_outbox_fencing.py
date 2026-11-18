@@ -11,9 +11,9 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.models import MhOutbox
-from open_webui.mini_hermes.v2.outbox import OutboxDispatcher, insert_outbox_event
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.models import WeAIOutbox
+from weai.persistence.v2.outbox import OutboxDispatcher, insert_outbox_event
 
 
 @pytest.fixture(scope="module")
@@ -26,17 +26,17 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def disposable_pg_schema():
     """Fixture providing a disposable schema for testing."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
-    schema_name = f"mh_test_outbox_{uuid4().hex}"
+    schema_name = f"ar_test_outbox_{uuid4().hex}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
 
@@ -76,7 +76,7 @@ async def test_insert_outbox_event_inside_transaction(disposable_pg_schema):
         # Verify persisted
         async with session_factory() as session:
             ev = (
-                await session.scalars(select(MhOutbox).where(MhOutbox.event_key == "evt_test_1"))
+                await session.scalars(select(WeAIOutbox).where(WeAIOutbox.event_key == "evt_test_1"))
             ).one_or_none()
             assert ev is not None
             assert ev.event_type == "document.created"
@@ -144,7 +144,7 @@ async def test_outbox_lease_fencing_prevents_stale_worker_publication(disposable
 
         # Verify event is published
         async with session_factory() as session:
-            ev = (await session.scalars(select(MhOutbox).where(MhOutbox.id == event_id))).one()
+            ev = (await session.scalars(select(WeAIOutbox).where(WeAIOutbox.id == event_id))).one()
             assert ev.published_at is not None
     finally:
         await engine.dispose()

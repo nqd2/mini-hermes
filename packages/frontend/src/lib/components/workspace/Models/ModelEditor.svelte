@@ -14,7 +14,7 @@
 
 	import { onMount, onDestroy, getContext, tick } from 'svelte';
 	import { config, models, tools, functions, user, settings, visibleControls } from '$lib/stores';
-	import { WEBUI_BASE_URL, DEFAULT_CAPABILITIES } from '$lib/constants';
+	import { WEAI_BASE_URL, DEFAULT_CAPABILITIES } from '$lib/constants';
 
 	import { getTools } from '$lib/apis/tools';
 	import { getSkills } from '$lib/apis/skills';
@@ -197,7 +197,7 @@
 		base_model_id: null,
 		name: '',
 		meta: {
-			profile_image_url: `${WEBUI_BASE_URL}/static/favicon.png`,
+			profile_image_url: `${WEAI_BASE_URL}/static/favicon.png`,
 			background_image_url: null as string | null,
 			voice: undefined as { voice?: string } | undefined,
 			voice_avatar: null as VoiceAvatarConfig | null,
@@ -1087,7 +1087,7 @@
 											<div class="group relative size-12 shrink-0">
 												<button
 													class="group relative flex size-full items-center overflow-hidden rounded-xl {info
-														.meta.profile_image_url !== `${WEBUI_BASE_URL}/static/favicon.png`
+														.meta.profile_image_url !== `${WEAI_BASE_URL}/static/favicon.png`
 														? 'bg-transparent'
 														: 'bg-gray-50 dark:bg-gray-850'} ring-1 ring-gray-200/70 transition hover:ring-gray-300 dark:ring-white/10 dark:hover:ring-white/20"
 													type="button"
@@ -1104,7 +1104,7 @@
 														/>
 													{:else}
 														<img
-															src="{WEBUI_BASE_URL}/static/favicon.png"
+															src="{WEAI_BASE_URL}/static/favicon.png"
 															alt={$i18n.t('model profile')}
 															class="size-full object-cover"
 														/>
@@ -1138,11 +1138,11 @@
 													></div>
 												</button>
 
-												{#if info.meta.profile_image_url && info.meta.profile_image_url !== `${WEBUI_BASE_URL}/static/favicon.png`}
+												{#if info.meta.profile_image_url && info.meta.profile_image_url !== `${WEAI_BASE_URL}/static/favicon.png`}
 													<button
 														class="absolute left-1/2 top-full mt-1 -translate-x-1/2 text-[0.5rem] leading-none text-gray-400 opacity-0 transition group-hover:opacity-60 hover:text-gray-500 hover:opacity-100 group-focus-within:opacity-60 dark:text-gray-600 dark:hover:text-gray-400"
 														on:click={() => {
-															info.meta.profile_image_url = `${WEBUI_BASE_URL}/static/favicon.png`;
+															info.meta.profile_image_url = `${WEAI_BASE_URL}/static/favicon.png`;
 														}}
 														type="button"
 													>

@@ -31,7 +31,7 @@ describe('createResourceDropController', () => {
     const controller = createResourceDropController(dependencies);
     const event = {
       preventDefault: vi.fn(),
-      dataTransfer: { types: ['text/plain', 'application/x-open-webui-drag'] },
+      dataTransfer: { types: ['text/plain', 'application/x-weai-drag'] },
     };
 
     controller.handleDragOver(event);

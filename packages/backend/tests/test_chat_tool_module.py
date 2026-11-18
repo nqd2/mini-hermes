@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from open_webui.tools import builtin, chat_resources
-from open_webui.utils.json_codec import JSONCodec
+from weai.tools import builtin, chat_resources
+from weai.utils.json_codec import JSONCodec
 
 
 def test_chat_tools_keep_legacy_builtin_imports():

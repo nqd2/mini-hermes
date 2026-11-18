@@ -38,19 +38,19 @@ from pypdf import PdfReader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from open_webui.agent_runtime import (
+from weai.agent_runtime.models import (
     AgentArtifact,
     AgentEvent,
-    AgentRepository,
     AgentSession,
     AgentToolInvocation,
     AgentTurn,
 )
-from open_webui.agent_runtime.contracts import ConversationEngineBinding, RunBinding
-from open_webui.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
-from open_webui.mini_hermes import edits, parsers, revision_service
-from open_webui.mini_hermes.chunks import build_chunk_rows
-from open_webui.mini_hermes.models import (
+from weai.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.contracts import ConversationEngineBinding, RunBinding
+from weai.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
+from weai.documents import edits, parsers, revision_service
+from weai.documents.chunks import build_chunk_rows
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -63,9 +63,9 @@ from open_webui.mini_hermes.models import (
     SyncJob,
     now,
 )
-from open_webui.mini_hermes.revision_integrity import compute_patch_hash
-from open_webui.mini_hermes.revision_service import commit_preview, prepare_rollback_preview
-from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+from weai.documents.revision_integrity import compute_patch_hash
+from weai.documents.revision_service import commit_preview, prepare_rollback_preview
+from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ async def test_tc_t1_ing_01_xlsx_ingestion(fixtures_dir: Path, async_client: htt
     assert actual_sha256 == expected_sha256
 
     response = await async_client.post(
-        "/api/v1/mini-hermes/documents/upload",
+        "/api/v1/agent-runtime/documents/upload",
         files={"file": ("xlsx-f05-synthetic.xlsx", content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
     )
     assert response.status_code == 200
@@ -92,12 +92,12 @@ async def test_tc_t1_ing_01_xlsx_ingestion(fixtures_dir: Path, async_client: htt
     doc_id = doc_data["id"]
 
     # Verify document retrieval endpoint
-    get_res = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}")
+    get_res = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}")
     assert get_res.status_code == 200
     assert get_res.json()["id"] == doc_id
 
     # Verify content readback endpoint
-    content_res = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content")
+    content_res = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content")
     assert content_res.status_code == 200
     assert hashlib.sha256(content_res.content).hexdigest() == expected_sha256
 
@@ -110,7 +110,7 @@ async def test_tc_t1_ing_02_docx_ingestion(fixtures_dir: Path, async_client: htt
     assert hashlib.sha256(content).hexdigest() == expected_sha256
 
     response = await async_client.post(
-        "/api/v1/mini-hermes/documents/upload",
+        "/api/v1/agent-runtime/documents/upload",
         files={"file": ("docx-f01-structured.docx", content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
     assert response.status_code == 200
@@ -118,7 +118,7 @@ async def test_tc_t1_ing_02_docx_ingestion(fixtures_dir: Path, async_client: htt
     assert doc_data["filename"] == "docx-f01-structured.docx"
     doc_id = doc_data["id"]
 
-    content_res = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content")
+    content_res = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content")
     assert content_res.status_code == 200
     assert hashlib.sha256(content_res.content).hexdigest() == expected_sha256
 
@@ -131,7 +131,7 @@ async def test_tc_t1_ing_03_pptx_ingestion(fixtures_dir: Path, async_client: htt
     assert hashlib.sha256(content).hexdigest() == expected_sha256
 
     response = await async_client.post(
-        "/api/v1/mini-hermes/documents/upload",
+        "/api/v1/agent-runtime/documents/upload",
         files={"file": ("pptx-f01-structured.pptx", content, "application/vnd.openxmlformats-officedocument.presentationml.presentation")},
     )
     assert response.status_code == 200
@@ -139,7 +139,7 @@ async def test_tc_t1_ing_03_pptx_ingestion(fixtures_dir: Path, async_client: htt
     assert doc_data["filename"] == "pptx-f01-structured.pptx"
     doc_id = doc_data["id"]
 
-    content_res = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content")
+    content_res = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content")
     assert content_res.status_code == 200
     assert hashlib.sha256(content_res.content).hexdigest() == expected_sha256
 
@@ -152,7 +152,7 @@ async def test_tc_t1_ing_04_pdf_ingestion(fixtures_dir: Path, async_client: http
     assert hashlib.sha256(content).hexdigest() == expected_sha256
 
     response = await async_client.post(
-        "/api/v1/mini-hermes/documents/upload",
+        "/api/v1/agent-runtime/documents/upload",
         files={"file": ("pdf-f01-text-and-image.pdf", content, "application/pdf")},
     )
     assert response.status_code == 200
@@ -160,7 +160,7 @@ async def test_tc_t1_ing_04_pdf_ingestion(fixtures_dir: Path, async_client: http
     assert doc_data["mime_type"] == "application/pdf"
     doc_id = doc_data["id"]
 
-    content_res = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content")
+    content_res = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content")
     assert content_res.status_code == 200
     assert hashlib.sha256(content_res.content).hexdigest() == expected_sha256
 
@@ -439,7 +439,7 @@ def test_tc_t1_tls_01_inspect_document(fixtures_dir: Path):
 @pytest.mark.asyncio
 async def test_tc_t1_tls_02_read_document_range(fixtures_dir: Path, db_session: AsyncSession):
     """TC-T1-TLS-02: Call chunks.read_document_range on DOCX document with start/end cursors."""
-    from open_webui.mini_hermes.chunks import read_document_range, replace_document_chunks
+    from weai.documents.chunks import read_document_range, replace_document_chunks
     content = (fixtures_dir / "docx-f01-structured.docx").read_bytes()
     doc_id = "doc-tls-02"
     await replace_document_chunks(db_session, doc_id, 1, "report.docx", content)
@@ -464,7 +464,7 @@ def test_tc_t1_tls_03_read_spreadsheet_range(fixtures_dir: Path):
 @pytest.mark.asyncio
 async def test_tc_t1_tls_04_search_document(fixtures_dir: Path, db_session: AsyncSession):
     """TC-T1-TLS-04: Search document via chunks.search_document_chunks for keyword and return matches."""
-    from open_webui.mini_hermes.chunks import replace_document_chunks, search_document_chunks
+    from weai.documents.chunks import replace_document_chunks, search_document_chunks
     content = (fixtures_dir / "docx-f01-structured.docx").read_bytes()
     doc_id = "doc-tls-04"
     await replace_document_chunks(db_session, doc_id, 1, "report.docx", content)
@@ -477,7 +477,7 @@ async def test_tc_t1_tls_05_propose_document_edit(fixtures_dir: Path, async_clie
     """TC-T1-TLS-05: Propose cell edit via API /previews endpoint, creating ready preview."""
     content = (fixtures_dir / "xlsx-f05-synthetic.xlsx").read_bytes()
     up_res = await async_client.post(
-        "/api/v1/mini-hermes/documents/upload",
+        "/api/v1/agent-runtime/documents/upload",
         files={"file": ("test.xlsx", content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
     )
     assert up_res.status_code == 200
@@ -485,7 +485,7 @@ async def test_tc_t1_tls_05_propose_document_edit(fixtures_dir: Path, async_clie
 
     ops = [{"op": "set_cell", "sheet": "Interview", "cell": "A1", "value": "New Title"}]
     prev_res = await async_client.post(
-        f"/api/v1/mini-hermes/documents/{doc_id}/previews",
+        f"/api/v1/agent-runtime/documents/{doc_id}/previews",
         json={"operations": ops},
     )
     assert prev_res.status_code == 200
@@ -493,7 +493,7 @@ async def test_tc_t1_tls_05_propose_document_edit(fixtures_dir: Path, async_clie
     preview_id = prev_data["id"]
 
     # Verify preview via GET endpoint
-    get_prev = await async_client.get(f"/api/v1/mini-hermes/previews/{preview_id}")
+    get_prev = await async_client.get(f"/api/v1/agent-runtime/previews/{preview_id}")
     assert get_prev.status_code == 200
     assert get_prev.json()["id"] == preview_id
     assert get_prev.json()["document_id"] == doc_id
@@ -590,7 +590,7 @@ def test_tc_t1_cov_01_parser_complete_state(fixtures_dir: Path):
 @pytest.mark.asyncio
 async def test_tc_t1_cov_02_index_complete_state(fixtures_dir: Path, db_session: AsyncSession):
     """TC-T1-COV-02: Chunk indexer completion stores versioned chunks in DocumentChunk table."""
-    from open_webui.mini_hermes.chunks import replace_document_chunks
+    from weai.documents.chunks import replace_document_chunks
     content = (fixtures_dir / "xlsx-f05-synthetic.xlsx").read_bytes()
     doc_id = "doc-cov-02"
     chunk_count = await replace_document_chunks(db_session, doc_id, 1, "data.xlsx", content)
@@ -608,11 +608,11 @@ async def test_tc_t1_cov_03_analysis_complete_state(
     fixtures_dir: Path, async_client: httpx.AsyncClient, db_session: AsyncSession
 ):
     """TC-T1-COV-03: Long-running task derives coverage_complete only when status is completed with valid evidence."""
-    from open_webui.mini_hermes.chunks import replace_document_chunks
+    from weai.documents.chunks import replace_document_chunks
 
     content = (fixtures_dir / "xlsx-f05-synthetic.xlsx").read_bytes()
     up_res = await async_client.post(
-        "/api/v1/mini-hermes/documents/upload",
+        "/api/v1/agent-runtime/documents/upload",
         files={"file": ("test.xlsx", content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
     )
     assert up_res.status_code == 200
@@ -624,12 +624,12 @@ async def test_tc_t1_cov_03_analysis_complete_state(
     assert chunk_count > 0
 
     # 2. Enqueue genuine task via API
-    task_resp = await async_client.post(f"/api/v1/mini-hermes/documents/{doc_id}/tasks", json={"kind": "summary"})
+    task_resp = await async_client.post(f"/api/v1/agent-runtime/documents/{doc_id}/tasks", json={"kind": "summary"})
     assert task_resp.status_code == 200
     task_id = task_resp.json()["task_id"]
 
     # 3. Verify initial pending task status via API endpoint
-    status_resp = await async_client.get(f"/api/v1/mini-hermes/tasks/{task_id}")
+    status_resp = await async_client.get(f"/api/v1/agent-runtime/tasks/{task_id}")
     assert status_resp.status_code == 200
     initial_data = status_resp.json()
     assert initial_data["task_id"] == task_id
@@ -646,7 +646,7 @@ async def test_tc_t1_cov_03_analysis_complete_state(
     task_record.checkpoint = {"items": [], "evidence_ids": ["ev-cov-01", "ev-cov-02"]}
     await db_session.commit()
 
-    complete_resp = await async_client.get(f"/api/v1/mini-hermes/tasks/{task_id}")
+    complete_resp = await async_client.get(f"/api/v1/agent-runtime/tasks/{task_id}")
     assert complete_resp.status_code == 200
     final_data = complete_resp.json()
     assert final_data["status"] == "completed"
@@ -658,7 +658,7 @@ async def test_tc_t1_cov_03_analysis_complete_state(
 
 def test_tc_t1_cov_04_llm_context_complete_state():
     """TC-T1-COV-04: Context tracking records exact boundaries and flags truncated status via bounded_file_sources."""
-    from open_webui.mini_hermes.resource_aware import bounded_file_sources
+    from weai.documents.resource_aware import bounded_file_sources
     sources = [{
         "source": {"id": "doc-cov-04"},
         "document": ["Long text document content for testing coverage " * 100],
@@ -674,7 +674,7 @@ def test_tc_t1_cov_04_llm_context_complete_state():
 
 def test_tc_t1_cov_05_citation_verification():
     """TC-T1-COV-05: Grounded answer verifies citation linking evidence_id and locator to revision."""
-    from open_webui.mini_hermes.provenance import evidence_id
+    from weai.documents.provenance import evidence_id
     ev_id = evidence_id("doc-01", "1", 0, 50, "Revenue: $1,250,000")
     assert len(ev_id) == 32
     # Modifying locator, revision, or excerpt yields distinct evidence_id
@@ -691,7 +691,7 @@ def test_tc_t1_cov_05_citation_verification():
 async def test_tc_t1_run_01_start_turn_lifecycle(db_sessionmaker):
     """TC-T1-RUN-01: Create turn with idempotency key, verify run record and engine binding."""
     repo = AgentRepository(db_sessionmaker)
-    binding = ConversationEngineBinding(engine_type="mini-hermes.agent_runtime", engine_version="v2")
+    binding = ConversationEngineBinding(engine_type="weai.agent_runtime", engine_version="v2")
     session = await repo.create_session("owner-1", "chat-1", engine_binding=binding)
     turn = await repo.create_turn(
         session.id,
@@ -796,7 +796,7 @@ def test_tc_t1_gwy_04_byte_ceiling_compliance():
 
 def test_tc_t1_gwy_05_openai_provider_forwarding():
     """TC-T1-GWY-05: Provider router accepts OpenAI compatible configuration, zero Ollama routes."""
-    from open_webui.agent_runtime.gateway import ProviderGateway
+    from weai.agent_runtime.gateway import ProviderGateway
     gateway = ProviderGateway()
     payload = {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}
     prepared = gateway.prepare(payload, base_url="https://api.openai.com/v1")
@@ -1086,7 +1086,7 @@ async def test_tc_t1_per_01_greenfield_schema_tables(db_session: AsyncSession):
 
 def test_tc_t1_per_02_startup_validation_success():
     """TC-T1-PER-02: Enforce PostgreSQL requirement via Greenfield startup validator."""
-    from open_webui.mini_hermes.v2.models.base import enforce_postgresql
+    from weai.persistence.v2.models.base import enforce_postgresql
     # PostgreSQL passes validation
     enforce_postgresql("postgresql")
     # Non-PostgreSQL dialects fail-closed
@@ -1098,9 +1098,9 @@ def test_tc_t1_per_02_startup_validation_success():
 @pytest.mark.asyncio
 async def test_tc_t1_per_03_dev_db_local_reset(db_engine, monkeypatch):
     """TC-T1-PER-03: Dev DB local reset cleanly truncates and re-creates tables."""
-    from open_webui.mini_hermes.v2.reset_dev_db import ProductionSafetyViolation, verify_safe_for_dev_reset
+    from weai.persistence.v2.reset_dev_db import ProductionSafetyViolation, verify_safe_for_dev_reset
 
-    monkeypatch.setenv("MH_ALLOW_DEV_RESET", "true")
+    monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", "true")
     monkeypatch.setenv("ENV", "development")
 
     # Guard 1 verification: confirm=False must raise ProductionSafetyViolation
@@ -1124,7 +1124,7 @@ async def test_tc_t1_per_03_dev_db_local_reset(db_engine, monkeypatch):
 @pytest.mark.asyncio
 async def test_tc_t1_per_04_rbac_grant_authorization(db_session: AsyncSession):
     """TC-T1-PER-04: Document access verifies ownership and role permissions via accessible_document."""
-    from open_webui.mini_hermes.library import accessible_document, has_document_access
+    from weai.documents.library import accessible_document, has_document_access
     from fastapi import HTTPException
 
     doc = Document(id="doc-rbac-01", owner_id="user-owner", filename="secret.txt", mime_type="text/plain", current_revision=1)
@@ -1145,7 +1145,7 @@ async def test_tc_t1_per_04_rbac_grant_authorization(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_tc_t1_per_05_commit_time_permission_check(db_session: AsyncSession):
     """TC-T1-PER-05: Re-verify authorization during commit transaction."""
-    from open_webui.mini_hermes.library import accessible_document, has_document_access
+    from weai.documents.library import accessible_document, has_document_access
     from fastapi import HTTPException
 
     doc = Document(id="doc-auth-01", owner_id="user-1", filename="file.txt", mime_type="text/plain", current_revision=1)

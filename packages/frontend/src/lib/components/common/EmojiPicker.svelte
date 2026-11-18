@@ -3,7 +3,7 @@
 
 	import { getContext } from 'svelte';
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -214,7 +214,7 @@
 													on:click={() => selectEmoji(emojiItem)}
 												>
 													<img
-														src="{WEBUI_BASE_URL}/assets/emojis/{emojiItem.name.toLowerCase()}.svg"
+														src="{WEAI_BASE_URL}/assets/emojis/{emojiItem.name.toLowerCase()}.svg"
 														alt={emojiItem.name}
 														class="size-5"
 														loading="lazy"

@@ -23,7 +23,7 @@
 	import AnalyticsModelModal from './AnalyticsModelModal.svelte';
 	import SessionExplorer from './SessionExplorer.svelte';
 	import ProfilePreview from '$lib/components/channel/Messages/Message/ProfilePreview.svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { formatNumber } from '$lib/utils';
 
 	const i18n = getContext<any>('i18n');
@@ -721,7 +721,7 @@
 											<td class="font-normal px-3 py-1.5 text-gray-900 dark:text-white">
 												<div class="flex items-center gap-2">
 													<img
-														src="{WEBUI_API_BASE_URL}/models/model/profile/image?id={model.model_id}"
+														src="{WEAI_API_BASE_URL}/models/model/profile/image?id={model.model_id}"
 														alt={model.name}
 														class="size-5 rounded-full object-cover shrink-0"
 														on:error={(e) => {
@@ -905,7 +905,7 @@
 														sideOffset={6}
 													>
 														<img
-															src="{WEBUI_API_BASE_URL}/users/{user.user_id}/profile/image"
+															src="{WEAI_API_BASE_URL}/users/{user.user_id}/profile/image"
 															alt={user.name || 'User'}
 															class="size-5 rounded-full object-cover shrink-0"
 															on:error={(e) => {

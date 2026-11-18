@@ -19,7 +19,7 @@
 		| undefined
 	>('markdown');
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { skills, terminalSkills } from '$lib/stores';
 	import { copyToClipboard, safeLinkUrl, unescapeHtml } from '$lib/utils';
 
@@ -159,7 +159,7 @@
 		{/if}
 	{:else if token.type === 'iframe'}
 		<iframe
-			src="{WEBUI_BASE_URL}/api/v1/files/{token.fileId}/content"
+			src="{WEAI_BASE_URL}/api/v1/files/{token.fileId}/content"
 			title={token.fileId}
 			width="100%"
 			frameborder="0"

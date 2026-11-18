@@ -292,8 +292,8 @@
 				</AdminSettingField>
 
 				<AdminSettingField
-					label={$i18n.t('settings.admin.general.webuiUrl.label')}
-					description={$i18n.t('settings.admin.general.webuiUrl.description')}
+					label={$i18n.t('settings.admin.general.weaiUrl.label')}
+					description={$i18n.t('settings.admin.general.weaiUrl.description')}
 					forId="webui-url"
 				>
 					<input
@@ -301,7 +301,7 @@
 						class={inputClass}
 						type="text"
 						placeholder={`e.g.) "http://localhost:3000"`}
-						bind:value={adminConfig.WEBUI_URL}
+						bind:value={adminConfig.WEAI_URL}
 					/>
 				</AdminSettingField>
 			</AdminSettingSection>

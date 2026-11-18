@@ -1,4 +1,4 @@
-from open_webui.mini_hermes.resource_aware import (
+from weai.documents.resource_aware import (
     bounded_file_sources,
     bounded_tool_output,
     has_resource_file_tools,
@@ -58,10 +58,10 @@ def test_window_evidence_preserves_source_chunk_and_version():
 
 
 def test_existing_chat_resources_keep_resource_mode_without_current_message_attachment(monkeypatch):
-    monkeypatch.setenv('MH_RESOURCE_AWARE_FILES', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_AWARE_FILES', 'true')
     assert resource_aware_context_enabled([], has_chat_resources=True)
     assert not resource_aware_context_enabled([], has_chat_resources=False)
-    monkeypatch.setenv('MH_RESOURCE_AWARE_FILES', 'false')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_AWARE_FILES', 'false')
     assert not resource_aware_context_enabled([{'id': 'file-1', 'type': 'file'}], has_chat_resources=True)
 
 

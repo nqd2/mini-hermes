@@ -2,7 +2,7 @@
 	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 
-	import { WEBUI_NAME, config, mobile, showSettings, showSidebar, user } from '$lib/stores';
+	import { WEAI_NAME, config, mobile, showSettings, showSidebar, user } from '$lib/stores';
 	import { page } from '$app/stores';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
@@ -22,7 +22,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Admin Panel')} / {$WEBUI_NAME}
+		{$i18n.t('Admin Panel')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 

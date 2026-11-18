@@ -9,7 +9,7 @@
 
 	import { showSettings, mobile, showSidebar, user, config, settings } from '$lib/stores';
 
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import DropdownMenu from '$lib/components/common/DropdownMenu.svelte';
@@ -132,7 +132,7 @@
 					>
 						<div class="self-center shrink-0 size-4.5 flex items-center justify-center">
 							<img
-								src={`${WEBUI_API_BASE_URL}/users/${$user.id}/profile/image`}
+								src={`${WEAI_API_BASE_URL}/users/${$user.id}/profile/image`}
 								alt=""
 								class="size-4.5 rounded-full object-cover"
 							/>

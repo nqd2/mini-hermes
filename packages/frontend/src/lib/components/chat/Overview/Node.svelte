@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import { getContext } from 'svelte';
 
@@ -20,7 +20,7 @@
 	$: messageContent = getMessageContent(data);
 	$: isCompacted =
 		data?.message?.contextSummary ||
-		data?.message?.output?.some((item) => item?.type === 'open_webui:context_compaction');
+		data?.message?.output?.some((item) => item?.type === 'weai:context_compaction');
 	$: previewClass = `text-xs mt-0.5 ${isCompacted ? 'line-clamp-1' : 'line-clamp-2'}`;
 	$: modelName = data?.model
 		? resolveLocalizedModelName(data.model, $i18n.language)
@@ -38,7 +38,7 @@
 		{#if data.message.role === 'user'}
 			<div class="flex w-full">
 				<ProfileImage
-					src={`${WEBUI_API_BASE_URL}/users/${data.user.id}/profile/image`}
+					src={`${WEAI_API_BASE_URL}/users/${data.user.id}/profile/image`}
 					className={'size-5 -translate-y-[1px] flex-shrink-0'}
 				/>
 				<div class="ml-2 flex-1 min-w-0">
@@ -62,7 +62,7 @@
 		{:else}
 			<div class="flex w-full">
 				<ProfileImage
-					src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${data.model?.id ?? data.message.model}&lang=${$i18n.language}`}
+					src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${data.model?.id ?? data.message.model}&lang=${$i18n.language}`}
 					className={'size-5 -translate-y-[1px] flex-shrink-0'}
 				/>
 

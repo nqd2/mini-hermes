@@ -19,7 +19,7 @@
 	dayjs.extend(relativeTime);
 
 	import {
-		WEBUI_NAME,
+		WEAI_NAME,
 		config,
 		mobile,
 		models as _models,
@@ -29,7 +29,7 @@
 		workspaceActions,
 		workspaceCounts
 	} from '$lib/stores';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import {
 		exportModels,
 		importModels,
@@ -517,7 +517,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Models')} / {$WEBUI_NAME}
+		{$i18n.t('Models')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 
@@ -784,7 +784,7 @@
 												class="{model.is_active ? '' : 'opacity-50 dark:opacity-50'} bg-transparent"
 											>
 												<img
-													src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
+													src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
 													alt=""
 													class="size-7 rounded-lg object-cover"
 													loading="lazy"

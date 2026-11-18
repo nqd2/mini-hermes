@@ -1,4 +1,4 @@
-from open_webui.utils.chat_runtime.stream_tags import TagOutputTransformer
+from weai.utils.chat_runtime.stream_tags import TagOutputTransformer
 
 
 def _transformer():
@@ -69,7 +69,7 @@ def test_converts_code_interpreter_tag_with_language_attribute():
 
     assert updated is output
     assert ended is True
-    assert output[1]['type'] == 'open_webui:code_interpreter'
+    assert output[1]['type'] == 'weai:code_interpreter'
     assert output[1]['lang'] == 'javascript'
     assert output[1]['code'] == 'console.log(1)'
     assert output[1]['attributes'] == {'lang': 'javascript'}

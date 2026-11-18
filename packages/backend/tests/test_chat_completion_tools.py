@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils import middleware
-from open_webui.utils.chat_runtime import legacy_tool_calling
+from weai.utils import middleware
+from weai.utils.chat_runtime import legacy_tool_calling
 
 
 @pytest.mark.asyncio

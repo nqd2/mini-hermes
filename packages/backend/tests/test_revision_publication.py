@@ -9,8 +9,8 @@ from fastapi import HTTPException
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes import resource_indexing, worker
-from open_webui.mini_hermes.models import (
+from weai.documents import resource_indexing, worker
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -22,12 +22,12 @@ from open_webui.mini_hermes.models import (
     SyncJob,
     now,
 )
-from open_webui.mini_hermes.revision_service import (
+from weai.documents.revision_service import (
     commit_preview,
     dispatch_pending_outbox,
     prepare_rollback_preview,
 )
-from open_webui.mini_hermes.service import get_verified_revision_content
+from weai.documents.service import get_verified_revision_content
 
 
 class Store:
@@ -297,9 +297,9 @@ async def test_revision_outbox_replays_pending_event_with_stable_id(tmp_path, mo
     async def capture_event(_request, event):
         sent.append(event.id)
 
-    import open_webui.events
+    import weai.events
 
-    monkeypatch.setattr(open_webui.events, 'publish_event', capture_event)
+    monkeypatch.setattr(weai.events, 'publish_event', capture_event)
     request = type(
         'Request',
         (),
@@ -410,9 +410,9 @@ async def test_commit_rejects_a_different_approved_patch_without_publishing(tmp_
 
 @pytest.mark.asyncio
 async def test_unauthorized_user_cannot_commit_or_observe_revision_approval(tmp_path, monkeypatch):
-    from open_webui.internal import db as internal_db
-    from open_webui.models.access_grants import AccessGrant
-    from open_webui.models.groups import Group, GroupMember
+    from weai.internal import db as internal_db
+    from weai.models.access_grants import AccessGrant
+    from weai.models.groups import Group, GroupMember
 
     engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
@@ -516,7 +516,7 @@ async def test_concurrent_proposals_based_on_old_revision_cannot_both_commit(tmp
 
 @pytest.mark.asyncio
 async def test_committed_preview_replay_rechecks_current_write_permission(tmp_path, monkeypatch):
-    from open_webui.mini_hermes import library
+    from weai.documents import library
 
     engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
@@ -577,9 +577,9 @@ async def test_commit_key_cannot_be_reused_for_another_preview(tmp_path, monkeyp
 @pytest.mark.asyncio
 async def test_commit_replay_denies_collaborator_after_write_grant_is_revoked(tmp_path, monkeypatch):
     from sqlalchemy import delete
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.models.access_grants import AccessGrant
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.models.access_grants import AccessGrant
 
     engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
@@ -595,7 +595,7 @@ async def test_commit_replay_denies_collaborator_after_write_grant_is_revoked(tm
             await connection.run_sync(AccessGrant.__table__.create)
         async with sessions() as db:
             db.add(AccessGrant(
-                id='grant-1', resource_type='mh_document', resource_id='doc-1',
+                id='grant-1', resource_type='ar_document', resource_id='doc-1',
                 principal_type='user', principal_id='collaborator', permission='write', created_at=1,
             ))
             await db.commit()
@@ -623,7 +623,7 @@ async def test_commit_replay_denies_collaborator_after_write_grant_is_revoked(tm
 
 
 def test_patch_hash_binds_unicode_content_and_operation_order():
-    from open_webui.mini_hermes.revision_integrity import compute_patch_hash
+    from weai.documents.revision_integrity import compute_patch_hash
 
     common = {'base_revision': 1, 'base_sha256': 'a' * 64, 'artifact_sha256': 'b' * 64}
     operations = [
@@ -642,7 +642,7 @@ def test_patch_hash_binds_unicode_content_and_operation_order():
 @pytest.mark.parametrize('worker_enabled', [True, False], ids=['queued-index', 'inline-index'])
 async def test_approval_expiring_during_index_prevents_publication(tmp_path, monkeypatch, worker_enabled):
     """An approval cannot authorize publication after expiring during async work."""
-    from open_webui.mini_hermes import revision_service
+    from weai.documents import revision_service
 
     engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
@@ -650,7 +650,7 @@ async def test_approval_expiring_during_index_prevents_publication(tmp_path, mon
     expiry = preview_created + dt.timedelta(minutes=15)
     current_time = [expiry - dt.timedelta(seconds=1)]
     monkeypatch.setattr(revision_service, 'now', lambda: current_time[0])
-    from open_webui.mini_hermes import chunks
+    from weai.documents import chunks
 
     monkeypatch.setattr(resource_indexing, 'resource_index_worker_enabled', lambda: worker_enabled)
     target_module = resource_indexing if worker_enabled else chunks
@@ -689,9 +689,9 @@ async def test_preview_metadata_rejects_creator_after_document_grant_revoked(tmp
     from types import SimpleNamespace
     import httpx
     from fastapi import FastAPI
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library, routes
-    from open_webui.models.access_grants import AccessGrant, AccessGrants
+    from weai.internal import db as internal_db
+    from weai.documents import library, routes
+    from weai.models.access_grants import AccessGrant, AccessGrants
 
     engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
@@ -703,7 +703,7 @@ async def test_preview_metadata_rejects_creator_after_document_grant_revoked(tmp
     monkeypatch.setattr(library, '_groups_for', no_groups)
     monkeypatch.setattr(routes, 'ObjectStore', lambda: store)
     app = FastAPI()
-    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.include_router(routes.router, prefix='/api/v1/agent-runtime')
     app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='collaborator', role='user')
 
     async def session_override():
@@ -718,16 +718,16 @@ async def test_preview_metadata_rejects_creator_after_document_grant_revoked(tmp
             row = await db.get(Preview, preview.id)
             row.owner_id = 'collaborator'
             row.diff = 'confidential document content'
-            db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='doc-1',
+            db.add(AccessGrant(id='grant-1', resource_type='ar_document', resource_id='doc-1',
                                principal_type='user', principal_id='collaborator', permission='read', created_at=1))
             await db.commit()
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
-            path = f'/api/v1/mini-hermes/previews/{preview.id}'
+            path = f'/api/v1/agent-runtime/previews/{preview.id}'
             authorized = await client.get(path)
             assert authorized.status_code == 200
             assert authorized.json()['diff'] == 'confidential document content'
             async with sessions() as db:
-                await AccessGrants.set_access_grants('mh_document', 'doc-1', [], db=db)
+                await AccessGrants.set_access_grants('ar_document', 'doc-1', [], db=db)
             revoked = await client.get(path)
             assert revoked.status_code == 404
             assert 'confidential document content' not in revoked.text
@@ -742,10 +742,10 @@ async def test_chat_preview_list_hides_document_after_grant_revoked(tmp_path, mo
     from unittest.mock import AsyncMock
     import httpx
     from fastapi import FastAPI
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library, routes
-    from open_webui.mini_hermes.models import ChatResource
-    from open_webui.models.access_grants import AccessGrant, AccessGrants
+    from weai.internal import db as internal_db
+    from weai.documents import library, routes
+    from weai.documents.models import ChatResource
+    from weai.models.access_grants import AccessGrant, AccessGrants
 
     engine, sessions, _, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
@@ -757,7 +757,7 @@ async def test_chat_preview_list_hides_document_after_grant_revoked(tmp_path, mo
     monkeypatch.setattr(library, '_groups_for', no_groups)
     monkeypatch.setattr(routes.Chats, 'get_chat_by_id_and_user_id', AsyncMock(return_value=object()))
     app = FastAPI()
-    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.include_router(routes.router, prefix='/api/v1/agent-runtime')
     app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='collaborator', role='user')
 
     async def session_override():
@@ -774,7 +774,7 @@ async def test_chat_preview_list_hides_document_after_grant_revoked(tmp_path, mo
             row.owner_id = 'collaborator'
             row.diff = 'confidential document content'
             db.add(ChatResource(id='association', chat_id='chat-1', document_id='doc-1', granted_by='owner-1'))
-            db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='doc-1',
+            db.add(AccessGrant(id='grant-1', resource_type='ar_document', resource_id='doc-1',
                                principal_type='user', principal_id='collaborator', permission='read', created_at=1))
             db.add(Document(id='other-doc', owner_id='other-owner', filename='other.txt',
                             mime_type='text/plain', current_revision=1))
@@ -786,13 +786,13 @@ async def test_chat_preview_list_hides_document_after_grant_revoked(tmp_path, mo
                                created_at=now() + dt.timedelta(minutes=ordinal + 1)))
             await db.commit()
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
-            path = '/api/v1/mini-hermes/chats/chat-1/previews'
+            path = '/api/v1/agent-runtime/chats/chat-1/previews'
             authorized = await client.get(path)
             assert authorized.status_code == 200
             assert [item['id'] for item in authorized.json()] == [preview.id]
             assert authorized.json()[0]['diff'] == 'confidential document content'
             async with sessions() as db:
-                await AccessGrants.set_access_grants('mh_document', 'doc-1', [], db=db)
+                await AccessGrants.set_access_grants('ar_document', 'doc-1', [], db=db)
             revoked = await client.get(path)
             assert revoked.status_code == 200
             assert revoked.json() == []
@@ -808,11 +808,11 @@ async def test_preview_routes_recheck_inherited_group_folder_access(tmp_path, mo
     import httpx
     from fastapi import FastAPI
     from sqlalchemy import delete
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import routes
-    from open_webui.mini_hermes.models import ChatResource
-    from open_webui.models.access_grants import AccessGrant
-    from open_webui.models.groups import Group, GroupMember
+    from weai.internal import db as internal_db
+    from weai.documents import routes
+    from weai.documents.models import ChatResource
+    from weai.models.access_grants import AccessGrant
+    from weai.models.groups import Group, GroupMember
 
     engine, sessions, store, previews = await _setup(tmp_path, monkeypatch)
     preview, _ = previews[0]
@@ -820,7 +820,7 @@ async def test_preview_routes_recheck_inherited_group_folder_access(tmp_path, mo
     monkeypatch.setattr(routes.Chats, 'get_chat_by_id_and_user_id', AsyncMock(return_value=object()))
     monkeypatch.setattr(routes, 'ObjectStore', lambda: store)
     app = FastAPI()
-    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.include_router(routes.router, prefix='/api/v1/agent-runtime')
     app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='collaborator', role='user')
 
     async def session_override():
@@ -843,14 +843,14 @@ async def test_preview_routes_recheck_inherited_group_folder_access(tmp_path, mo
                 Group(id='child', user_id='owner-1', name='Child', description='', parent_group_id='parent',
                       created_at=1, updated_at=1),
                 GroupMember(id='membership', group_id='child', user_id='collaborator'),
-                AccessGrant(id='folder-grant', resource_type='mh_folder', resource_id='shared-folder',
+                AccessGrant(id='folder-grant', resource_type='ar_folder', resource_id='shared-folder',
                             principal_type='group', principal_id='parent', permission='read', created_at=1),
                 ChatResource(id='association', chat_id='chat-1', document_id='doc-1', granted_by='owner-1'),
             ])
             await db.commit()
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
-            detail_path = f'/api/v1/mini-hermes/previews/{preview.id}'
-            list_path = '/api/v1/mini-hermes/chats/chat-1/previews'
+            detail_path = f'/api/v1/agent-runtime/previews/{preview.id}'
+            list_path = '/api/v1/agent-runtime/chats/chat-1/previews'
             assert (await client.get(detail_path)).status_code == 200
             assert len((await client.get(list_path)).json()) == 1
             async with sessions() as db:
@@ -872,12 +872,12 @@ async def test_document_content_route_fails_closed_on_committed_object_integrity
     import logging
     import httpx
     from fastapi import FastAPI
-    from open_webui.mini_hermes import routes
+    from weai.documents import routes
 
     engine, sessions, store, _ = await _setup(tmp_path, monkeypatch)
     monkeypatch.setattr(routes, 'ObjectStore', lambda: store)
     app = FastAPI()
-    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.include_router(routes.router, prefix='/api/v1/agent-runtime')
     app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='owner-1', role='user')
 
     async def session_override():
@@ -887,7 +887,7 @@ async def test_document_content_route_fails_closed_on_committed_object_integrity
     app.dependency_overrides[routes.get_async_session] = session_override
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
-            path = '/api/v1/mini-hermes/documents/doc-1/content?revision=1'
+            path = '/api/v1/agent-runtime/documents/doc-1/content?revision=1'
             good = await client.get(path)
             assert good.status_code == 200
             assert good.content == b'original document'
@@ -904,7 +904,7 @@ async def test_document_content_route_fails_closed_on_committed_object_integrity
                     revision.size += 1
                     await db.commit()
             caplog.clear()
-            integrity_logger = logging.getLogger('open_webui.mini_hermes.revision_integrity')
+            integrity_logger = logging.getLogger('weai.documents.revision_integrity')
             integrity_logger.addHandler(caplog.handler)
             try:
                 denied = await client.get(path)

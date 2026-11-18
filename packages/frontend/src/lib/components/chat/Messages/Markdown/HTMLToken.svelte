@@ -3,7 +3,7 @@
 	import type { Token } from 'marked';
 	import { getContext } from 'svelte';
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { settings } from '$lib/stores';
 
 	const i18n: any = getContext('i18n');
@@ -113,7 +113,7 @@
 		{#if fileId}
 			<iframe
 				class="w-full my-2"
-				src={`${WEBUI_BASE_URL}/api/v1/files/${fileId}/content/html`}
+				src={`${WEAI_BASE_URL}/api/v1/files/${fileId}/content/html`}
 				title={$i18n.t('Content')}
 				frameborder="0"
 				sandbox="{($settings?.iframeSandboxAllowScripts ?? true)

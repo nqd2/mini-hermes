@@ -3,7 +3,7 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import {
-		WEBUI_NAME,
+		WEAI_NAME,
 		config,
 		showSidebar,
 		user,
@@ -103,7 +103,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Workspace')} / {$WEBUI_NAME}
+		{$i18n.t('Workspace')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 

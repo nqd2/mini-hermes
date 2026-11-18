@@ -1,4 +1,4 @@
-"""Tests for XLSX Vertical Slice: Open WebUI -> Doc API V2 -> XLSX Engine -> Tool Result (M2.6)."""
+"""Tests for XLSX Vertical Slice: WeAI -> Doc API V2 -> XLSX Engine -> Tool Result (M2.6)."""
 
 import asyncio
 import io
@@ -19,16 +19,16 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.indexing import IndexLifecycleManager
-from open_webui.mini_hermes.v2.ingestion import IngestionPipeline
-from open_webui.mini_hermes.v2.models import (
-    MhDocument,
-    MhDocumentRevision,
-    MhWorkbookCell,
-    MhWorkbookSheet,
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.indexing import IndexLifecycleManager
+from weai.persistence.v2.ingestion import IngestionPipeline
+from weai.persistence.v2.models import (
+    WeAIDocument,
+    WeAIDocumentRevision,
+    WeAIWorkbookCell,
+    WeAIWorkbookSheet,
 )
-from open_webui.mini_hermes.v2.routes import (
+from weai.persistence.v2.routes import (
     ReadSpreadsheetRangeRequest,
     inspect_document_endpoint,
     read_spreadsheet_range_endpoint,
@@ -36,13 +36,13 @@ from open_webui.mini_hermes.v2.routes import (
     sign_cursor,
     verify_cursor,
 )
-from open_webui.mini_hermes.v2.storage import V2ObjectStore
+from weai.persistence.v2.storage import V2ObjectStore
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "v2"
 
 if sys.platform == "win32":
     try:
-        from open_webui.utils.windows_asyncio import install_windows_selector_policy
+        from weai.utils.windows_asyncio import install_windows_selector_policy
 
         install_windows_selector_policy()
     except ImportError:
@@ -59,13 +59,13 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def disposable_pg_schema():
     """Fixture providing an isolated temporary PostgreSQL schema for integration tests."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
@@ -77,7 +77,7 @@ async def disposable_pg_schema():
     except (OSError, socket.timeout):
         pytest.skip(f"PostgreSQL server at {host}:{port} is offline")
 
-    schema_name = f"mh_test_vslice_{uuid.uuid4().hex}"
+    schema_name = f"ar_test_vslice_{uuid.uuid4().hex}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
 
@@ -210,7 +210,7 @@ async def test_xlsx_vertical_slice_e2e_path(disposable_pg_schema, monkeypatch):
 
     engine = create_async_engine(schema_url)
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
-    import open_webui.mini_hermes.v2.routes as v2_routes
+    import weai.persistence.v2.routes as v2_routes
 
     monkeypatch.setattr(v2_routes, "get_v2_session_factory", lambda: session_factory)
 

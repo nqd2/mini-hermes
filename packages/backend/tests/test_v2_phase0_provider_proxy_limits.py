@@ -7,7 +7,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from open_webui.routers import openai
+from weai.routers import openai
 
 
 @pytest.fixture

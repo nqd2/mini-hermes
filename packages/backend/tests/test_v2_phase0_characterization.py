@@ -10,11 +10,11 @@ import pytest
 from fastapi import HTTPException
 from openpyxl import load_workbook
 
-from open_webui.agent_runtime.context import ContextManager, PreparedContext
-from open_webui.agent_runtime.gateway import ProviderGateway
-from open_webui.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
-from open_webui.mini_hermes.chunks import extract_structured_text
-from open_webui.utils.json_codec import JSONCodec
+from weai.agent_runtime.context import ContextManager, PreparedContext
+from weai.agent_runtime.gateway import ProviderGateway
+from weai.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
+from weai.documents.chunks import extract_structured_text
+from weai.utils.json_codec import JSONCodec
 
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'v2'

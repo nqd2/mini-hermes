@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils.chat_runtime.resource_context_preparation import ResourceContextAdapters, prepare_resource_context
+from weai.utils.chat_runtime.resource_context_preparation import ResourceContextAdapters, prepare_resource_context
 
 
 @pytest.mark.asyncio

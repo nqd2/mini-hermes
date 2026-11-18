@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type InboxItem = {
 	id: string;
@@ -33,7 +33,7 @@ export type InboxPage = {
 };
 
 export async function inboxRequest<T>(path: string, method = 'GET'): Promise<T> {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/notifications/inbox${path}`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/notifications/inbox${path}`, {
 		method,
 		headers: { Authorization: `Bearer ${localStorage.token}`, Accept: 'application/json' }
 	});

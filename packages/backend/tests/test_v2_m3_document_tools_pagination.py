@@ -11,25 +11,25 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.models import V2Base
-from open_webui.mini_hermes.v2.models.auth import MhAccessGrant
-from open_webui.mini_hermes.v2.models.canonical import (
-    MhDocumentParagraph,
-    MhDocumentSection,
-    MhWorkbookCell,
-    MhWorkbookSheet,
+from weai.persistence.v2.models import V2Base
+from weai.persistence.v2.models.auth import WeAIAccessGrant
+from weai.persistence.v2.models.canonical import (
+    WeAIDocumentParagraph,
+    WeAIDocumentSection,
+    WeAIWorkbookCell,
+    WeAIWorkbookSheet,
 )
-from open_webui.mini_hermes.v2.models.core import (
-    MhActiveIndex,
-    MhChunk,
-    MhDocument,
-    MhDocumentRevision,
-    MhIndexBuild,
-    MhIngestionJob,
+from weai.persistence.v2.models.core import (
+    WeAIActiveIndex,
+    WeAIChunk,
+    WeAIDocument,
+    WeAIDocumentRevision,
+    WeAIIndexBuild,
+    WeAIIngestionJob,
 )
-from open_webui.mini_hermes.v2.models.revisions import MhEditPreview
-from open_webui.mini_hermes.v2.models.workers import MhDocumentTask, MhExportJob
-from open_webui.mini_hermes.v2.tools import (
+from weai.persistence.v2.models.revisions import WeAIEditPreview
+from weai.persistence.v2.models.workers import WeAIDocumentTask, WeAIExportJob
+from weai.persistence.v2.tools import (
     CursorError,
     DEFAULT_WIRE_BUDGET_CHARS,
     ToolError,
@@ -75,14 +75,14 @@ async def seed_ready_spreadsheet_and_document(
     format_type: str = "xlsx",
     cells_data: list[tuple[int, int, str, str]] | None = None,
     paragraphs_data: list[str] | None = None,
-) -> tuple[MhDocument, MhDocumentRevision, MhIndexBuild, MhWorkbookSheet]:
+) -> tuple[WeAIDocument, WeAIDocumentRevision, WeAIIndexBuild, WeAIWorkbookSheet]:
     doc_id = uuid.uuid4()
     rev_id = uuid.uuid4()
     build_id = uuid.uuid4()
     sheet_id = uuid.uuid4()
     section_id = uuid.uuid4()
 
-    doc = MhDocument(
+    doc = WeAIDocument(
         id=doc_id,
         tenant_id=tenant_id,
         name=f"bao_cao_tai_chinh_2026.{format_type}",
@@ -92,7 +92,7 @@ async def seed_ready_spreadsheet_and_document(
         current_revision_id=rev_id,
         current_revision_no=1,
     )
-    rev = MhDocumentRevision(
+    rev = WeAIDocumentRevision(
         id=rev_id,
         document_id=doc_id,
         revision_no=1,
@@ -103,7 +103,7 @@ async def seed_ready_spreadsheet_and_document(
         commit_status="COMMITTED",
         committed_by=owner_id,
     )
-    build = MhIndexBuild(
+    build = WeAIIndexBuild(
         id=build_id,
         document_id=doc_id,
         revision_id=rev_id,
@@ -115,13 +115,13 @@ async def seed_ready_spreadsheet_and_document(
         build_state="READY",
         coverage_proof={"parser_complete": True, "index_complete": True},
     )
-    active = MhActiveIndex(
+    active = WeAIActiveIndex(
         revision_id=rev_id,
         document_id=doc_id,
         active_build_id=build_id,
         generation=1,
     )
-    sheet = MhWorkbookSheet(
+    sheet = WeAIWorkbookSheet(
         id=sheet_id,
         index_build_id=build_id,
         sheet_name="Revenue",
@@ -130,7 +130,7 @@ async def seed_ready_spreadsheet_and_document(
         max_row=200,
         max_col=10,
     )
-    section = MhDocumentSection(
+    section = WeAIDocumentSection(
         id=section_id,
         index_build_id=build_id,
         section_order=1,
@@ -146,7 +146,7 @@ async def seed_ready_spreadsheet_and_document(
         ]
     for r_idx, c_idx, coord, text_val in cells_data:
         session.add(
-            MhWorkbookCell(
+            WeAIWorkbookCell(
                 id=uuid.uuid4(),
                 index_build_id=build_id,
                 sheet_id=sheet_id,
@@ -167,7 +167,7 @@ async def seed_ready_spreadsheet_and_document(
         ]
     for idx, p_text in enumerate(paragraphs_data, start=1):
         session.add(
-            MhDocumentParagraph(
+            WeAIDocumentParagraph(
                 id=uuid.uuid4(),
                 section_id=section_id,
                 paragraph_order=idx,
@@ -176,7 +176,7 @@ async def seed_ready_spreadsheet_and_document(
             )
         )
         session.add(
-            MhChunk(
+            WeAIChunk(
                 id=uuid.uuid4(),
                 index_build_id=build_id,
                 stable_ordinal=idx,
@@ -309,7 +309,7 @@ async def test_all_9_canonical_document_tools_end_to_end(tmp_path):
                 tenant_id="tenant-alpha",
             )
             assert export_res["data"]["format"] == "pdf"
-            export_job_row = await session.get(MhExportJob, uuid.UUID(export_res["data"]["export_job_id"]))
+            export_job_row = await session.get(WeAIExportJob, uuid.UUID(export_res["data"]["export_job_id"]))
             assert export_job_row is not None
             assert export_job_row.target_format == "pdf"
 
@@ -332,7 +332,7 @@ async def test_all_9_canonical_document_tools_end_to_end(tmp_path):
             )
             assert edit_res["status"] == "ready"
             assert len(edit_res["data"]["patch_hash"]) == 64
-            preview_row = await session.get(MhEditPreview, uuid.UUID(edit_res["data"]["preview_id"]))
+            preview_row = await session.get(WeAIEditPreview, uuid.UUID(edit_res["data"]["preview_id"]))
             assert preview_row is not None
             assert preview_row.canonical_patch_hash == edit_res["data"]["patch_hash"]
             # Verify document revision was NOT mutated
@@ -352,7 +352,7 @@ async def test_index_not_ready_returns_existing_job_without_creating_or_retrying
             job_id = uuid.uuid4()
             build_id = uuid.uuid4()
 
-            doc = MhDocument(
+            doc = WeAIDocument(
                 id=doc_id,
                 tenant_id="tenant-alpha",
                 name="pending_doc.xlsx",
@@ -362,7 +362,7 @@ async def test_index_not_ready_returns_existing_job_without_creating_or_retrying
                 current_revision_id=rev_id,
                 current_revision_no=1,
             )
-            rev = MhDocumentRevision(
+            rev = WeAIDocumentRevision(
                 id=rev_id,
                 document_id=doc_id,
                 revision_no=1,
@@ -372,7 +372,7 @@ async def test_index_not_ready_returns_existing_job_without_creating_or_retrying
                 commit_status="COMMITTED",
                 committed_by="user-1",
             )
-            job = MhIngestionJob(
+            job = WeAIIngestionJob(
                 id=job_id,
                 document_id=doc_id,
                 revision_id=rev_id,
@@ -383,7 +383,7 @@ async def test_index_not_ready_returns_existing_job_without_creating_or_retrying
                 source_state="COMMITTED",
                 index_state="INDEXING",
             )
-            build = MhIndexBuild(
+            build = WeAIIndexBuild(
                 id=build_id,
                 document_id=doc_id,
                 revision_id=rev_id,
@@ -397,8 +397,8 @@ async def test_index_not_ready_returns_existing_job_without_creating_or_retrying
             session.add_all([doc, rev, job, build])
             await session.commit()
 
-            jobs_before = await session.scalar(select(func.count()).select_from(MhIngestionJob))
-            builds_before = await session.scalar(select(func.count()).select_from(MhIndexBuild))
+            jobs_before = await session.scalar(select(func.count()).select_from(WeAIIngestionJob))
+            builds_before = await session.scalar(select(func.count()).select_from(WeAIIndexBuild))
 
             for coro in (
                 read_document_range(
@@ -429,8 +429,8 @@ async def test_index_not_ready_returns_existing_job_without_creating_or_retrying
                 assert exc_info.value.details["job_id"] == str(job_id)
                 assert exc_info.value.details["build_id"] == str(build_id)
 
-            jobs_after = await session.scalar(select(func.count()).select_from(MhIngestionJob))
-            builds_after = await session.scalar(select(func.count()).select_from(MhIndexBuild))
+            jobs_after = await session.scalar(select(func.count()).select_from(WeAIIngestionJob))
+            builds_after = await session.scalar(select(func.count()).select_from(WeAIIndexBuild))
             assert jobs_after == jobs_before == 1
             assert builds_after == builds_before == 1
     finally:
@@ -527,11 +527,11 @@ async def test_cursor_hmac_security_key_rotation_and_permission_reverification_o
                 cells_data=cells,
             )
 
-            reader_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, "mini-hermes.v2.principal:user-reader")
-            owner_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, "mini-hermes.v2.principal:user-owner")
+            reader_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, "agent-runtime.v2.principal:user-reader")
+            owner_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, "agent-runtime.v2.principal:user-owner")
 
             # Grant READ access to user-reader
-            grant = MhAccessGrant(
+            grant = WeAIAccessGrant(
                 id=uuid.uuid4(),
                 resource_type="document",
                 resource_id=doc.id,
@@ -572,7 +572,7 @@ async def test_cursor_hmac_security_key_rotation_and_permission_reverification_o
             assert scope_exc.value.code == "CURSOR_SCOPE_MISMATCH"
 
             # Revoke user-reader's grant before page 2 -> must re-verify permission and fail with FORBIDDEN!
-            await session.execute(delete(MhAccessGrant).where(MhAccessGrant.id == grant.id))
+            await session.execute(delete(WeAIAccessGrant).where(WeAIAccessGrant.id == grant.id))
             await session.commit()
 
             with pytest.raises(ToolError) as perm_exc:

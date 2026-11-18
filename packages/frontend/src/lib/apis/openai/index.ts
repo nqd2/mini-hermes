@@ -1,4 +1,4 @@
-import { OPENAI_API_BASE_URL, WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+import { OPENAI_API_BASE_URL, WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 
 export const getErrorMessage = (err: any, fallback = 'Server connection failed') => {
 	if (Array.isArray(err)) return fallback;
@@ -402,7 +402,7 @@ export const verifyOpenAIConnection = async (
 export const chatCompletion = async (
 	token: string = '',
 	body: object,
-	url: string = `${WEBUI_BASE_URL}/api`
+	url: string = `${WEAI_BASE_URL}/api`
 ): Promise<[Response | null, AbortController]> => {
 	const controller = new AbortController();
 	let error = null;
@@ -431,7 +431,7 @@ export const chatCompletion = async (
 export const generateOpenAIChatCompletion = async (
 	token: string = '',
 	body: object,
-	url: string = `${WEBUI_BASE_URL}/api`
+	url: string = `${WEAI_BASE_URL}/api`
 ) => {
 	let error = null;
 

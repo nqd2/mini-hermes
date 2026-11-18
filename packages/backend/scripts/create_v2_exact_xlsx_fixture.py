@@ -6,7 +6,7 @@ from io import BytesIO
 from pathlib import Path
 
 from openpyxl import Workbook
-from open_webui.mini_hermes.parsers import extract_sections
+from weai.documents.parsers import extract_sections
 
 TARGET = 57_765
 PATH = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures' / 'v2' / 'xlsx-f05-exact-57765.xlsx'

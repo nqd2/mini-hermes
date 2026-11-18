@@ -97,7 +97,7 @@ type ResponseStreamEvent = {
 const GROUPABLE_OUTPUT_TYPES = new Set([
 	'reasoning',
 	'function_call',
-	'open_webui:code_interpreter',
+	'weai:code_interpreter',
 	'web_search_call',
 	'file_search_call',
 	'computer_call'
@@ -187,14 +187,14 @@ function getInlineFileFromToolOutput(callItem?: OutputItem, resultItem?: OutputI
 
 	const result = parseJSONStringValue(getToolResultText(resultItem)) as Record<string, unknown>;
 	const isTerminalFile = result?.source === 'open_terminal' && !!result.terminal_selector;
-	const isOpenWebUIFile = result?.source === 'open_webui';
+	const isWeAIFile = result?.source === 'weai';
 	if (
 		!result ||
 		typeof result !== 'object' ||
 		result.type !== 'file' ||
 		!result.path ||
 		result.exists === false ||
-		!(isTerminalFile || isOpenWebUIFile)
+		!(isTerminalFile || isWeAIFile)
 	) {
 		return null;
 	}
@@ -346,7 +346,7 @@ function buildDetailToken(
 	if (item.type === 'reasoning') {
 		return buildReasoningToken(item, isLastItem);
 	}
-	if (item.type === 'open_webui:code_interpreter') {
+	if (item.type === 'weai:code_interpreter') {
 		return buildCodeInterpreterToken(item, isLastItem);
 	}
 	if (item.type && OPENAI_TOOL_NAMES[item.type]) {
@@ -420,7 +420,7 @@ export function buildOutputDisplayItems(output: OutputItem[] = []): OutputDispla
 			return;
 		}
 
-		if (item.type === 'open_webui:context_compaction') {
+		if (item.type === 'weai:context_compaction') {
 			flushDetails();
 			displayItems.push({
 				type: 'context_compaction',
@@ -674,7 +674,7 @@ export function applyResponseStreamEvent(
 			return nextOutput;
 		}
 
-		if (item.type === 'open_webui:code_interpreter') {
+		if (item.type === 'weai:code_interpreter') {
 			item.code = `${item.code ?? ''}${event.delta ?? ''}`;
 			return nextOutput;
 		}

@@ -369,7 +369,7 @@
 
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { WEBUI_API_BASE_URL } from "$lib/constants";
+  import { WEAI_API_BASE_URL } from "$lib/constants";
   import OfficeDocumentPreview from "$lib/components/common/OfficeDocumentPreview.svelte";
   import DocumentViewerShell from "$lib/components/common/DocumentViewerShell.svelte";
   import XMark from "$lib/components/icons/XMark.svelte";
@@ -466,7 +466,7 @@
   const api = async (path: string, init: RequestInit = {}) => {
     const token =
       typeof localStorage !== "undefined" ? localStorage.token || "" : "";
-    const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes${path}`, {
+    const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${token}`,

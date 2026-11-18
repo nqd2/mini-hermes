@@ -5,8 +5,8 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_automation_tools_keep_registry_contract_after_extraction():
-    from open_webui.tools import builtin
-    from open_webui.tools import automation_resources
+    from weai.tools import builtin
+    from weai.tools import automation_resources
 
     for name in ('create_automation', 'update_automation', 'list_automations', 'toggle_automation', 'delete_automation'):
         exported = getattr(builtin, name)
@@ -23,8 +23,8 @@ async def test_automation_tools_keep_registry_contract_after_extraction():
 
 @pytest.mark.asyncio
 async def test_calendar_tools_keep_registry_contract_after_extraction():
-    from open_webui.tools import builtin
-    from open_webui.tools import calendar_resources
+    from weai.tools import builtin
+    from weai.tools import calendar_resources
 
     for name in ('search_calendar_events', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event'):
         exported = getattr(builtin, name)

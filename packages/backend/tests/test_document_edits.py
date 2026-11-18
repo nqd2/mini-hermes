@@ -6,7 +6,7 @@ from docx import Document
 from openpyxl import Workbook, load_workbook
 from pptx import Presentation
 
-spec = spec_from_file_location('document_edits', Path(__file__).parents[1] / 'open_webui' / 'mini_hermes' / 'edits.py')
+spec = spec_from_file_location('document_edits', Path(__file__).parents[1] / 'weai' / 'documents' / 'edits.py')
 edits = module_from_spec(spec)
 spec.loader.exec_module(edits)
 apply_operations = edits.apply_operations

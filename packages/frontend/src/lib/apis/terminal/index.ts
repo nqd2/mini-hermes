@@ -129,7 +129,7 @@ export type TerminalSkill = {
 	terminal_name?: string;
 };
 
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type TerminalConnection = {
 	selector: string;
@@ -159,7 +159,7 @@ export const resolveTerminalConnection = (
 	if (servers.some((server) => server.id === selector)) {
 		return {
 			selector,
-			baseUrl: `${WEBUI_API_BASE_URL}/terminals/${encodeURIComponent(selector)}`,
+			baseUrl: `${WEAI_API_BASE_URL}/terminals/${encodeURIComponent(selector)}`,
 			key: token,
 			system: true
 		};
@@ -231,7 +231,7 @@ export type TerminalServer = {
 
 export const getTerminalServers = async (token: string): Promise<TerminalServer[]> => {
 	if (!get(config)?.features?.enable_tool_servers) return [];
-	const res = await fetch(`${WEBUI_API_BASE_URL}/terminals/`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/terminals/`, {
 		headers: {
 			Authorization: `Bearer ${token}`
 		}

@@ -13,4 +13,4 @@ packages/frontend/vite.config.ts.timestamp-*.mjs
 /.env
 **/.env
 **/.env.local
-/packages/backend/test-mini-hermes.db*
+/packages/backend/test-agent-runtime.db*

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import emojiShortCodes from '$lib/emoji-shortcodes.json';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
@@ -87,7 +87,7 @@
 			<div class="flex w-full min-w-0 items-center gap-2">
 				<div class="flex w-4 shrink-0 items-center justify-center">
 					<img
-						src="{WEBUI_BASE_URL}/assets/emojis/{emoji.name.toLowerCase()}.svg"
+						src="{WEAI_BASE_URL}/assets/emojis/{emoji.name.toLowerCase()}.svg"
 						alt={emoji.name}
 						class="size-3.5"
 						loading="lazy"

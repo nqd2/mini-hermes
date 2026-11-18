@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from open_webui.mini_hermes.v2.coverage import (
+from weai.persistence.v2.coverage import (
     AnchorRef,
     AnswerEvidence,
     CoverageProof,
@@ -20,7 +20,7 @@ from open_webui.mini_hermes.v2.coverage import (
     evaluate_fragment_coverage_case,
     merge_half_open_intervals,
 )
-from open_webui.mini_hermes.v2.routing import (
+from weai.persistence.v2.routing import (
     DeterministicIntentRouter,
     DocumentIntent,
     SamplingStrategy,

@@ -224,7 +224,7 @@
 
 	<div class="flex-1 min-h-0 overflow-y-auto scrollbar-hover pr-1.5">
 		<UserSettingSection
-			title={$i18n.t('settings.personal.general.sections.webuiSettings.title')}
+			title={$i18n.t('settings.personal.general.sections.weaiSettings.title')}
 			first
 		>
 			<UserSettingRow
@@ -272,7 +272,7 @@
 						href="https://github.com/open-webui/open-webui/blob/main/docs/CONTRIBUTING.md#-translations-and-internationalization"
 						target="_blank"
 					>
-						{$i18n.t('Help us translate Open WebUI!')}
+						{$i18n.t('Help us translate WeAI!')}
 					</a>
 				</div>
 			{/if}

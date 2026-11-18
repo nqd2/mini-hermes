@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
-from open_webui.utils import tool_approval
+from weai.utils import tool_approval
 
 
 @pytest.fixture

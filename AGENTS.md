@@ -1,4 +1,4 @@
-# Mini-Hermes Agent Instructions
+# WeAI Agent Instructions
 
 These instructions apply to the entire repository. Follow the latest user request when it gives a more specific instruction. Keep this file aligned with the accepted architecture records and implementation plan:
 
@@ -8,7 +8,7 @@ These instructions apply to the entire repository. Follow the latest user reques
 
 ## Repository and workflow
 
-- `packages/backend` contains the Open WebUI backend, Mini-Hermes APIs, runtime, document workers, and migrations.
+- `packages/backend` contains the WeAI backend, Agent Runtime APIs, runtime, document workers, and migrations.
 - `packages/frontend` contains the Svelte application.
 - `references/open-webui` is preserved upstream source for comparison. Do not edit it unless the task explicitly targets upstream reference material.
 - Work in the supplied checkout. Do not create a worktree.
@@ -18,17 +18,17 @@ These instructions apply to the entire repository. Follow the latest user reques
 
 ## Product and architecture decisions
 
-- Mini-Hermes is a production product for **10–20 users in a rolling 30-day window**. Do not lower reliability, security, recovery, or data-integrity requirements to MVP shortcuts.
+- WeAI is a production product for **10–20 users in a rolling 30-day window**. Do not lower reliability, security, recovery, or data-integrity requirements to MVP shortcuts.
 - The current AgentRuntime is the only production execution path. DeerFlow is a conditional evaluation candidate, not a default migration.
-- The approved target replaces persistence for both Mini-Hermes and Open WebUI using PostgreSQL and SQLAlchemy async. Do not retain models, backfills, history imports, or adapters solely for legacy data. Preserve the UI/Auth/RBAC/chat/model-management capabilities. User-facing import/export accepts the new versioned format.
+- The approved target replaces persistence for both Agent Runtime and WeAI using PostgreSQL and SQLAlchemy async. Do not retain models, backfills, history imports, or adapters solely for legacy data. Preserve the UI/Auth/RBAC/chat/model-management capabilities. User-facing import/export accepts the new versioned format.
 - Ollama is outside the product target: no Ollama provider selection, discovery, health/about probes, model management, or embedding configuration. Do not install or start Ollama to suppress connection errors.
-- Use the [Vietnamese use-case, design, test, and audit specification](docs/design/mini-hermes-use-cases-design-and-tests.md) for the detailed target; its test scenarios are planned evidence, not completed production gates.
+- Use the [Vietnamese use-case, design, test, and audit specification](docs/design/agent-runtime-use-cases-design-and-tests.md) for the detailed target; its test scenarios are planned evidence, not completed production gates.
 - The **99.9% availability target is internal**, not a committed SLA.
 - Each conversation stays bound to one engine and version. Each run has one execution owner and a matching run binding. Never resume a checkpoint across runtimes. Canary and rollback change engine selection only for new conversations.
 
 ## Service ownership
 
-- **Auth Service / Open WebUI** authenticates the user and supplies the authenticated principal.
+- **Auth Service / WeAI** authenticates the user and supplies the authenticated principal.
 - **AgentRuntime** owns conversation and run orchestration, checkpoints, durable events, cancellation, recovery, and agent-approval pause/resume. It must not write directly to the document database or document object storage.
 - **Document API** owns `read`, `inspect`, `search`, `propose_edit`, and `export`. A document commit endpoint must delegate to Revision Service.
 - **Revision Service** is the only authority for patch validation, diff preview, current resource authorization, document approval, revision preconditions, atomic commit, and rollback.
@@ -65,7 +65,7 @@ These instructions apply to the entire repository. Follow the latest user reques
 ## Testing and verification
 
 - Add focused regression tests for behavior changes. Run relevant backend tests from `packages/backend` with `python -m pytest tests/<relevant-test-files>`; run frontend tests from `packages/frontend` with `node node_modules/vitest/vitest.mjs run --passWithNoTests`.
-- Use a disposable test database for migration and PostgreSQL integration tests. Never point test commands at production data. PostgreSQL-only tests require `MH_TEST_POSTGRES_URL` to reference a disposable test database.
+- Use a disposable test database for migration and PostgreSQL integration tests. Never point test commands at production data. PostgreSQL-only tests require `AGENT_RUNTIME_TEST_POSTGRES_URL` to reference a disposable test database.
 - Verify security isolation, stale/revoked permissions, approval expiry, patch-hash mismatch, concurrent edits, commit retry, and rollback behavior for document changes.
 - Verify runtime restart/recovery, event replay and gap handling, duplicate starts, cancel/resume, stale checkpoints, and unknown tool outcomes for runtime changes.
 - Verify both request boundaries: 95,000-character preparation and 100,000-character serialized JSON. Confirm oversized requests are rejected before provider invocation.

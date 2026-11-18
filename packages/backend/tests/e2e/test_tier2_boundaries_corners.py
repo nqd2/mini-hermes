@@ -46,24 +46,24 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from open_webui import config as app_config
-from open_webui.agent_runtime import (
+from weai import config as app_config
+from weai.agent_runtime.models import (
     AgentArtifact,
     AgentCheckpoint,
     AgentEvent,
-    AgentRepository,
     AgentSession,
     AgentToolInvocation,
     AgentTurn,
 )
-from open_webui.agent_runtime.contracts import ConversationEngineBinding, RunBinding
-from open_webui.agent_runtime.repository import StaleRunError
-from open_webui.agent_runtime.request_budget import (
+from weai.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.contracts import ConversationEngineBinding, RunBinding
+from weai.agent_runtime.repository import StaleRunError
+from weai.agent_runtime.request_budget import (
     RequestBudgetExceeded,
     RequestBudgetLimits,
     RequestBudgetManager,
 )
-from open_webui.mini_hermes import (
+from weai.documents import (
     chunks,
     edits,
     parsers,
@@ -72,10 +72,10 @@ from open_webui.mini_hermes import (
     resource_indexing,
     revision_service,
     service,
-    tools,
 )
-from open_webui.mini_hermes.library import accessible_document
-from open_webui.mini_hermes.models import (
+from weai.agent_runtime import tools
+from weai.documents.library import accessible_document
+from weai.documents.models import (
     Document,
     Folder,
     Preview,
@@ -85,18 +85,18 @@ from open_webui.mini_hermes.models import (
     RevisionOutbox,
     now,
 )
-from open_webui.mini_hermes.provider_guard import (
+from weai.model_routing.provider_guard import (
     ProviderCapabilityUnsupported,
     ProviderPayloadTooLarge,
     apply_capability_constraints,
 )
-from open_webui.mini_hermes.resource_aware import bounded_file_sources, bounded_tool_output
-from open_webui.mini_hermes.revision_integrity import compute_patch_hash
-from open_webui.mini_hermes.revision_service import commit_preview
-from open_webui.mini_hermes.service import MAX_BYTES, create_document, validate_generated_content
-from open_webui.mini_hermes.storage import ObjectStore
-from open_webui.mini_hermes.v2.models.base import enforce_postgresql
-from open_webui.mini_hermes.v2.reset_dev_db import ProductionSafetyViolation, verify_safe_for_dev_reset
+from weai.documents.resource_aware import bounded_file_sources, bounded_tool_output
+from weai.documents.revision_integrity import compute_patch_hash
+from weai.documents.revision_service import commit_preview
+from weai.documents.service import MAX_BYTES, create_document, validate_generated_content
+from weai.documents.storage import ObjectStore
+from weai.persistence.v2.models.base import enforce_postgresql
+from weai.persistence.v2.reset_dev_db import ProductionSafetyViolation, verify_safe_for_dev_reset
 
 
 # ---------------------------------------------------------------------------
@@ -527,7 +527,7 @@ async def test_tc_t2_pdf_05_ocr_timeout_handling(memory_store, db_session: Async
 @pytest.mark.asyncio
 async def test_tc_t2_tls_01_invalid_document_uuid(async_client: httpx.AsyncClient):
     """TC-T2-TLS-01: Rejection of malformed document UUID parameter returns HTTP 404."""
-    response = await async_client.get("/api/v1/mini-hermes/documents/not-a-valid-uuid-12345")
+    response = await async_client.get("/api/v1/agent-runtime/documents/not-a-valid-uuid-12345")
     assert response.status_code == 404
     assert response.json()["detail"] == "Document not found"
 
@@ -667,7 +667,7 @@ async def test_tc_t2_bgt_05_zero_item_page_cursor(fixtures_dir: Path, db_session
 async def test_tc_t2_cov_01_query_incomplete_index_warning(memory_store, db_session: AsyncSession, monkeypatch):
     """TC-T2-COV-01: Query when index job is pending returns pending status and incomplete coverage."""
     from contextlib import asynccontextmanager
-    from open_webui.mini_hermes import resource_service
+    from weai.documents import resource_service
 
     @asynccontextmanager
     async def mock_get_async_db():
@@ -1299,8 +1299,8 @@ def test_tc_t2_per_01_v1_database_detection_on_boot():
 def test_tc_t2_per_02_v1_storage_bucket_detection():
     """TC-T2-PER-02: Storage validator fails closed on negative range and isolates bucket."""
     store = ObjectStore()
-    assert store.bucket == "mini-hermes"
-    assert "open-webui" not in store.bucket
+    assert store.bucket == "agent-runtime"
+    assert "weai" not in store.bucket
 
     with pytest.raises(ValueError) as exc_info:
         import asyncio
@@ -1310,16 +1310,16 @@ def test_tc_t2_per_02_v1_storage_bucket_detection():
 
 def test_tc_t2_per_03_non_dev_database_reset_prevention(monkeypatch):
     """TC-T2-PER-03: Protection gate halts dev DB reset on non-development / production host."""
-    monkeypatch.setenv("MH_ALLOW_DEV_RESET", "true")
+    monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", "true")
     monkeypatch.setenv("ENV", "development")
 
     with pytest.raises(ProductionSafetyViolation) as exc_info:
-        verify_safe_for_dev_reset("postgresql://user:pass@prod.postgres.database.azure.com/minihermes", confirm=True)
+        verify_safe_for_dev_reset("postgresql://user:pass@prod.postgres.database.azure.com/weai", confirm=True)
     assert "Host 'prod.postgres.database.azure.com' is not a local development host" in str(exc_info.value) or "contains dangerous remote substring" in str(exc_info.value)
 
     monkeypatch.setenv("ENV", "production")
     with pytest.raises(ProductionSafetyViolation) as exc_info:
-        verify_safe_for_dev_reset("postgresql://user:pass@localhost:5432/minihermes_dev", confirm=True)
+        verify_safe_for_dev_reset("postgresql://user:pass@localhost:5432/weai_dev", confirm=True)
     assert "indicates non-dev environment" in str(exc_info.value) or "not in allowed dev environments" in str(exc_info.value)
 
 

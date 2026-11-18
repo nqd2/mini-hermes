@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Container entry point for Open WebUI.
+# Container entry point for WeAI.
 # Handles secret key generation, optional Ollama/CUDA/Playwright setup,
 # HuggingFace Space deployment, and launches the uvicorn server.
 
@@ -26,25 +26,25 @@ fi
 
 # Secret key setup
 
-KEY_FILE="${WEBUI_SECRET_KEY_FILE:-.webui_secret_key}"
-WEBUI_SECRET_KEY_LENGTH="${WEBUI_SECRET_KEY_LENGTH:-24}"
+KEY_FILE="${WEAI_SECRET_KEY_FILE:-.weai_secret_key}"
+WEAI_SECRET_KEY_LENGTH="${WEAI_SECRET_KEY_LENGTH:-24}"
 PORT="${PORT:-8080}"
 HOST="${HOST:-0.0.0.0}"
 
-if [[ -z "${WEBUI_SECRET_KEY:-}" && -z "${WEBUI_JWT_SECRET_KEY:-}" ]]; then
-  echo "No WEBUI_SECRET_KEY environment variable set, loading from file."
+if [[ -z "${WEAI_SECRET_KEY:-}" && -z "${WEAI_JWT_SECRET_KEY:-}" ]]; then
+  echo "No WEAI_SECRET_KEY environment variable set, loading from file."
 
   if [[ ! -f "$KEY_FILE" ]]; then
-    echo "Generating new WEBUI_SECRET_KEY..."
-    if ! [[ "$WEBUI_SECRET_KEY_LENGTH" =~ ^[1-9][0-9]*$ ]]; then
-      echo "WEBUI_SECRET_KEY_LENGTH must be a positive integer." >&2
+    echo "Generating new WEAI_SECRET_KEY..."
+    if ! [[ "$WEAI_SECRET_KEY_LENGTH" =~ ^[1-9][0-9]*$ ]]; then
+      echo "WEAI_SECRET_KEY_LENGTH must be a positive integer." >&2
       exit 1
     fi
-    head -c "$WEBUI_SECRET_KEY_LENGTH" /dev/random | base64 > "$KEY_FILE"
+    head -c "$WEAI_SECRET_KEY_LENGTH" /dev/random | base64 > "$KEY_FILE"
   fi
 
-  echo "Loading WEBUI_SECRET_KEY from ${KEY_FILE}"
-  WEBUI_SECRET_KEY=$(cat "$KEY_FILE")
+  echo "Loading WEAI_SECRET_KEY from ${KEY_FILE}"
+  WEAI_SECRET_KEY=$(cat "$KEY_FILE")
 fi
 
 # Ollama (bundled docker image)
@@ -68,8 +68,8 @@ if [[ -n "${SPACE_ID:-}" ]]; then
 
   if [[ -n "${ADMIN_USER_EMAIL:-}" && -n "${ADMIN_USER_PASSWORD:-}" ]]; then
     echo "Creating admin user for Space..."
-    WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-}" \
-      uvicorn open_webui.main:app --host "$HOST" --port "$PORT" --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-*}" --ws-per-message-deflate "${UVICORN_WS_PER_MESSAGE_DEFLATE:-true}" &
+    WEAI_SECRET_KEY="${WEAI_SECRET_KEY:-}" \
+      uvicorn weai.main:app --host "$HOST" --port "$PORT" --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-*}" --ws-per-message-deflate "${UVICORN_WS_PER_MESSAGE_DEFLATE:-true}" &
     webui_pid=$!
 
     echo "Waiting for server to become healthy..."
@@ -88,7 +88,7 @@ if [[ -n "${SPACE_ID:-}" ]]; then
     wait "$webui_pid" 2>/dev/null || true
   fi
 
-  export WEBUI_URL="${SPACE_HOST}"
+  export WEAI_URL="${SPACE_HOST}"
 fi
 
 # Launch uvicorn
@@ -102,8 +102,8 @@ else
   ARGS=(--workers "$UVICORN_WORKERS" --ws-per-message-deflate "${UVICORN_WS_PER_MESSAGE_DEFLATE:-true}")
 fi
 
-exec env WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-}" \
-  "$PYTHON_CMD" -m uvicorn open_webui.main:app \
+exec env WEAI_SECRET_KEY="${WEAI_SECRET_KEY:-}" \
+  "$PYTHON_CMD" -m uvicorn weai.main:app \
     --host "$HOST" \
     --port "$PORT" \
     --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-*}" \

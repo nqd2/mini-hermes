@@ -3,9 +3,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.mini_hermes import model_capabilities, resource_aware, resource_tasks
-from open_webui.mini_hermes.execution import pipeline
-from open_webui.utils.chat_runtime.resource_planning import prepare_resource_execution
+from weai.model_routing import model_capabilities
+from weai.documents import resource_aware, resource_tasks
+from weai.agent_runtime.execution import pipeline
+from weai.utils.chat_runtime.resource_planning import prepare_resource_execution
 
 
 @pytest.mark.asyncio

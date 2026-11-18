@@ -4,12 +4,12 @@
 	const dispatch = createEventDispatcher();
 	const i18n = getContext('i18n');
 
-	import { WEBUI_VERSION } from '$lib/constants';
+	import { WEAI_VERSION } from '$lib/constants';
 	import XMark from '../icons/XMark.svelte';
 
 	export let version = {
-		current: WEBUI_VERSION,
-		latest: WEBUI_VERSION
+		current: WEAI_VERSION,
+		latest: WEAI_VERSION
 	};
 </script>
 

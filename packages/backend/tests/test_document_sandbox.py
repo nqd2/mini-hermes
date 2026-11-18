@@ -13,7 +13,7 @@ from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import (
+from weai.documents.models import (
     ChatResource,
     Document,
     DocumentChunk,
@@ -25,8 +25,8 @@ from open_webui.mini_hermes.models import (
     RevisionOutbox,
     SyncJob,
 )
-from open_webui.mini_hermes.sandbox_service import ReadRequest, RunRequest, app, read_output, run_workspace
-from open_webui.mini_hermes.service import commit_preview, create_artifact_preview, publish_generated_document
+from weai.agent_runtime.sandbox_service import ReadRequest, RunRequest, app, read_output, run_workspace
+from weai.documents.service import commit_preview, create_artifact_preview, publish_generated_document
 
 
 class MemoryStore:
@@ -42,7 +42,7 @@ class MemoryStore:
 
 @pytest.mark.asyncio
 async def test_sandbox_runs_code_on_input_and_reads_only_output(tmp_path, monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
     result = await run_workspace(RunRequest(
         workspace_id='a' * 64, language='python',
         code="from pathlib import Path\nPath('outputs/result.pdf').write_bytes(Path('inputs/source.pdf').read_bytes() + b'!')",
@@ -62,7 +62,7 @@ async def test_sandbox_runs_code_on_input_and_reads_only_output(tmp_path, monkey
 
 @pytest.mark.asyncio
 async def test_xlsx_markdown_skill_reads_chat_scoped_workbook(tmp_path, monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = 'Summary'
@@ -90,7 +90,7 @@ async def test_xlsx_markdown_skill_reads_chat_scoped_workbook(tmp_path, monkeypa
 
 @pytest.mark.asyncio
 async def test_xlsx_markdown_preview_samples_large_sheet_through_its_end(tmp_path, monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = 'LargeSheet'
@@ -117,7 +117,7 @@ async def test_xlsx_markdown_preview_samples_large_sheet_through_its_end(tmp_pat
 
 @pytest.mark.asyncio
 async def test_xlsx_markdown_preview_preserves_unicode_text(tmp_path, monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = '招生情况'
@@ -143,7 +143,7 @@ async def test_xlsx_markdown_preview_preserves_unicode_text(tmp_path, monkeypatc
 
 @pytest.mark.asyncio
 async def test_xlsx_markdown_preview_fits_tool_result_budget(tmp_path, monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = 'LargeSheet'
@@ -170,7 +170,7 @@ async def test_xlsx_markdown_preview_fits_tool_result_budget(tmp_path, monkeypat
 
 @pytest.mark.asyncio
 async def test_xlsx_profile_maps_visiting_students_to_the_correct_column(tmp_path, monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = 'Catalog'
@@ -201,7 +201,7 @@ async def test_xlsx_profile_maps_visiting_students_to_the_correct_column(tmp_pat
 
 @pytest.mark.asyncio
 async def test_output_keeps_its_input_revision_until_rewritten(tmp_path, monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
     workspace_id = 'c' * 64
     inputs = {'inputs/source.pdf': base64.b64encode(b'%PDF').decode()}
     await run_workspace(RunRequest(
@@ -225,7 +225,7 @@ async def test_output_keeps_its_input_revision_until_rewritten(tmp_path, monkeyp
 
 
 def test_sandbox_http_requires_dedicated_token(monkeypatch):
-    monkeypatch.setenv('MH_SANDBOX_TOKEN', 'test-only-token')
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_TOKEN', 'test-only-token')
     with TestClient(app) as client:
         response = client.post('/run', json={'workspace_id': 'a' * 64, 'language': 'python', 'code': 'print(1)'})
         assert response.status_code == 401
@@ -235,11 +235,11 @@ def test_sandbox_http_requires_dedicated_token(monkeypatch):
 async def test_javascript_execution_has_no_service_secrets(tmp_path, monkeypatch):
     if not shutil.which('node'):
         pytest.skip('Node is not installed')
-    monkeypatch.setenv('MH_SANDBOX_WORK_ROOT', str(tmp_path))
-    monkeypatch.setenv('MH_SANDBOX_TOKEN', 'secret-token')
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_TOKEN', 'secret-token')
     result = await run_workspace(RunRequest(
         workspace_id='b' * 64, language='javascript',
-        code="require('fs').writeFileSync('outputs/result.pdf', String(process.env.MH_SANDBOX_TOKEN || 'clean'))",
+        code="require('fs').writeFileSync('outputs/result.pdf', String(process.env.AGENT_RUNTIME_SANDBOX_TOKEN || 'clean'))",
     ))
     assert result['exit_code'] == 0
     output = await read_output(ReadRequest(workspace_id='b' * 64, path='outputs/result.pdf'))
@@ -326,8 +326,8 @@ async def test_publish_rejects_invalid_office_bytes_and_pdf_revision():
 
 @pytest.mark.asyncio
 async def test_agent_execution_mounts_only_chat_scoped_documents(monkeypatch):
-    from open_webui.mini_hermes import tools
-    from open_webui.models.chats import Chats
+    from weai.agent_runtime import tools
+    from weai.models.chats import Chats
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -378,7 +378,7 @@ async def test_agent_execution_mounts_only_chat_scoped_documents(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agent_edit_creates_preview_until_user_approval(monkeypatch):
-    from open_webui.mini_hermes import tools
+    from weai.agent_runtime import tools
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -418,7 +418,7 @@ async def test_agent_edit_creates_preview_until_user_approval(monkeypatch):
     async with sessions() as db:
         assert (await db.get(Document, 'doc-1')).current_revision == 1
         assert (await db.execute(select(SyncJob))).scalars().all() == []
-        from open_webui.mini_hermes.service import commit_preview
+        from weai.documents.service import commit_preview
         approval = {'base_revision': result['base_revision'], 'base_sha256': result['base_sha256'],
                     'artifact_sha256': result['artifact_sha256'], 'patch_hash': result['patch_hash']}
         revision, _ = await commit_preview(db, store, 'alice', result['preview_id'], approval=approval)
@@ -429,7 +429,7 @@ async def test_agent_edit_creates_preview_until_user_approval(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_chat_artifacts_lists_generated_outputs_only(monkeypatch):
-    from open_webui.mini_hermes import routes
+    from weai.documents import routes
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -458,7 +458,7 @@ async def test_chat_artifacts_lists_generated_outputs_only(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_chat_preview_list_exposes_hashes_needed_for_user_approval(monkeypatch):
-    from open_webui.mini_hermes import routes
+    from weai.documents import routes
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -494,7 +494,7 @@ async def test_chat_preview_list_exposes_hashes_needed_for_user_approval(monkeyp
 
 @pytest.mark.asyncio
 async def test_viewer_history_and_source_resolution_check_read_permission():
-    from open_webui.mini_hermes.routes import list_document_revisions, resolve_source_file
+    from weai.documents.routes import list_document_revisions, resolve_source_file
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -527,8 +527,8 @@ async def test_viewer_history_and_source_resolution_check_read_permission():
 
 @pytest.mark.asyncio
 async def test_publish_rejects_output_after_input_is_removed_from_chat(monkeypatch):
-    from open_webui.mini_hermes import tools
-    from open_webui.models.chats import Chats
+    from weai.agent_runtime import tools
+    from weai.models.chats import Chats
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -561,3 +561,20 @@ async def test_publish_rejects_output_after_input_is_removed_from_chat(monkeypat
             'outputs/result.pdf', __user__={'id': 'alice', 'role': 'user'}, __chat_id__='chat-1')
     assert revoked.value.status_code == 404
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_sandbox_client_authenticates_with_runtime_token(monkeypatch):
+    import httpx
+    from weai.agent_runtime.sandbox import SandboxClient
+    from weai.agent_runtime.sandbox_service import app
+
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_TOKEN', 'local-test-token')
+    async_client = httpx.AsyncClient
+    transport = httpx.ASGITransport(app=app)
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: async_client(transport=transport, **kw))
+
+    # An authenticated request reaches path validation in the sandbox service.
+    with pytest.raises(HTTPException) as error:
+        await SandboxClient().read('invalid-workspace-id', 'outputs/result.pdf')
+    assert error.value.status_code == 400

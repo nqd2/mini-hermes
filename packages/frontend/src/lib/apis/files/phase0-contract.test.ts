@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 import { getFileContentById, getFileProcessStatus, uploadFile } from './index';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -12,13 +12,13 @@ describe('existing file upload consumer contract', () => {
 		const file = new File(['workbook bytes'], 'book.xlsx', {
 			type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 		});
-		const result = await uploadFile('token', file, { mini_hermes_chat_upload: true }, false, false, uploaded);
+		const result = await uploadFile('token', file, { agent_runtime_chat_upload: true }, false, false, uploaded);
 		const [url, options] = fetch.mock.calls[0];
-		expect(url).toBe(`${WEBUI_API_BASE_URL}/files/?process=false`);
+		expect(url).toBe(`${WEAI_API_BASE_URL}/files/?process=false`);
 		expect(options.method).toBe('POST');
 		expect(options.headers.authorization).toBe('Bearer token');
 		expect(options.body.get('file')).toBe(file);
-		expect(options.body.get('metadata')).toBe('{"mini_hermes_chat_upload":true}');
+		expect(options.body.get('metadata')).toBe('{"agent_runtime_chat_upload":true}');
 		expect(uploaded).toHaveBeenCalledWith(result);
 		expect(fetch).toHaveBeenCalledTimes(1);
 	});
@@ -28,7 +28,7 @@ describe('existing file upload consumer contract', () => {
 		const fetch = vi.fn().mockResolvedValue(response);
 		vi.stubGlobal('fetch', fetch);
 		expect(await getFileProcessStatus('token', 'file-1')).toBe(response);
-		expect(fetch).toHaveBeenCalledWith(`${WEBUI_API_BASE_URL}/files/file-1/process/status?stream=true`, {
+		expect(fetch).toHaveBeenCalledWith(`${WEAI_API_BASE_URL}/files/file-1/process/status?stream=true`, {
 			method: 'GET',
 			headers: { Accept: 'application/json', authorization: 'Bearer token' }
 		});
@@ -48,7 +48,7 @@ describe('existing file upload consumer contract', () => {
 		const fetch = vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => bytes });
 		vi.stubGlobal('fetch', fetch);
 		expect(await getFileContentById('file-1')).toBe(bytes);
-		expect(fetch).toHaveBeenCalledWith(`${WEBUI_API_BASE_URL}/files/file-1/content`, {
+		expect(fetch).toHaveBeenCalledWith(`${WEAI_API_BASE_URL}/files/file-1/content`, {
 			method: 'GET', headers: { Accept: 'application/json' }, credentials: 'include'
 		});
 	});

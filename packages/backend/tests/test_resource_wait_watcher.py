@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.mini_hermes import resource_wait_watcher
-from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate, prepare_resource_tool_result
+from weai.documents import resource_wait_watcher
+from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate, prepare_resource_tool_result
 
 
 def test_answer_gate_pauses_without_continue_response_prose_in_saved_chat():

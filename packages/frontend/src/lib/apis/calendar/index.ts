@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type CalendarModel = {
 	id: string;
@@ -74,7 +74,7 @@ export type CalendarForm = {
 export const getCalendars = async (token: string): Promise<CalendarModel[]> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -102,7 +102,7 @@ export const getCalendars = async (token: string): Promise<CalendarModel[]> => {
 export const createCalendar = async (token: string, form: CalendarForm): Promise<CalendarModel> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -135,7 +135,7 @@ export const updateCalendar = async (
 ): Promise<CalendarModel> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/${calendarId}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/${calendarId}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -164,7 +164,7 @@ export const updateCalendar = async (
 export const deleteCalendar = async (token: string, calendarId: string): Promise<boolean> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/${calendarId}/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/${calendarId}/delete`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -195,7 +195,7 @@ export const setDefaultCalendar = async (
 ): Promise<CalendarModel> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/${calendarId}/default`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/${calendarId}/default`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -237,7 +237,7 @@ export const getCalendarEvents = async (
 		params.append('calendar_ids', calendarIds.join(','));
 	}
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/events?${params.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/events?${params.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -268,7 +268,7 @@ export const createCalendarEvent = async (
 ): Promise<CalendarEventModel> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/events/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/events/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -300,7 +300,7 @@ export const getCalendarEventById = async (
 ): Promise<CalendarEventModel> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/events/${eventId}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/events/${eventId}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -332,7 +332,7 @@ export const updateCalendarEvent = async (
 ): Promise<CalendarEventModel> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/events/${eventId}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/events/${eventId}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -361,7 +361,7 @@ export const updateCalendarEvent = async (
 export const deleteCalendarEvent = async (token: string, eventId: string): Promise<boolean> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/events/${eventId}/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/events/${eventId}/delete`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -393,7 +393,7 @@ export const rsvpCalendarEvent = async (
 ): Promise<{ status: boolean; rsvp: string }> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/events/${eventId}/rsvp`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/events/${eventId}/rsvp`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -432,7 +432,7 @@ export const searchCalendarEvents = async (
 	params.append('skip', skip.toString());
 	params.append('limit', limit.toString());
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/events/search?${params.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/events/search?${params.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -464,7 +464,7 @@ export const updateCalendarAccessGrants = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/calendars/${id}/access/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/calendars/${id}/access/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',

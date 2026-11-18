@@ -1,8 +1,8 @@
 import pytest
 from fastapi import HTTPException
 
-from open_webui.mini_hermes.retrieval import should_bypass_vector_indexing
-from open_webui.retrieval.utils import generate_embeddings, get_embedding_function
+from weai.documents.retrieval import should_bypass_vector_indexing
+from weai.retrieval.utils import generate_embeddings, get_embedding_function
 
 
 def test_slim_chat_upload_without_embedding_skips_vector_indexing():

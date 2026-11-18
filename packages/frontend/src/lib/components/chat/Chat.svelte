@@ -51,7 +51,7 @@
 
 	import { get, writable, type Unsubscriber, type Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import equal from 'fast-deep-equal';
 
 	import {
@@ -62,7 +62,7 @@
 		tags as allTags,
 		settings,
 		showSidebar,
-		WEBUI_NAME,
+		WEAI_NAME,
 		banners,
 		user,
 		socket,
@@ -91,7 +91,7 @@
 	import { refreshChatList, refreshFolderChatLists } from '$lib/stores/chatList';
 	import { documentViewerOpen } from '$lib/stores/documentViewerDock';
 
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import {
 		resolveDefaultModelIds,
@@ -2158,7 +2158,7 @@
 		message.meta = { ...message.meta, voice: merged };
 		history = history;
 		if ($chatId && !$temporaryChatEnabled) {
-			const response = await fetch(`${WEBUI_API_BASE_URL}/chats/${$chatId}/messages/${id}`, {
+			const response = await fetch(`${WEAI_API_BASE_URL}/chats/${$chatId}/messages/${id}`, {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${localStorage.token}`,
@@ -3941,7 +3941,7 @@
 		const res = await generateOpenAIChatCompletion(
 			localStorage.token,
 			requestPayload,
-			`${WEBUI_BASE_URL}/api`
+			`${WEAI_BASE_URL}/api`
 		).catch((error) =>
 			applyChatRequestFailure({
 				error,
@@ -4413,8 +4413,8 @@
 <svelte:head>
 	<title>
 		{$settings.showChatTitleInTab !== false && $chatTitle
-			? `${$chatTitle.length > 30 ? `${$chatTitle.slice(0, 30)}...` : $chatTitle} / ${$WEBUI_NAME}`
-			: `${$WEBUI_NAME}`}
+			? `${$chatTitle.length > 30 ? `${$chatTitle.slice(0, 30)}...` : $chatTitle} / ${$WEAI_NAME}`
+			: `${$WEAI_NAME}`}
 	</title>
 </svelte:head>
 

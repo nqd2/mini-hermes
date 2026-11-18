@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from open_webui.mini_hermes.parsers import extract_sections
+from weai.documents.parsers import extract_sections
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'v2'
 

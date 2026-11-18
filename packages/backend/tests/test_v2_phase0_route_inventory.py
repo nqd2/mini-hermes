@@ -44,17 +44,17 @@ async def endpoint(): pass
 
 def test_mounts_retain_import_aliases_and_conditional_status():
     source = '''
-from open_webui.routers import auths
-from open_webui.mini_hermes.routes import router as document_router
+from weai.routers import auths
+from weai.documents.routes import router as document_router
 app.include_router(auths.router, prefix='/api/v1/auths')
 if ENABLE_DOCUMENTS:
-    app.include_router(document_router, prefix='/api/v1/mini-hermes')
+    app.include_router(document_router, prefix='/api/v1/agent-runtime')
 '''
     mounts = inventory.scan_mounts(source)
-    assert mounts[0]['module'] == 'open_webui.routers.auths'
+    assert mounts[0]['module'] == 'weai.routers.auths'
     assert mounts[0]['prefix'] == '/api/v1/auths'
     assert mounts[0]['conditional'] is False
-    assert mounts[1]['module'] == 'open_webui.mini_hermes.routes'
+    assert mounts[1]['module'] == 'weai.documents.routes'
     assert mounts[1]['conditional'] is True
 
 
@@ -72,13 +72,13 @@ def endpoint(): pass
 def test_exact_static_pairing_excludes_dynamic_paths_and_unknown_methods():
     front = {'entries': [
         {'file': 'src/auth.ts', 'line': 1, 'caller': 'signin', 'method': 'POST',
-         'url_expression': '`${WEBUI_API_BASE_URL}/auths/signin`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/auths/signin`'},
         {'file': 'src/auth.ts', 'line': 2, 'caller': 'missing', 'method': 'GET',
-         'url_expression': '`${WEBUI_API_BASE_URL}/does-not-exist`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/does-not-exist`'},
         {'file': 'src/chat.ts', 'line': 3, 'caller': 'lookup', 'method': 'GET',
-         'url_expression': '`${WEBUI_API_BASE_URL}/chats/${id}`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/chats/${id}`'},
         {'file': 'src/chat.ts', 'line': 4, 'caller': 'unknown', 'method': 'UNKNOWN',
-         'url_expression': '`${WEBUI_API_BASE_URL}/auths/signin`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/auths/signin`'},
     ]}
     back = {'routes': [{'mounted_path': '/api/v1/auths/signin', 'methods': ['POST'], 'handler': 'signin'}]}
     result = inventory.pair_static_routes(front, back)
@@ -91,13 +91,13 @@ def test_exact_static_pairing_excludes_dynamic_paths_and_unknown_methods():
 def test_parameterized_paths_are_candidates_but_wildcards_stay_unresolved():
     front = {'entries': [
         {'file': 'src/a.ts', 'line': 1, 'caller': 'load', 'method': 'GET',
-         'url_expression': '`${WEBUI_API_BASE_URL}/chats/${id}`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/chats/${id}`'},
         {'file': 'src/a.ts', 'line': 2, 'caller': 'load_encoded', 'method': 'GET',
-         'url_expression': '`${WEBUI_API_BASE_URL}/chats/${encodeURIComponent(id)}?${params}`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/chats/${encodeURIComponent(id)}?${params}`'},
         {'file': 'src/a.ts', 'line': 3, 'caller': 'path', 'method': 'GET',
-         'url_expression': '`${WEBUI_API_BASE_URL}/files/${path}`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/files/${path}`'},
         {'file': 'src/a.ts', 'line': 4, 'caller': 'dynamic', 'method': 'GET',
-         'url_expression': '`${WEBUI_API_BASE_URL}/chats/${getPath()}`'},
+         'url_expression': '`${WEAI_API_BASE_URL}/chats/${getPath()}`'},
     ]}
     back = {'routes': [
         {'mounted_path': '/api/v1/chats/{chat_id}', 'methods': ['GET'], 'handler': 'get_chat'},

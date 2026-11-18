@@ -8,8 +8,8 @@ const buildInfo = resolveBuildInfo();
 
 export default defineConfig(({ mode }) => {
 	const backendTarget =
-		process.env.WEBUI_BACKEND_URL ||
-		loadEnv(mode, process.cwd(), 'WEBUI_').WEBUI_BACKEND_URL ||
+		process.env.WEAI_BACKEND_URL ||
+		loadEnv(mode, process.cwd(), 'WEAI_').WEAI_BACKEND_URL ||
 		'http://127.0.0.1:8080';
 
 	return {

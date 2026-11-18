@@ -1,5 +1,5 @@
 param(
-    [string]$ContainerName = 'mini-hermes-postgres-dev',
+    [string]$ContainerName = 'weai-postgres-dev',
     [string]$EnvPath = (Join-Path $PSScriptRoot '..\packages\backend\.env')
 )
 
@@ -37,7 +37,7 @@ if ($existing -eq $ContainerName) {
 } else {
     docker run -d --name $ContainerName `
         -p '127.0.0.1:5433:5432' `
-        -v 'mini-hermes-postgres-dev-data:/var/lib/postgresql/data' `
+        -v 'weai-postgres-dev-data:/var/lib/postgresql/data' `
         -e "POSTGRES_DB=$dbName" `
         -e "POSTGRES_USER=$dbUser" `
         -e "POSTGRES_PASSWORD=$dbPassword" `
@@ -54,4 +54,4 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
     }
     Start-Sleep -Seconds 1
 }
-throw 'PostgreSQL did not accept the DATABASE_URL credentials within 60 seconds. Check docker logs mini-hermes-postgres-dev.'
+throw 'PostgreSQL did not accept the DATABASE_URL credentials within 60 seconds. Check docker logs weai-postgres-dev.'

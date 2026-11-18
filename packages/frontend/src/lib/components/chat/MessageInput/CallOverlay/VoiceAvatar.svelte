@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher, onMount } from 'svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import {
 		avatarAssetIds,
 		type AnimationFiles,
@@ -129,7 +129,7 @@
 				if (file) data = await file.arrayBuffer();
 				else {
 					if (!/^[a-f0-9-]{36}$/i.test(config.file_id)) throw new Error('Avatar file is missing.');
-					const response = await fetch(`${WEBUI_API_BASE_URL}/files/${config.file_id}/content`, {
+					const response = await fetch(`${WEAI_API_BASE_URL}/files/${config.file_id}/content`, {
 						headers: { Authorization: `Bearer ${localStorage.token}` },
 						signal: abort.signal
 					});
@@ -163,7 +163,7 @@
 											let bytes: ArrayBuffer;
 											if (files[id]) bytes = await files[id].arrayBuffer();
 											else {
-												const response = await fetch(`${WEBUI_API_BASE_URL}/files/${id}/content`, {
+												const response = await fetch(`${WEAI_API_BASE_URL}/files/${id}/content`, {
 													headers: { Authorization: `Bearer ${localStorage.token}` },
 													signal: abort.signal
 												});

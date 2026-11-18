@@ -6,12 +6,12 @@ from pathlib import Path
 import openpyxl
 import pytest
 
-from open_webui.mini_hermes.v2.canonical.spreadsheet import (
+from weai.persistence.v2.canonical.spreadsheet import (
     CanonicalMergedRange,
     CanonicalSpreadsheetModel,
 )
-from open_webui.mini_hermes.v2.models.enums import CachedValueState, CellDataType, SheetVisibility
-from open_webui.mini_hermes.v2.parsers.xlsx import (
+from weai.persistence.v2.models.enums import CachedValueState, CellDataType, SheetVisibility
+from weai.persistence.v2.parsers.xlsx import (
     FormulaProtectionViolationError,
     MergedNonAnchorCellError,
     ProtectedSheetError,

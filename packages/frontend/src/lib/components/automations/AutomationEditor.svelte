@@ -4,13 +4,13 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import dayjs from 'dayjs';
 	import localizedFormat from 'dayjs/plugin/localizedFormat';
 	import type i18nType from '$lib/i18n';
 
-	import { WEBUI_NAME, channels, folders } from '$lib/stores';
+	import { WEAI_NAME, channels, folders } from '$lib/stores';
 	import { getFolders } from '$lib/apis/folders';
 	import { getChannels } from '$lib/apis/channels';
 
@@ -63,7 +63,7 @@
 		if (!id) return;
 		try {
 			const response = await fetch(
-				`${WEBUI_API_BASE_URL}/automations/${encodeURIComponent(automation.id)}/runs/${encodeURIComponent(id)}`,
+				`${WEAI_API_BASE_URL}/automations/${encodeURIComponent(automation.id)}/runs/${encodeURIComponent(id)}`,
 				{ headers: { Authorization: `Bearer ${localStorage.token}` } }
 			);
 			if (!response.ok) throw new Error($i18n.t('Run not found'));
@@ -245,7 +245,7 @@
 </script>
 
 <svelte:head>
-	<title>{automation.name || $i18n.t('Automation')} / {$WEBUI_NAME}</title>
+	<title>{automation.name || $i18n.t('Automation')} / {$WEAI_NAME}</title>
 </svelte:head>
 
 <DeleteConfirmDialog

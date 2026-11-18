@@ -7,8 +7,8 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, ResourceTask, Revision
-from open_webui.mini_hermes.resource_tasks import (
+from weai.documents.models import ChatResource, Document, DocumentChunk, Folder, ResourceTask, Revision
+from weai.documents.resource_tasks import (
     create_summary_task,
     get_summary_task,
     process_summary_task,
@@ -19,8 +19,8 @@ from open_webui.mini_hermes.resource_tasks import (
 
 @pytest.fixture(autouse=True)
 def active_summary_owner(monkeypatch):
-    from open_webui.mini_hermes.tier_service import PlanSnapshot, tier_repository
-    from open_webui.models.users import Users
+    from weai.model_routing.tier_service import PlanSnapshot, tier_repository
+    from weai.models.users import Users
 
     monkeypatch.setattr(Users, 'get_user_by_id', AsyncMock(return_value=SimpleNamespace(role='user')))
     monkeypatch.setattr(tier_repository, 'get_plan', AsyncMock(return_value=PlanSnapshot('free', None)))
@@ -28,7 +28,7 @@ def active_summary_owner(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_summary_task_checkpoints_chunks_and_reduces_with_evidence(monkeypatch):
-    from open_webui.mini_hermes import resource_tasks
+    from weai.documents import resource_tasks
 
     async def summarize(text, _task):
         return 'summary:' + text[:30]
@@ -82,8 +82,8 @@ async def test_summary_task_checkpoints_chunks_and_reduces_with_evidence(monkeyp
             ]
         )
         await db.commit()
-        task = await create_summary_task(db, doc, 'alice', 'chat-1', 'mh-free-medium')
-        assert task.logical_model_id == 'mh-free-medium'
+        task = await create_summary_task(db, doc, 'alice', 'chat-1', 'agent-runtime-free-medium')
+        assert task.logical_model_id == 'agent-runtime-free-medium'
         assert (await db.execute(select(DocumentChunk.id))).scalars().all() == ['c1', 'c2']
         for _ in range(8):
             if task.status == 'completed':
@@ -101,7 +101,7 @@ async def test_summary_task_checkpoints_chunks_and_reduces_with_evidence(monkeyp
 
 @pytest.mark.asyncio
 async def test_large_summary_reduces_multiple_groups_across_database_sessions(monkeypatch):
-    from open_webui.mini_hermes import resource_tasks
+    from weai.documents import resource_tasks
 
     calls = []
 
@@ -244,7 +244,7 @@ async def test_cancel_and_resume_keeps_checkpoint_and_rejects_changed_revision()
 
 @pytest.mark.asyncio
 async def test_summary_task_reloads_checkpoint_after_session_restart(monkeypatch):
-    from open_webui.mini_hermes import resource_tasks
+    from weai.documents import resource_tasks
 
     async def summarize(text, _task):
         return 'summary:' + text[:30]
@@ -333,8 +333,8 @@ async def test_summary_task_reloads_checkpoint_after_session_restart(monkeypatch
 
 @pytest.mark.asyncio
 async def test_resume_task_rechecks_chat_resource_access_after_revocation(monkeypatch):
-    from open_webui.mini_hermes import tools
-    from open_webui.mini_hermes.library import set_chat_document_access
+    from weai.agent_runtime import tools
+    from weai.documents.library import set_chat_document_access
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:

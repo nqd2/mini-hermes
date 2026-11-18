@@ -16,10 +16,10 @@ import type { I18nOverrides } from '$lib/utils/translationDictionary';
 import emojiShortCodes from '$lib/emoji-shortcodes.json';
 
 // Backend identity and session state
-export const WEBUI_NAME = writable(APP_NAME);
+export const WEAI_NAME = writable(APP_NAME);
 
-export const WEBUI_VERSION = writable(null);
-export const WEBUI_DEPLOYMENT_ID = writable(null);
+export const WEAI_VERSION = writable(null);
+export const WEAI_DEPLOYMENT_ID = writable(null);
 
 export const config: Writable<Config | undefined> = writable(undefined);
 export const user: Writable<SessionUser | undefined> = writable(undefined);
@@ -211,13 +211,13 @@ export const desktopEvent: Writable<DesktopEvent | null> = writable(null);
 export const isLastActiveTab = writable(true);
 export const playingNotificationSound = writable(false);
 
-export type Model = OpenAIModel | ArenaModel | MhModel;
+export type Model = OpenAIModel | ArenaModel | WeAIModel;
 
 type BaseModel = {
 	id: string;
 	name: string;
 	info?: ModelConfig;
-	owned_by: 'openai' | 'arena' | 'mini-hermes';
+	owned_by: 'openai' | 'arena' | 'agent-runtime';
 };
 
 export interface OpenAIModel extends BaseModel {
@@ -226,8 +226,8 @@ export interface OpenAIModel extends BaseModel {
 	source?: string;
 }
 
-export interface MhModel extends BaseModel {
-	owned_by: 'mini-hermes';
+export interface WeAIModel extends BaseModel {
+	owned_by: 'agent-runtime';
 }
 
 export interface ArenaModel extends BaseModel {
@@ -241,7 +241,7 @@ type Settings = {
 	detectArtifacts?: boolean;
 	showUpdateToast?: boolean;
 	showChangelog?: boolean;
-	mh_last_seen_release_version?: string;
+	last_seen_release_version?: string;
 	showEmojiInCall?: boolean;
 	voiceInterruption?: boolean;
 	collapseCodeBlocks?: boolean;

@@ -14,7 +14,7 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import VideoInputMenu from './CallOverlay/VideoInputMenu.svelte';
 	import { KokoroWorker } from '$lib/workers/KokoroWorker';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import type { RealtimeCall } from '$lib/utils/realtime';
 	import VoiceAvatar from './CallOverlay/VoiceAvatar.svelte';
 	import type { AvatarAnimationCommand } from '$lib/utils/voice-avatar';
@@ -985,7 +985,7 @@
 								: rmsLevel * 100 > 1
 									? 'size-14'
 									: 'size-12'}  transition-all rounded-full bg-cover bg-center bg-no-repeat"
-						style={`background-image: url('${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}&voice=true');`}
+						style={`background-image: url('${WEAI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}&voice=true');`}
 					></div>
 				{/if}
 				<!-- navbar -->
@@ -1095,7 +1095,7 @@
 										: rmsLevel * 100 > 1
 											? 'size-44'
 											: 'size-40'} transition-all rounded-full bg-cover bg-center bg-no-repeat"
-								style={`background-image: url('${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}&voice=true');`}
+								style={`background-image: url('${WEAI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}&voice=true');`}
 							></div>
 						{/if}
 					{/if}

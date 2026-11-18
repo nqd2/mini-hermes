@@ -1,4 +1,4 @@
-"""Tests for Mini-Hermes V2 fresh bootstrap runner."""
+"""Tests for Agent Runtime V2 fresh bootstrap runner."""
 
 import asyncio
 import os
@@ -12,13 +12,13 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from open_webui.mini_hermes.v2.bootstrap import (
+from weai.persistence.v2.bootstrap import (
     BootstrapConfig,
     DatabaseAlreadyBootstrappedError,
     LegacyV1DatabaseDetectedError,
     bootstrap_v2_database,
 )
-from open_webui.mini_hermes.v2.migrations.runner import (
+from weai.persistence.v2.migrations.runner import (
     check_v2_migrations_up_to_date,
     get_v2_current_revision,
     run_v2_migrations,
@@ -35,17 +35,17 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def disposable_pg_schema():
     """Fixture providing a completely isolated temporary PostgreSQL schema."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
-    schema_name = f"mh_test_boot_{uuid4().hex}"
+    schema_name = f"ar_test_boot_{uuid4().hex}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
 
@@ -77,7 +77,7 @@ async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_
     summary = await bootstrap_v2_database(config)
 
     assert summary["tables_created"] == 104
-    assert get_v2_current_revision(schema_url) == "0006_mh_model_tiers"
+    assert get_v2_current_revision(schema_url) == "0006_ar_model_tiers"
     assert summary["environment_id"] == "development"
     assert summary["admin_email"] == "testadmin@hermes.test"
     assert len(summary["roles_seeded"]) == 4
@@ -95,17 +95,17 @@ async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_
                     )
                 )
             ).all()
-            mh_tables = [t for t in tables if t.startswith("mh_")]
-            assert len(mh_tables) == 104
+            ar_tables = [t for t in tables if t.startswith("ar_")]
+            assert len(ar_tables) == 104
 
             # 2. Verify roles
-            roles = (await conn.scalars(text("SELECT name FROM mh_roles ORDER BY name"))).all()
+            roles = (await conn.scalars(text("SELECT name FROM ar_roles ORDER BY name"))).all()
             assert sorted(roles) == ["admin", "auditor", "reviewer", "user"]
 
             # 3. Verify admin user
             admin = (
                 await conn.execute(
-                    text("SELECT email, name, role, password_hash, is_active FROM mh_users WHERE email = :email"),
+                    text("SELECT email, name, role, password_hash, is_active FROM ar_users WHERE email = :email"),
                     {"email": "testadmin@hermes.test"},
                 )
             ).mappings().fetchone()
@@ -119,7 +119,7 @@ async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_
             # 4. Verify environment marker
             marker = (
                 await conn.execute(
-                    text("SELECT key, instance_id, environment_name, schema_generation, safety_token FROM mh_environment_markers")
+                    text("SELECT key, instance_id, environment_name, schema_generation, safety_token FROM ar_environment_markers")
                 )
             ).mappings().fetchone()
             assert marker is not None
@@ -171,7 +171,7 @@ def test_alembic_v2_migrations_upgrade_and_downgrade(disposable_pg_schema):
 
     run_v2_migrations(schema_url, "head")
 
-    assert get_v2_current_revision(schema_url) == "0006_mh_model_tiers"
+    assert get_v2_current_revision(schema_url) == "0006_ar_model_tiers"
     assert check_v2_migrations_up_to_date(schema_url) is True
 
     from sqlalchemy import create_engine
@@ -183,9 +183,9 @@ def test_alembic_v2_migrations_upgrade_and_downgrade(disposable_pg_schema):
             assert conn.scalar(text("SELECT 'spreadsheet'::text % 'spreadsheet'::varchar")) is True
             indexes = set(conn.scalars(text(
                 "SELECT indexname FROM pg_indexes "
-                "WHERE schemaname = :schema AND tablename = 'mh_document_chunk'"
+                "WHERE schemaname = :schema AND tablename = 'ar_document_chunk'"
             ), {'schema': schema_name}))
-            assert {'ix_mh_chunk_fts', 'ix_mh_chunk_trgm'} <= indexes
+            assert {'ix_ar_chunk_fts', 'ix_ar_chunk_trgm'} <= indexes
     finally:
         engine.dispose()
 
@@ -196,7 +196,7 @@ def test_alembic_v2_migrations_upgrade_and_downgrade(disposable_pg_schema):
     assert check_v2_migrations_up_to_date(schema_url) is False
 
 
-def test_v2_migration_does_not_create_retired_openwebui_tables(disposable_pg_schema):
+def test_v2_migration_does_not_create_retired_weai_tables(disposable_pg_schema):
     """A fresh release database must contain only supported product tables."""
     schema_url, schema_name = disposable_pg_schema
     run_v2_migrations(schema_url, "head")
@@ -214,17 +214,17 @@ def test_v2_migration_does_not_create_retired_openwebui_tables(disposable_pg_sch
         engine.dispose()
 
     assert {
-        "mh_agent_session", "mh_agent_turn", "mh_agent_event",
-        "mh_ow_user", "mh_ow_auth", "mh_ow_chat", "mh_ow_model",
+        "ar_agent_session", "ar_agent_turn", "ar_agent_event",
+        "ar_ow_user", "ar_ow_auth", "ar_ow_chat", "ar_ow_model",
     } <= tables
-    assert sum(name.startswith("mh_") for name in tables) == 104
+    assert sum(name.startswith("ar_") for name in tables) == 104
     assert not tables.intersection({
-        "mh_ow_app", "mh_ow_automation", "mh_ow_automation_run",
-        "mh_ow_calendar", "mh_ow_calendar_event", "mh_ow_calendar_event_attendee",
-        "mh_ow_channel", "mh_ow_channel_file", "mh_ow_channel_member",
-        "mh_ow_channel_webhook", "mh_ow_comment", "mh_ow_comment_reaction",
-        "mh_ow_function", "mh_ow_function_history", "mh_ow_note",
-        "mh_ow_pinned_note", "mh_ow_shared_chat",
+        "ar_ow_app", "ar_ow_automation", "ar_ow_automation_run",
+        "ar_ow_calendar", "ar_ow_calendar_event", "ar_ow_calendar_event_attendee",
+        "ar_ow_channel", "ar_ow_channel_file", "ar_ow_channel_member",
+        "ar_ow_channel_webhook", "ar_ow_comment", "ar_ow_comment_reaction",
+        "ar_ow_function", "ar_ow_function_history", "ar_ow_note",
+        "ar_ow_pinned_note", "ar_ow_shared_chat",
     })
 
 
@@ -238,10 +238,10 @@ def test_v2_migration_runner_does_not_silently_repair_schema(disposable_pg_schem
     engine = create_engine(schema_url)
     try:
         with engine.begin() as conn:
-            conn.execute(text("DROP TABLE mh_ow_model CASCADE"))
+            conn.execute(text("DROP TABLE ar_ow_model CASCADE"))
         run_v2_migrations(schema_url, "head")
         with engine.connect() as conn:
-            assert conn.scalar(text("SELECT to_regclass('mh_ow_model')")) is None
+            assert conn.scalar(text("SELECT to_regclass('ar_ow_model')")) is None
     finally:
         engine.dispose()
 
@@ -257,10 +257,10 @@ def test_v2_migration_upgrades_existing_agent_wait_constraint(disposable_pg_sche
     try:
         with engine.begin() as conn:
             conn.execute(text(
-                "ALTER TABLE mh_agent_turn DROP CONSTRAINT ck_agent_turn_status"
+                "ALTER TABLE ar_agent_turn DROP CONSTRAINT ck_agent_turn_status"
             ))
             conn.execute(text(
-                "ALTER TABLE mh_agent_turn ADD CONSTRAINT ck_agent_turn_status "
+                "ALTER TABLE ar_agent_turn ADD CONSTRAINT ck_agent_turn_status "
                 "CHECK (status IN ('queued', 'running', 'waiting_approval', 'paused', "
                 "'completed', 'failed', 'interrupted', 'cancelled'))"
             ))
@@ -268,7 +268,7 @@ def test_v2_migration_upgrades_existing_agent_wait_constraint(disposable_pg_sche
         with engine.connect() as conn:
             definition = conn.scalar(text(
                 "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                "WHERE conrelid = 'mh_agent_turn'::regclass "
+                "WHERE conrelid = 'ar_agent_turn'::regclass "
                 "AND conname = 'ck_agent_turn_status'"
             ))
         assert "waiting_user_input" in definition

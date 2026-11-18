@@ -27,30 +27,26 @@ from pypdf import PdfReader
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from open_webui.agent_runtime import (
-    AgentArtifact,
-    AgentRepository,
-    AgentSession,
-    AgentTurn,
-)
-import open_webui.models.messages  # noqa: F401 - registers message table for channel_file FK
-import open_webui.models.users  # noqa: F401 - registers users table
-import open_webui.models.channels  # noqa: F401 - registers channels table
-from open_webui.agent_runtime.contracts import ConversationEngineBinding
-from open_webui.agent_runtime.request_budget import (
+from weai.agent_runtime.models import AgentArtifact, AgentSession, AgentTurn
+from weai.agent_runtime.repository import AgentRepository
+import weai.models.messages  # noqa: F401 - registers message table for channel_file FK
+import weai.models.users  # noqa: F401 - registers users table
+import weai.models.channels  # noqa: F401 - registers channels table
+from weai.agent_runtime.contracts import ConversationEngineBinding
+from weai.agent_runtime.request_budget import (
     RequestBudgetLimits,
     RequestBudgetManager,
 )
-from open_webui.mini_hermes import edits, parsers, revision_service
-from open_webui.mini_hermes.revision_service import commit_preview
-from open_webui.mini_hermes.chunks import (
+from weai.documents import edits, parsers, revision_service
+from weai.documents.revision_service import commit_preview
+from weai.documents.chunks import (
     build_chunk_rows,
     document_range_evidence,
     read_document_range,
     replace_document_chunks,
     search_document_chunks,
 )
-from open_webui.mini_hermes.models import (
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -59,9 +55,9 @@ from open_webui.mini_hermes.models import (
     RevisionOutbox,
     now,
 )
-from open_webui.mini_hermes.revision_integrity import compute_patch_hash
-from open_webui.mini_hermes.service import build_preview
-from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+from weai.documents.revision_integrity import compute_patch_hash
+from weai.documents.service import build_preview
+from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
 
 
 # ---------------------------------------------------------------------------
@@ -116,12 +112,12 @@ async def test_tc_t4_sc_01_financial_spreadsheet_audit_and_publication(
     await db_session.commit()
 
     # Verify document access via async_client
-    doc_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}")
+    doc_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}")
     assert doc_resp.status_code == 200
     assert doc_resp.json()["filename"] == "Q3_Financial_Model.xlsx"
 
     # Verify content download endpoint returns exact original bytes
-    content_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content")
+    content_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content")
     assert content_resp.status_code == 200
     assert hashlib.sha256(content_resp.content).hexdigest() == expected_sha256
 
@@ -156,7 +152,7 @@ async def test_tc_t4_sc_01_financial_spreadsheet_audit_and_publication(
         {"op": "set_cell", "sheet": "Interview", "cell": "A2", "value": 125000},
         {"op": "append_row", "sheet": "Interview", "values": ["Q_NEW", "Audited Item", "Verification", "Approved"]},
     ]
-    prev_resp = await async_client.post(f"/api/v1/mini-hermes/documents/{doc_id}/previews", json={"operations": ops})
+    prev_resp = await async_client.post(f"/api/v1/agent-runtime/documents/{doc_id}/previews", json={"operations": ops})
     assert prev_resp.status_code == 200
     prev_id = prev_resp.json()["id"]
 
@@ -176,7 +172,7 @@ async def test_tc_t4_sc_01_financial_spreadsheet_audit_and_publication(
         "patch_hash": preview.patch_hash,
     }
     commit_resp = await async_client.post(
-        f"/api/v1/mini-hermes/previews/{prev_id}/commit",
+        f"/api/v1/agent-runtime/previews/{prev_id}/commit",
         json=approval_payload,
         headers={"Idempotency-Key": "idemp-fin-01"},
     )
@@ -198,7 +194,7 @@ async def test_tc_t4_sc_01_financial_spreadsheet_audit_and_publication(
     await db_session.commit()
 
     # Step 8: Audit & Verification via Content Endpoint
-    rev2_content_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content?revision=2")
+    rev2_content_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content?revision=2")
     assert rev2_content_resp.status_code == 200
     committed_wb = load_workbook(BytesIO(rev2_content_resp.content))
     assert committed_wb["Interview"]["A2"].value == 125000
@@ -263,7 +259,7 @@ async def test_tc_t4_sc_02_legal_contract_redlining_controlled_approval(
     await db_session.commit()
 
     # HTTP verification
-    doc_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}")
+    doc_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}")
     assert doc_resp.status_code == 200
     assert doc_resp.json()["filename"] == "MSA_Vendor_2026.docx"
 
@@ -289,7 +285,7 @@ async def test_tc_t4_sc_02_legal_contract_redlining_controlled_approval(
         {"op": "replace_text", "find": "opening paragraph", "replace": "amended indemnification clause (liability cap $2,500,000)"},
         {"op": "set_table_cell", "table": 0, "row": 0, "column": 1, "text": "99.9% Uptime Guarantee"},
     ]
-    prev_resp = await async_client.post(f"/api/v1/mini-hermes/documents/{doc_id}/previews", json={"operations": ops})
+    prev_resp = await async_client.post(f"/api/v1/agent-runtime/documents/{doc_id}/previews", json={"operations": ops})
     assert prev_resp.status_code == 200
     prev_id = prev_resp.json()["id"]
 
@@ -309,12 +305,12 @@ async def test_tc_t4_sc_02_legal_contract_redlining_controlled_approval(
         "artifact_sha256": preview.artifact_sha256,
         "patch_hash": preview.patch_hash,
     }
-    exp_resp = await async_client.post(f"/api/v1/mini-hermes/previews/{prev_id}/commit", json=approval_payload)
+    exp_resp = await async_client.post(f"/api/v1/agent-runtime/previews/{prev_id}/commit", json=approval_payload)
     assert exp_resp.status_code == 409
     assert "expired" in exp_resp.json()["detail"].lower()
 
     # Step 7: Fresh Proposal & Commit via async_client
-    fresh_resp = await async_client.post(f"/api/v1/mini-hermes/documents/{doc_id}/previews", json={"operations": ops})
+    fresh_resp = await async_client.post(f"/api/v1/agent-runtime/documents/{doc_id}/previews", json={"operations": ops})
     fresh_id = fresh_resp.json()["id"]
     fresh_preview = await db_session.get(Preview, fresh_id)
     await build_preview(db_session, memory_store, fresh_preview)
@@ -325,7 +321,7 @@ async def test_tc_t4_sc_02_legal_contract_redlining_controlled_approval(
         "artifact_sha256": fresh_preview.artifact_sha256,
         "patch_hash": fresh_preview.patch_hash,
     }
-    commit_resp = await async_client.post(f"/api/v1/mini-hermes/previews/{fresh_id}/commit", json=fresh_approval)
+    commit_resp = await async_client.post(f"/api/v1/agent-runtime/previews/{fresh_id}/commit", json=fresh_approval)
     assert commit_resp.status_code == 200
     assert commit_resp.json()["revision"] == 2
     await db_session.refresh(doc)
@@ -333,7 +329,7 @@ async def test_tc_t4_sc_02_legal_contract_redlining_controlled_approval(
 
     # Step 8: Compensating Rollback via async_client
     rb_preview_resp = await async_client.post(
-        f"/api/v1/mini-hermes/documents/{doc_id}/rollback-preview",
+        f"/api/v1/agent-runtime/documents/{doc_id}/rollback-preview",
         json={"target_revision": 1, "expected_current_revision": 2},
     )
     assert rb_preview_resp.status_code == 200
@@ -346,14 +342,14 @@ async def test_tc_t4_sc_02_legal_contract_redlining_controlled_approval(
         "artifact_sha256": rb_data["artifact_sha256"],
         "patch_hash": rb_data["patch_hash"],
     }
-    rb_commit_resp = await async_client.post(f"/api/v1/mini-hermes/previews/{rb_id}/commit", json=rb_approval)
+    rb_commit_resp = await async_client.post(f"/api/v1/agent-runtime/previews/{rb_id}/commit", json=rb_approval)
     assert rb_commit_resp.status_code == 200
     assert rb_commit_resp.json()["revision"] == 3
     await db_session.refresh(doc)
     assert doc.current_revision == 3
 
     # Verify Rev 3 restored original text
-    rev3_content_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content?revision=3")
+    rev3_content_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content?revision=3")
     assert rev3_content_resp.status_code == 200
     doc_restored = WordDocument(BytesIO(rev3_content_resp.content))
     assert "opening paragraph" in doc_restored.paragraphs[0].text
@@ -410,7 +406,7 @@ async def test_tc_t4_sc_03_executive_board_deck_overhaul_approval_challenge(
     await db_session.commit()
 
     # Verify document via async_client
-    doc_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}")
+    doc_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}")
     assert doc_resp.status_code == 200
     assert doc_resp.json()["filename"] == "Board_Strategy_2026.pptx"
 
@@ -423,13 +419,13 @@ async def test_tc_t4_sc_03_executive_board_deck_overhaul_approval_challenge(
         {"op": "add_slide", "layout": 6},
         {"op": "replace_text", "find": "Synthetic slide one", "replace": "AI Strategic Vision 2026"},
     ]
-    prev_resp = await async_client.post(f"/api/v1/mini-hermes/documents/{doc_id}/previews", json={"operations": ops})
+    prev_resp = await async_client.post(f"/api/v1/agent-runtime/documents/{doc_id}/previews", json={"operations": ops})
     assert prev_resp.status_code == 200
     prev_id = prev_resp.json()["id"]
 
     # Step 4: Agent Approval Gate in AgentRuntime
     repo = AgentRepository(db_sessionmaker)
-    binding = ConversationEngineBinding(engine_type="mini-hermes.agent_runtime", engine_version="v2")
+    binding = ConversationEngineBinding(engine_type="weai.agent_runtime", engine_version="v2")
     session = await repo.create_session("user-std-1", "chat-deck-03", engine_binding=binding)
     turn = await repo.create_turn(session.id, {"messages": []}, idempotency_key="turn-deck-03")
     await repo.claim_turn_by_id(turn.id, "worker-deck-03", lease_seconds=60)
@@ -479,7 +475,7 @@ async def test_tc_t4_sc_03_executive_board_deck_overhaul_approval_challenge(
         "patch_hash": "f" * 64,  # Tampered patch hash!
     }
     tamper_resp = await async_client.post(
-        f"/api/v1/mini-hermes/previews/{prev_id}/commit", json=tampered_approval
+        f"/api/v1/agent-runtime/previews/{prev_id}/commit", json=tampered_approval
     )
     assert tamper_resp.status_code == 400
     assert tamper_resp.json()["detail"]["code"] == "explicit_preview_approval_required"
@@ -492,7 +488,7 @@ async def test_tc_t4_sc_03_executive_board_deck_overhaul_approval_challenge(
         "patch_hash": preview.patch_hash,
     }
     commit_resp = await async_client.post(
-        f"/api/v1/mini-hermes/previews/{prev_id}/commit",
+        f"/api/v1/agent-runtime/previews/{prev_id}/commit",
         json=genuine_approval,
         headers={"Idempotency-Key": "idemp-deck-commit-03"},
     )
@@ -510,7 +506,7 @@ async def test_tc_t4_sc_03_executive_board_deck_overhaul_approval_challenge(
     assert retry_rev.document_id == doc_id
 
     # Verify committed presentation has 3 slides
-    rev2_content_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content?revision=2")
+    rev2_content_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content?revision=2")
     assert rev2_content_resp.status_code == 200
     saved_prs = Presentation(BytesIO(rev2_content_resp.content))
     assert len(saved_prs.slides) == 3
@@ -565,7 +561,7 @@ async def test_tc_t4_sc_04_scanned_invoices_pdf_ocr_and_evidence_synthesis(
     await db_session.commit()
 
     # Verify document via async_client
-    doc_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}")
+    doc_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}")
     assert doc_resp.status_code == 200
     assert doc_resp.json()["filename"] == "Vendor_Invoices.pdf"
 
@@ -607,7 +603,7 @@ async def test_tc_t4_sc_04_scanned_invoices_pdf_ocr_and_evidence_synthesis(
 
     # Step 6: Strict Read-Only Verification via async_client and Edits
     prev_resp = await async_client.post(
-        f"/api/v1/mini-hermes/documents/{doc_id}/previews",
+        f"/api/v1/agent-runtime/documents/{doc_id}/previews",
         json={"operations": [{"op": "replace_text", "find": "Total", "replace": "Free"}]},
     )
     assert prev_resp.status_code == 400
@@ -642,7 +638,7 @@ async def test_tc_t4_sc_05_multiformat_ma_due_diligence_cross_analysis_export(
       7. Clean Export: export XLSX content via async_client and parse CSV table structure.
     """
     # Step 1: Batch Ingestion & Workspace Isolation via async_client
-    folder_resp = await async_client.post("/api/v1/mini-hermes/folders", json={"name": "Project_Titan_VDR"})
+    folder_resp = await async_client.post("/api/v1/agent-runtime/folders", json={"name": "Project_Titan_VDR"})
     assert folder_resp.status_code == 200
     folder_id = folder_resp.json()["id"]
 
@@ -685,7 +681,7 @@ async def test_tc_t4_sc_05_multiformat_ma_due_diligence_cross_analysis_export(
 
     # Verify each document accessible via async_client
     for name, doc_obj in docs.items():
-        resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_obj.id}")
+        resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_obj.id}")
         assert resp.status_code == 200
         assert resp.json()["folder_id"] == folder_id
 
@@ -702,13 +698,13 @@ async def test_tc_t4_sc_05_multiformat_ma_due_diligence_cross_analysis_export(
 
     # Step 3: Tasks API via async_client
     task_resp = await async_client.post(
-        f"/api/v1/mini-hermes/documents/{docs['Valuation.xlsx'].id}/tasks",
+        f"/api/v1/agent-runtime/documents/{docs['Valuation.xlsx'].id}/tasks",
         json={"kind": "summary"},
     )
     assert task_resp.status_code == 200
     task_id = task_resp.json()["task_id"]
 
-    task_status_resp = await async_client.get(f"/api/v1/mini-hermes/tasks/{task_id}")
+    task_status_resp = await async_client.get(f"/api/v1/agent-runtime/tasks/{task_id}")
     assert task_status_resp.status_code == 200
     assert task_status_resp.json()["document_id"] == docs["Valuation.xlsx"].id
     assert task_status_resp.json()["kind"] == "summary"
@@ -766,7 +762,7 @@ async def test_tc_t4_sc_05_multiformat_ma_due_diligence_cross_analysis_export(
 
     # Step 7: Clean Export via async_client and Production Parser
     val_content_resp = await async_client.get(
-        f"/api/v1/mini-hermes/documents/{docs['Valuation.xlsx'].id}/content"
+        f"/api/v1/agent-runtime/documents/{docs['Valuation.xlsx'].id}/content"
     )
     assert val_content_resp.status_code == 200
     assert len(val_content_resp.content) > 0

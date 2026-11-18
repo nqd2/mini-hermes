@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type SearchKind = 'chat' | 'message' | 'note';
 export type SearchResult = {
@@ -27,7 +27,7 @@ export const searchWorkspace = async (
 	signal: AbortSignal
 ): Promise<SearchResponse> => {
 	const params = new URLSearchParams({ ...filters, page: String(filters.page) });
-	const response = await fetch(`${WEBUI_API_BASE_URL}/search?${params}`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/search?${params}`, {
 		headers: { Authorization: `Bearer ${token}` },
 		signal
 	});

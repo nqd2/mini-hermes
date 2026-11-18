@@ -5,8 +5,10 @@ from fastapi import HTTPException
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.agent_runtime import AgentEvent, AgentRepository, Base
-from open_webui.agent_runtime.contracts import (
+from weai.agent_runtime.models import AgentEvent
+from weai.agent_runtime.repository import AgentRepository
+from weai.internal.db import Base
+from weai.agent_runtime.contracts import (
     ConversationEngineBinding,
     RunBinding,
     compute_run_snapshot_versions,

@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.tools import builtin
-from open_webui.utils.json_codec import JSONCodec
-from open_webui.utils import tools
+from weai.tools import builtin
+from weai.utils.json_codec import JSONCodec
+from weai.utils import tools
 
 
 @pytest.mark.asyncio
@@ -33,7 +33,7 @@ async def test_retired_builtin_categories_stay_unavailable_with_stale_flags(monk
         "skills": False,
         "tools": False,
         "tasks": False,
-        "mini_hermes_documents": False,
+        "agent_runtime_documents": False,
         "notes": True,
         "channels": True,
         "automations": True,

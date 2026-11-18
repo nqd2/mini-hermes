@@ -8,7 +8,7 @@
 
 	dayjs.extend(relativeTime);
 
-	import { WEBUI_NAME, config, functions as _functions, models, settings, user } from '$lib/stores';
+	import { WEAI_NAME, config, functions as _functions, models, settings, user } from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
 	import { goto } from '$app/navigation';
@@ -308,7 +308,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Functions')} / {$WEBUI_NAME}
+		{$i18n.t('Functions')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 

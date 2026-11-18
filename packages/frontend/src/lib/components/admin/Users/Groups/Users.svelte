@@ -14,7 +14,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { addUserToGroup, removeUserFromGroup } from '$lib/apis/groups';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Checkbox from '$lib/components/common/Checkbox.svelte';
@@ -494,7 +494,7 @@
 										<div class="flex items-center gap-2">
 											<img
 												class="rounded-full w-6 h-6 object-cover flex-shrink-0"
-												src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
+												src={`${WEAI_API_BASE_URL}/users/${user.id}/profile/image`}
 												alt="user"
 											/>
 

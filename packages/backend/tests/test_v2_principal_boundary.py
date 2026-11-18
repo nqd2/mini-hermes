@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 
 @pytest.fixture
 def principal_app():
-    source = Path(__file__).parents[1] / 'open_webui/mini_hermes/v2/routes.py'
+    source = Path(__file__).parents[1] / 'weai/persistence/v2/routes.py'
     tree = ast.parse(source.read_text())
     declaration = next(
         node for node in tree.body
@@ -69,7 +69,7 @@ async def test_document_reads_check_permission_before_loading_content(endpoint):
     import uuid
     from unittest.mock import AsyncMock
 
-    source = Path(__file__).parents[1] / 'open_webui/mini_hermes/v2/routes.py'
+    source = Path(__file__).parents[1] / 'weai/persistence/v2/routes.py'
     tree = ast.parse(source.read_text())
     declaration = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == endpoint)
     declaration.decorator_list = []
@@ -85,7 +85,7 @@ async def test_document_reads_check_permission_before_loading_content(endpoint):
     check_permission = AsyncMock(side_effect=Denied())
     namespace = {
         'Depends': Depends, 'get_v2_db': lambda: None, 'get_current_principal': lambda: None,
-        'uuid': uuid, 'HTTPException': HTTPException, 'MhDocument': object(),
+        'uuid': uuid, 'HTTPException': HTTPException, 'WeAIDocument': object(),
         'RevisionError': Denied, '_raise_revision_http_error': raise_http_error,
         'verify_current_document_permission': check_permission,
     }
@@ -108,7 +108,7 @@ async def test_spreadsheet_rejects_a_sheet_from_another_build():
     import uuid
     from unittest.mock import AsyncMock
 
-    source = Path(__file__).parents[1] / 'open_webui/mini_hermes/v2/routes.py'
+    source = Path(__file__).parents[1] / 'weai/persistence/v2/routes.py'
     tree = ast.parse(source.read_text())
     declaration = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
                        and node.name == 'read_spreadsheet_range_endpoint')
@@ -122,7 +122,7 @@ async def test_spreadsheet_rejects_a_sheet_from_another_build():
     namespace = {
         'Depends': Depends, 'get_v2_db': lambda: None, 'get_current_principal': lambda: None,
         'uuid': uuid, 'HTTPException': HTTPException,
-        'MhDocument': object(), 'MhDocumentRevision': object(), 'MhWorkbookSheet': object(),
+        'WeAIDocument': object(), 'WeAIDocumentRevision': object(), 'WeAIWorkbookSheet': object(),
         'verify_current_document_permission': AsyncMock(),
         'get_v2_session_factory': lambda: None, 'IndexLifecycleManager': lambda factory: manager,
     }

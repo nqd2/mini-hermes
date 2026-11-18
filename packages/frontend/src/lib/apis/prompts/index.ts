@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 type PromptItem = {
 	id?: string; // Prompt ID
@@ -49,7 +49,7 @@ type PromptDiff = {
 export const createNewPrompt = async (token: string, prompt: PromptItem) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -81,7 +81,7 @@ export const createNewPrompt = async (token: string, prompt: PromptItem) => {
 export const getPrompts = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -112,7 +112,7 @@ export const getPrompts = async (token: string = '') => {
 export const getPromptTags = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/tags`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/tags`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -169,7 +169,7 @@ export const getPromptItems = async (
 		searchParams.append('page', page.toString());
 	}
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/list?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/list?${searchParams.toString()}`, {
 		method: 'GET',
 		signal,
 		headers: {
@@ -202,7 +202,7 @@ export const getPromptItems = async (
 export const getPromptList = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/list`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/list`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -233,7 +233,7 @@ export const getPromptList = async (token: string = '') => {
 export const getPromptById = async (token: string, promptId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -268,7 +268,7 @@ export const updatePromptById = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${prompt.id}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${prompt.id}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -307,7 +307,7 @@ export const updatePromptMetadata = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/update/meta`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/update/meta`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -340,7 +340,7 @@ export const setProductionPromptVersion = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/update/version`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/update/version`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -371,7 +371,7 @@ export const setProductionPromptVersion = async (
 export const togglePromptById = async (token: string, promptId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/toggle`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/toggle`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -399,7 +399,7 @@ export const togglePromptById = async (token: string, promptId: string) => {
 export const deletePromptById = async (token: string, promptId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/delete`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -435,7 +435,7 @@ export const updatePromptAccessGrants = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/access/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/access/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -470,7 +470,7 @@ export const getPromptHistory = async (
 ): Promise<PromptHistoryItem[]> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history?page=${page}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/history?page=${page}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -502,7 +502,7 @@ export const deletePromptHistoryVersion = async (
 ): Promise<boolean> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history/${historyId}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/history/${historyId}`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -534,7 +534,7 @@ export const getPromptHistoryEntry = async (
 ): Promise<PromptHistoryItem> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history/${historyId}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/prompts/id/${promptId}/history/${historyId}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -568,7 +568,7 @@ export const getPromptDiff = async (
 	let error = null;
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/prompts/id/${promptId}/history/diff?from_id=${fromId}&to_id=${toId}`,
+		`${WEAI_API_BASE_URL}/prompts/id/${promptId}/history/diff?from_id=${fromId}&to_id=${toId}`,
 		{
 			method: 'GET',
 			headers: {

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.socket import main as socket_main
+from weai.socket import main as socket_main
 
 
 @pytest.mark.asyncio

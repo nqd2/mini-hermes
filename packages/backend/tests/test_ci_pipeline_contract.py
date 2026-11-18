@@ -5,7 +5,7 @@ import yaml
 import pytest
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-DEPLOY_ENV_DIR = "/home/vietnh/apps/mini-hermes/envs"
+DEPLOY_ENV_DIR = "/home/vietnh/apps/weai/envs"
 
 REQUIRED_BACKEND_KEYS = {
     "POSTGRES_PASSWORD",
@@ -17,18 +17,18 @@ REQUIRED_BACKEND_KEYS = {
     "S3_ACCESS_KEY_ID",
     "S3_SECRET_ACCESS_KEY",
     "S3_ADDRESSING_STYLE",
-    "WEBUI_SECRET_KEY",
-    "MH_TOKEN_ENCRYPTION_KEY",
-    "MH_CONNECTOR_SECRET",
-    "MH_CONNECTOR_URL",
-    "MH_SANDBOX_URL",
-    "MH_SANDBOX_TOKEN",
+    "WEAI_SECRET_KEY",
+    "AGENT_RUNTIME_TOKEN_ENCRYPTION_KEY",
+    "AGENT_RUNTIME_CONNECTOR_SECRET",
+    "AGENT_RUNTIME_CONNECTOR_URL",
+    "AGENT_RUNTIME_SANDBOX_URL",
+    "AGENT_RUNTIME_SANDBOX_TOKEN",
     "CORS_ALLOW_ORIGIN",
 }
 
 REQUIRED_FRONTEND_KEYS = {
-    "VITE_WEBUI_BACKEND_URL",
-    "WEBUI_BACKEND_URL",
+    "VITE_WEAI_BACKEND_URL",
+    "WEAI_BACKEND_URL",
 }
 
 
@@ -79,10 +79,10 @@ def test_real_deployment_envs_isolation():
     sensitive_keys = [
         "POSTGRES_PASSWORD",
         "S3_SECRET_ACCESS_KEY",
-        "WEBUI_SECRET_KEY",
-        "MH_TOKEN_ENCRYPTION_KEY",
-        "MH_CONNECTOR_SECRET",
-        "MH_SANDBOX_TOKEN",
+        "WEAI_SECRET_KEY",
+        "AGENT_RUNTIME_TOKEN_ENCRYPTION_KEY",
+        "AGENT_RUNTIME_CONNECTOR_SECRET",
+        "AGENT_RUNTIME_SANDBOX_TOKEN",
     ]
     for key in sensitive_keys:
         assert prod_env.get(key) != dev_env.get(key), (

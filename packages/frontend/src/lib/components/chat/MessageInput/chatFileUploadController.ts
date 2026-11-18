@@ -142,7 +142,7 @@ export const createChatFileUploadController = (
           metadata = { language: dependencies.getAudioLanguage() };
         }
         if (/\.(docx|xlsx|pptx|pdf)$/i.test(file.name)) {
-          metadata = { ...(metadata ?? {}), mini_hermes_chat_upload: true };
+          metadata = { ...(metadata ?? {}), agent_runtime_chat_upload: true };
         }
 
         const uploadedFile = await dependencies.uploadToServer(

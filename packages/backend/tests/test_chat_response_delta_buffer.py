@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils.chat_runtime.response_delta import ResponseDeltaBuffer
-from open_webui.utils.chat_runtime.stream_state import append_to_text_field
-from open_webui.utils.response import get_response_delta_key
+from weai.utils.chat_runtime.response_delta import ResponseDeltaBuffer
+from weai.utils.chat_runtime.stream_state import append_to_text_field
+from weai.utils.response import get_response_delta_key
 
 
 def _buffer(*, chunk_size=8, continuing=False, prior_output=None):

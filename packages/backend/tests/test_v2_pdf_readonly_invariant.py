@@ -8,7 +8,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from PIL import Image
 
-from open_webui.mini_hermes.v2.parsers.pdf import (
+from weai.persistence.v2.parsers.pdf import (
     FormatEditUnsupportedError,
     PageLayerType,
     PdfParser,

@@ -1,5 +1,5 @@
-from open_webui.models import chat_history_mutations
-from open_webui.models.chats import ChatTable
+from weai.models import chat_history_mutations
+from weai.models.chats import ChatTable
 
 
 def test_message_history_mutations_preserve_branch_and_metadata():

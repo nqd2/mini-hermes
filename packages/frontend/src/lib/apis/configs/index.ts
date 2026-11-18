@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 import type { Banner } from '$lib/types';
 import type { Visibility } from '$lib/utils/ui-visibility';
 
@@ -6,7 +6,7 @@ export const setInterfaceVisibility = async (
 	token: string,
 	visibility: Visibility
 ): Promise<Visibility> => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/interface/visibility`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/interface/visibility`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -21,7 +21,7 @@ export const setInterfaceVisibility = async (
 export const importConfig = async (token: string, config: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/import`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/import`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ export const importConfig = async (token: string, config: object) => {
 export const exportConfig = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/export`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/export`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -78,7 +78,7 @@ export const exportConfig = async (token: string) => {
 export const getConnectionsConfig = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/connections`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/connections`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -105,7 +105,7 @@ export const getConnectionsConfig = async (token: string) => {
 export const setConnectionsConfig = async (token: string, config: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/connections`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/connections`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ export const setConnectionsConfig = async (token: string, config: object) => {
 export const getToolServerConnections = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/tool_servers`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/tool_servers`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ export const getToolServerConnections = async (token: string) => {
 export const setToolServerConnections = async (token: string, connections: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/tool_servers`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/tool_servers`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -192,7 +192,7 @@ export const setToolServerConnections = async (token: string, connections: objec
 export const getTerminalServerConnections = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ export const getTerminalServerConnections = async (token: string) => {
 export const setTerminalServerConnections = async (token: string, connections: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -285,7 +285,7 @@ export const detectTerminalServerType = async (
 
 /**
  * Create or update a policy on the orchestrator.
- * Proxied through the Open WebUI backend to keep API keys server-side.
+ * Proxied through the WeAI backend to keep API keys server-side.
  */
 export const putOrchestratorPolicy = async (
 	token: string,
@@ -297,7 +297,7 @@ export const putOrchestratorPolicy = async (
 ): Promise<object | null> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/policy`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers/policy`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -335,7 +335,7 @@ export const getOrchestratorPolicy = async (
 	policyId: string,
 	authType: string = 'bearer'
 ): Promise<any> => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/policy`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers/policy`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -365,7 +365,7 @@ export const putOrchestratorLifecycle = async (
 ): Promise<object | null> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/lifecycle`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers/lifecycle`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -403,7 +403,7 @@ export const getOrchestratorLifecycle = async (
 	policyId: string,
 	authType: string = 'bearer'
 ): Promise<any> => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/lifecycle`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers/lifecycle`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -439,7 +439,7 @@ export const refreshOrchestratorTerminals = async (
 ): Promise<object | null> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/refresh`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers/refresh`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -476,7 +476,7 @@ export const refreshOrchestratorTerminals = async (
 export const verifyTerminalServerConnection = async (token: string, connection: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/terminal_servers/verify`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/terminal_servers/verify`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -506,7 +506,7 @@ export const verifyTerminalServerConnection = async (token: string, connection: 
 export const verifyToolServerConnection = async (token: string, connection: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/tool_servers/verify`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/tool_servers/verify`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -550,7 +550,7 @@ export const registerOAuthClient = async (
 	let error = null;
 
 	const searchParams = type ? `?type=${type}` : '';
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/oauth/clients/register${searchParams}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/oauth/clients/register${searchParams}`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -579,7 +579,7 @@ export const registerOAuthClient = async (
 
 export const getOAuthClientAuthorizationUrl = (clientId: string, type: null | string = null) => {
 	const oauthClientId = type ? `${type}:${clientId}` : clientId;
-	return `${WEBUI_BASE_URL}/oauth/clients/${oauthClientId}/authorize`;
+	return `${WEAI_BASE_URL}/oauth/clients/${oauthClientId}/authorize`;
 };
 
 export const initiateOAuthRedirect = (tool: {
@@ -596,7 +596,7 @@ export const initiateOAuthRedirect = (tool: {
 export const getCodeExecutionConfig = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/code_execution`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/code_execution`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -623,7 +623,7 @@ export const getCodeExecutionConfig = async (token: string) => {
 export const setCodeExecutionConfig = async (token: string, config: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/code_execution`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/code_execution`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -653,7 +653,7 @@ export const setCodeExecutionConfig = async (token: string, config: object) => {
 export const getModelsDefaults = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/models/defaults`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/models/defaults`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -680,7 +680,7 @@ export const getModelsDefaults = async (token: string) => {
 export const getModelsConfig = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/models`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/models`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -707,7 +707,7 @@ export const getModelsConfig = async (token: string) => {
 export const setModelsConfig = async (token: string, config: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/models`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/models`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -735,7 +735,7 @@ export const setModelsConfig = async (token: string, config: object) => {
 };
 
 export const getSubagentsConfig = async (token: string) => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/subagents`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/subagents`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -747,7 +747,7 @@ export const getSubagentsConfig = async (token: string) => {
 };
 
 export const setSubagentsConfig = async (token: string, config: object) => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/subagents`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/subagents`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -766,7 +766,7 @@ export const setDefaultPromptSuggestions = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/suggestions`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/suggestions`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -797,7 +797,7 @@ export const setDefaultPromptSuggestions = async (
 export const getBanners = async (token: string): Promise<Banner[]> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/banners`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/banners`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -824,7 +824,7 @@ export const getBanners = async (token: string): Promise<Banner[]> => {
 export const setBanners = async (token: string, banners: Banner[]) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/banners`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/configs/banners`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',

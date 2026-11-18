@@ -1,7 +1,7 @@
 import pytest
 
-from open_webui.mini_hermes.tools import read_document_skill
-from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+from weai.agent_runtime.tools import read_document_skill
+from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
 
 
 @pytest.mark.asyncio

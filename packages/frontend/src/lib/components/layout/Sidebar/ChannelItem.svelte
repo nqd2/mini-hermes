@@ -7,7 +7,7 @@
 	import { channels, mobile, showSidebar, user } from '$lib/stores';
 	import { getUserActiveStatusById } from '$lib/apis/users';
 	import { updateChannelById, updateChannelMemberActiveStatusById } from '$lib/apis/channels';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import ChannelModal from './ChannelModal.svelte';
 	import ChannelMenu from '$lib/components/channel/ChannelMenu.svelte';
@@ -96,7 +96,7 @@
 					<div class={index === 1 ? '-ml-2.5' : ''}>
 						<ProfilePreview user={u}>
 							<img
-								src={`${WEBUI_API_BASE_URL}/users/${u.id}/profile/image`}
+								src={`${WEAI_API_BASE_URL}/users/${u.id}/profile/image`}
 								alt={u.name}
 								class="size-5.5 rounded-full border-2 border-white dark:border-gray-900"
 							/>

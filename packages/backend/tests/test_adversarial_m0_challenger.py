@@ -23,9 +23,9 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.agent_runtime.context import ContextManager, PreparedContext
-from open_webui.agent_runtime.gateway import ProviderGateway
-from open_webui.agent_runtime.models import (
+from weai.agent_runtime.context import ContextManager, PreparedContext
+from weai.agent_runtime.gateway import ProviderGateway
+from weai.agent_runtime.models import (
     AgentArtifact,
     AgentCheckpoint,
     AgentEvent,
@@ -36,8 +36,8 @@ from open_webui.agent_runtime.models import (
     Base,
     utcnow,
 )
-from open_webui.agent_runtime.repository import AgentRepository
-from open_webui.agent_runtime.request_budget import (
+from weai.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.request_budget import (
     DEFAULT_MAX_JSON_BYTES,
     DEFAULT_MAX_JSON_CHARS,
     DEFAULT_MAX_PREPARATION_CHARS,
@@ -45,9 +45,9 @@ from open_webui.agent_runtime.request_budget import (
     RequestBudgetLimits,
     RequestBudgetManager,
 )
-from open_webui.agent_runtime.runtime import AgentRuntime
-from open_webui.mini_hermes.provider_errors import ProviderPayloadTooLarge
-from open_webui.utils.json_codec import JSONCodec
+from weai.agent_runtime.runtime import AgentRuntime
+from weai.model_routing.provider_errors import ProviderPayloadTooLarge
+from weai.utils.json_codec import JSONCodec
 
 
 async def _make_test_repository(tmp_path):

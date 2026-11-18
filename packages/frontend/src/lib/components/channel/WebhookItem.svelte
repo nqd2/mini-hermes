@@ -2,7 +2,7 @@
 	import { getContext } from 'svelte';
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import Clipboard from '$lib/components/icons/Clipboard.svelte';
@@ -24,7 +24,7 @@
 
 	// The server decides whether an external avatar host is fetched.
 	$: imageSrc = image.toLowerCase().startsWith('http')
-		? `${WEBUI_API_BASE_URL}/channels/webhooks/${webhook.id}/profile/image`
+		? `${WEAI_API_BASE_URL}/channels/webhooks/${webhook.id}/profile/image`
 		: image;
 
 	// Notify parent when changes occur
@@ -72,7 +72,7 @@
 
 	const copyUrl = () => {
 		navigator.clipboard.writeText(
-			`${WEBUI_API_BASE_URL}/channels/webhooks/${webhook.id}/${webhook.token}`
+			`${WEAI_API_BASE_URL}/channels/webhooks/${webhook.id}/${webhook.token}`
 		);
 		toast.success($i18n.t('Copied'));
 	};
@@ -95,7 +95,7 @@
 		on:click={onClick}
 	>
 		<img
-			src={imageSrc || `${WEBUI_BASE_URL}/static/favicon.png`}
+			src={imageSrc || `${WEAI_BASE_URL}/static/favicon.png`}
 			class="rounded-full size-8 object-cover flex-shrink-0"
 			alt=""
 		/>
@@ -132,7 +132,7 @@
 					on:click={() => filesInputElement.click()}
 				>
 					<img
-						src={imageSrc || `${WEBUI_BASE_URL}/static/favicon.png`}
+						src={imageSrc || `${WEAI_BASE_URL}/static/favicon.png`}
 						class="size-8 object-cover"
 						alt=""
 					/>

@@ -8,7 +8,7 @@
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 
 	import { user as _user } from '$lib/stores';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { getDMChannelByUserId } from '$lib/apis/channels';
 
 	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
@@ -87,7 +87,7 @@
 		<div class="px-3 pt-3 pb-2">
 			<div class="flex items-center gap-2">
 				<img
-					src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
+					src={`${WEAI_API_BASE_URL}/users/${user.id}/profile/image`}
 					class="size-7 shrink-0 rounded-full object-cover"
 					alt=""
 				/>

@@ -1,9 +1,9 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export const createNewSkill = async (token: string, skill: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -37,7 +37,7 @@ export const getSkills = async (token: string = '', query: string | null = null)
 	const searchParams = new URLSearchParams();
 	if (query) searchParams.append('query', query);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -68,7 +68,7 @@ export const getSkills = async (token: string = '', query: string | null = null)
 export const getSkillList = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/list`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/list`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -114,7 +114,7 @@ export const getSkillItems = async (
 	if (orderBy) searchParams.append('order_by', orderBy);
 	if (direction) searchParams.append('direction', direction);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/list?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/list?${searchParams.toString()}`, {
 		method: 'GET',
 		signal,
 		headers: {
@@ -147,7 +147,7 @@ export const getSkillItems = async (
 export const exportSkills = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/export`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/export`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -178,7 +178,7 @@ export const exportSkills = async (token: string = '') => {
 export const getSkillById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/id/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/id/${id}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -209,7 +209,7 @@ export const getSkillById = async (token: string, id: string) => {
 export const updateSkillById = async (token: string, id: string, skill: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/id/${id}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/id/${id}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -241,7 +241,7 @@ export const updateSkillById = async (token: string, id: string, skill: object) 
 export const updateSkillAccessGrants = async (token: string, id: string, accessGrants: any[]) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/id/${id}/access/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/id/${id}/access/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -272,7 +272,7 @@ export const updateSkillAccessGrants = async (token: string, id: string, accessG
 export const toggleSkillById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/id/${id}/toggle`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/id/${id}/toggle`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -303,7 +303,7 @@ export const toggleSkillById = async (token: string, id: string) => {
 export const deleteSkillById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/id/${id}/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/skills/id/${id}/delete`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -342,7 +342,7 @@ export type SkillFileOperation = {
 };
 
 export const skillRequest = async (token: string, path: string, options: RequestInit = {}) => {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/skills${path}`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/skills${path}`, {
 		...options,
 		headers: {
 			authorization: `Bearer ${token}`,

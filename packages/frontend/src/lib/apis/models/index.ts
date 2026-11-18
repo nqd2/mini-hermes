@@ -1,10 +1,10 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export const exportModels = async (token: string, ids?: string[]) => {
 	const query = new URLSearchParams();
 	(ids ?? []).forEach((id) => query.append('ids', id));
 	if (ids && !ids.length) return [];
-	const response = await fetch(`${WEBUI_API_BASE_URL}/models/export${ids ? `?${query}` : ''}`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/models/export${ids ? `?${query}` : ''}`, {
 		headers: { authorization: `Bearer ${token}` }
 	});
 	if (!response.ok) throw await response.json();
@@ -43,7 +43,7 @@ export const getModelItems = async (
 		searchParams.append('page', page.toString());
 	}
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/list?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/list?${searchParams.toString()}`, {
 		method: 'GET',
 		signal,
 		headers: {
@@ -76,7 +76,7 @@ export const getModelItems = async (
 export const getModelTags = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/tags`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/tags`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -107,7 +107,7 @@ export const getModelTags = async (token: string = '') => {
 export const getBaseModelTags = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/base/tags`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/base/tags`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -138,7 +138,7 @@ export const getBaseModelTags = async (token: string = '') => {
 export const importModels = async (token: string, models: object[]) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/import`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/import`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -164,7 +164,7 @@ export const importModels = async (token: string, models: object[]) => {
 };
 
 export const getAllModels = async (token: string = '') => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/all`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/all`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -183,7 +183,7 @@ export const getBaseModels = async (token: string = '', tag: string = '') => {
 		searchParams.append('tag', tag);
 	}
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/base?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/base?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -227,7 +227,7 @@ export const createNewModel = async (token: string, model: object) => {
 		commit_message
 	};
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -259,7 +259,7 @@ export const getModelById = async (token: string, id: string) => {
 	const searchParams = new URLSearchParams();
 	searchParams.append('id', id);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/model?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/model?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -294,7 +294,7 @@ export const toggleModelById = async (token: string, id: string) => {
 	const searchParams = new URLSearchParams();
 	searchParams.append('id', id);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/model/toggle?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/model/toggle?${searchParams.toString()}`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -337,7 +337,7 @@ export const updateModelById = async (token: string, id: string, model: object) 
 		commit_message
 	};
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/model/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/model/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -375,7 +375,7 @@ export const updateModelAccessGrants = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/model/access/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/model/access/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -404,7 +404,7 @@ export const updateModelAccessGrants = async (
 export const deleteModelById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/model/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/model/delete`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -437,7 +437,7 @@ export const deleteModelById = async (token: string, id: string) => {
 export const deleteAllModels = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/models/delete/all`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/models/delete/all`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -489,7 +489,7 @@ export const getModelHistory = async (
 	page = 1
 ): Promise<ModelHistoryEntry[]> => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/models/model/history?${new URLSearchParams({ id, page: String(page) })}`,
+		`${WEAI_API_BASE_URL}/models/model/history?${new URLSearchParams({ id, page: String(page) })}`,
 		{
 			headers: { authorization: `Bearer ${token}` }
 		}
@@ -504,7 +504,7 @@ export const getModelHistoryEntry = async (
 	versionId: string
 ): Promise<ModelHistoryEntry & { snapshot: ModelSnapshot }> => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/models/model/history/${encodeURIComponent(versionId)}?${new URLSearchParams({ id })}`,
+		`${WEAI_API_BASE_URL}/models/model/history/${encodeURIComponent(versionId)}?${new URLSearchParams({ id })}`,
 		{
 			headers: { authorization: `Bearer ${token}` }
 		}
@@ -515,7 +515,7 @@ export const getModelHistoryEntry = async (
 
 export const deleteModelHistoryVersion = async (token: string, id: string, versionId: string) => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/models/model/history/${encodeURIComponent(versionId)}?${new URLSearchParams({ id })}`,
+		`${WEAI_API_BASE_URL}/models/model/history/${encodeURIComponent(versionId)}?${new URLSearchParams({ id })}`,
 		{
 			method: 'DELETE',
 			headers: { authorization: `Bearer ${token}` }
@@ -527,7 +527,7 @@ export const deleteModelHistoryVersion = async (token: string, id: string, versi
 
 export const setProductionModelVersion = async (token: string, id: string, versionId: string) => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/models/model/update/version?${new URLSearchParams({ id })}`,
+		`${WEAI_API_BASE_URL}/models/model/update/version?${new URLSearchParams({ id })}`,
 		{
 			method: 'POST',
 			headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

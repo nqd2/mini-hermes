@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import sha256 from 'js-sha256';
 import { parse as parseYaml } from 'yaml';
 import DOMPurify, { type UponSanitizeAttributeHookEvent } from 'dompurify';
-import { WEBUI_BASE_URL } from '$lib/constants';
+import { WEAI_BASE_URL } from '$lib/constants';
 import type { FileNavOpenRequest } from '$lib/stores';
 import { normalizeDocumentTargetPage } from '$lib/utils/documentPreview';
 
@@ -75,7 +75,7 @@ export const replaceTokens = (content, char, user) => {
 		{
 			regex: /{{VIDEO_FILE_ID_([a-f0-9-]+)}}/gi,
 			replacement: (_, fileId) =>
-				`<video src="${WEBUI_BASE_URL}/api/v1/files/${fileId}/content" controls></video>`
+				`<video src="${WEAI_BASE_URL}/api/v1/files/${fileId}/content" controls></video>`
 		},
 		{
 			regex: /{{HTML_FILE_ID_([a-f0-9-]+)}}/gi,
@@ -471,7 +471,7 @@ export const generateInitialsImage = (name) => {
 		console.log(
 			'generateInitialsImage: failed pixel test, fingerprint evasion is likely. Using default image.'
 		);
-		return `${WEBUI_BASE_URL}/user.png`;
+		return `${WEAI_BASE_URL}/user.png`;
 	}
 
 	ctx.fillStyle = '#F39C12';
@@ -797,7 +797,7 @@ export const getImportOrigin = (_chats) => {
 	if (_chats.some((chat) => 'mapping' in chat)) {
 		return 'openai';
 	}
-	return 'webui';
+	return 'weai';
 };
 
 export const getUserPosition = async (raw = false) => {

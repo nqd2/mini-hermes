@@ -1,4 +1,4 @@
-# Mini-Hermes production AgentRuntime implementation plan
+# Agent Runtime production AgentRuntime implementation plan
 
 **Status:** Approved architecture; implementation and staging gates remain to be demonstrated.
 
@@ -7,7 +7,7 @@
 ## Architecture decisions
 
 - Keep current AgentRuntime as the production execution path. DeerFlow is evaluated only after baseline and hard gates; it is not the default migration.
-- Keep Open WebUI as UI, Auth, RBAC, chat, and model-management layer. Serve 10–20 users in a rolling 30-day window. Preserve current notices and track the rolling count. The internal 99.9% availability goal is not an SLA.
+- Keep WeAI as UI, Auth, RBAC, chat, and model-management layer. Serve 10–20 users in a rolling 30-day window. Preserve current notices and track the rolling count. The internal 99.9% availability goal is not an SLA.
 - Keep separate 95,000-character internal preparation and 100,000-character serialized JSON request caps. Reject oversized final provider JSON before the provider call; count tokens and bytes separately.
 - Document API owns read/inspect/search/propose_edit/export. A commit endpoint delegates to Revision Service. AgentRuntime never writes the document DB or object store directly.
 - Revision Service is the sole authority for approvals, validation, atomic visibility, and rollback. Agent approval pause/resume remains separate from document approval.
@@ -16,13 +16,13 @@
 
 ## Current refinement
 
-The [use-case, design, test and audit specification](../design/mini-hermes-use-cases-design-and-tests.md) records the original broad target and test inventory. The later [production scope cleanup](production-scope-cleanup.md) defines which capabilities remain in the release target; excluded use cases are historical inventory, not release gates. Replace persistence for both Mini-Hermes and Open WebUI with PostgreSQL/SQLAlchemy async while keeping current AgentRuntime and ADR ownership. No legacy data compatibility/backfill is required. The user authorized reset of the verified local development DB during the separate implementation, not production deletion. Ollama and its UI/probes/discovery/embedding paths are excluded. Historical test ledgers remain historical evidence.
+The [use-case, design, test and audit specification](../design/agent-runtime-use-cases-design-and-tests.md) records the original broad target and test inventory. The later [production scope cleanup](production-scope-cleanup.md) defines which capabilities remain in the release target; excluded use cases are historical inventory, not release gates. Replace persistence for both Agent Runtime and WeAI with PostgreSQL/SQLAlchemy async while keeping current AgentRuntime and ADR ownership. No legacy data compatibility/backfill is required. The user authorized reset of the verified local development DB during the separate implementation, not production deletion. Ollama and its UI/probes/discovery/embedding paths are excluded. Historical test ledgers remain historical evidence.
 
 ## Service contracts and ownership
 
 | Owner | Contract and authoritative state |
 |---|---|
-| Auth Service / Open WebUI | Authenticated principal, UI, RBAC, chat, and model management. |
+| Auth Service / WeAI | Authenticated principal, UI, RBAC, chat, and model management. |
 | AgentRuntime | `start`, `stream(after_sequence)`, `cancel`, `resume`, `get_status`; conversation/run binding, event log, checkpoint, cancellation, and recovery. No direct document DB/object-store writes. |
 | Document API | `read`, `inspect`, `search`, `propose_edit`, `export`; commit endpoint delegates to Revision Service. |
 | Revision Service | Patch validation and hash, diff, current resource authorization, document approval, revision preconditions, atomic commit and rollback. |
@@ -38,7 +38,7 @@ Document approval binds `user_id`, `resource_id`, `base_revision`, `patch_hash`,
 
 ```mermaid
 flowchart TD
-    U[User] --> OW[Open WebUI: UI, Auth, RBAC, chat/model]
+    U[User] --> OW[WeAI: UI, Auth, RBAC, chat/model]
     OW --> AR[AgentRuntime]
     AR --> PG[Provider Gateway]
     AR --> DA[Document API]
@@ -59,7 +59,7 @@ flowchart TD
 
 ## Implementation phases
 
-Implement each component’s target PostgreSQL tables, SQLAlchemy repositories, FK/transaction boundaries and constraints within its owning phase, before that component executes. Phases 2–6 must not build on old ORM models and postpone their replacement to phase 7. Phase 7 assembles and validates the complete fresh baseline/bootstrap across all domains, including remaining Open WebUI persistence, local reset guards and removal of legacy-only paths. This dependency clarification preserves the phase order and avoids temporary data-compatibility execution paths.
+Implement each component’s target PostgreSQL tables, SQLAlchemy repositories, FK/transaction boundaries and constraints within its owning phase, before that component executes. Phases 2–6 must not build on old ORM models and postpone their replacement to phase 7. Phase 7 assembles and validates the complete fresh baseline/bootstrap across all domains, including remaining WeAI persistence, local reset guards and removal of legacy-only paths. This dependency clarification preserves the phase order and avoids temporary data-compatibility execution paths.
 
 1. **Characterize and verify architecture.** Map the existing execution path and ownership. Characterize request serialization/limits, approvals, revisions, worker lifecycle and recovery. Capture performance baseline before setting absolute thresholds.
 2. **Canonical AgentRuntime and runtime contract.** Implement the versioned start/stream/cancel/resume/status contract, immutable `ConversationEngineBinding`, matching `RunBinding`, one execution owner per run, pinned engine, and idempotent command handling.
@@ -67,7 +67,7 @@ Implement each component’s target PostgreSQL tables, SQLAlchemy repositories, 
 4. **Unified context management and request budgeting.** Enforce 95,000 preparation and 100,000 final serialized JSON characters separately from token/byte budgets. Compact/reconstruct context and reject oversize requests before provider invocation.
 5. **Provider gateway and tool execution.** Use one provider/tool path, durable invocation ledger, cancellation, bounded output, retry policy, idempotency keys and unknown-outcome handling. Keep MCP Gateway and Skill Runtime within their assigned domains.
 6. **Large-file retrieval, artifacts and revision publication.** Add bounded large-file retrieval and durable artifacts; stage immutable checksum-addressed objects; atomically publish metadata/pointer/approval/outbox; recover crashes and orphans; implement approval checks and compensating rollback.
-7. **Fresh versioned persistence baseline.** Design and implement new PostgreSQL/SQLAlchemy async persistence across Mini-Hermes and Open WebUI. Remove ORM/schema/backfill/history-import adapters used only by legacy data; validate fresh bootstrap, parent/child FK ordering, public UI/API contracts, local-target reset guards and backup/restore in disposable PostgreSQL/staging. Local DB reset is authorized for the separate implementation. No production reset/migration or live traffic cutover is authorized.
+7. **Fresh versioned persistence baseline.** Design and implement new PostgreSQL/SQLAlchemy async persistence across Agent Runtime and WeAI. Remove ORM/schema/backfill/history-import adapters used only by legacy data; validate fresh bootstrap, parent/child FK ordering, public UI/API contracts, local-target reset guards and backup/restore in disposable PostgreSQL/staging. Local DB reset is authorized for the separate implementation. No production reset/migration or live traffic cutover is authorized.
 8. **Integration and production validation.** Run security, integrity, reliability, recovery, load, resource-exhaustion, backup/restore, and regression suites. Fix all hard-gate failures before rollout.
 9. **Conditional DeerFlow evaluation.** Only after AgentRuntime baseline and hard gates pass. Lock benchmark protocol and use identical model/profile, tools/versions, documents, prompts, workloads, resource limits, scoring rubric and environment. Randomize order. Include malformed Office files, large documents, prompt injection, slow/unavailable MCP servers and concurrent document edits. Start at 50 paired tasks per workload group, 3 repeated trials per task per runtime; calculate paired 95% CIs for task success, p95 end-to-end latency and cost/run. Increase to 100 and then at most 200 paired tasks per group only when intervals cross the preregistered decision boundary or exceed its registered width; analyze only at fixed sample checkpoints. Inconclusive at 200 is no-go. DeerFlow qualifies only if all hard gates and locked absolute performance thresholds pass, and either task success improves ≥10 percentage points with the CI lower bound ≥10 points, or p95 latency improves ≥20% with CI confirmation while task-success CI lower bound is no worse than −2 points. In either case, cost/run regression CI upper bound must be ≤10%. A passing benchmark permits a canary for new conversations only. Production approval is still required. Rollback affects new conversations only; keep existing conversations pinned. Remove the old path only after approved cutover and successful drain.
 

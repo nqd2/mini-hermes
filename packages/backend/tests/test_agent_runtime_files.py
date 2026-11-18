@@ -6,9 +6,9 @@ import pytest
 import hashlib
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.agent_runtime.files import AgentFileContentStore, LargeFileReader
-from open_webui.agent_runtime.models import AgentFileContent, Base
-from open_webui.models.files import File, Files
+from weai.agent_runtime.files import AgentFileContentStore, LargeFileReader
+from weai.agent_runtime.models import AgentFileContent, Base
+from weai.models.files import File, Files
 
 
 class LocalObjectStore:
@@ -130,7 +130,7 @@ async def test_file_content_migration_verifies_object_before_removing_legacy_cop
     # Existing file-model consumers still receive the original content via the adapter.
     monkeypatch.setattr(AgentFileContentStore, 'configured', classmethod(lambda cls: files))
     monkeypatch.setattr(Files, '_external_content_store', files)
-    import open_webui.models.files as files_model
+    import weai.models.files as files_model
 
     async with factory() as db:
         @asynccontextmanager
@@ -175,9 +175,9 @@ async def test_file_content_migration_keeps_source_when_object_checksum_fails(tm
 async def test_view_file_uses_object_ranges_after_verified_legacy_migration(tmp_path, monkeypatch):
     from starlette.requests import Request
 
-    from open_webui.models.files import FileModel
-    from open_webui.tools.builtin import view_file
-    from open_webui.utils.json_codec import JSONCodec
+    from weai.models.files import FileModel
+    from weai.tools.builtin import view_file
+    from weai.utils.json_codec import JSONCodec
 
     engine = create_async_engine(f'sqlite+aiosqlite:///{tmp_path / "agent-file-view.db"}')
     async with engine.begin() as connection:

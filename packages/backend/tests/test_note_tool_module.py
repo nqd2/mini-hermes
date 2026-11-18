@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from open_webui.tools import builtin, note_resources
-from open_webui.utils.json_codec import JSONCodec
+from weai.tools import builtin, note_resources
+from weai.utils.json_codec import JSONCodec
 
 NOTE_TOOL_NAMES = ('search_notes', 'view_note', 'write_note', 'replace_note_content')
 

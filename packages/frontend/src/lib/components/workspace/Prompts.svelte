@@ -17,7 +17,7 @@
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
-	import { WEBUI_NAME, config, user, workspaceActions, workspaceCounts } from '$lib/stores';
+	import { WEAI_NAME, config, user, workspaceActions, workspaceCounts } from '$lib/stores';
 	import { COMMUNITY_ORIGINS } from '$lib/constants';
 
 	import {
@@ -387,7 +387,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Prompts')} / {$WEBUI_NAME}
+		{$i18n.t('Prompts')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 

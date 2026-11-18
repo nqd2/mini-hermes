@@ -10,24 +10,24 @@ from fastapi import HTTPException
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from open_webui.agent_runtime.context import ContextManager
-from open_webui.agent_runtime.gateway import ProviderGateway
-from open_webui.agent_runtime.request_budget import (
+from weai.agent_runtime.context import ContextManager
+from weai.agent_runtime.gateway import ProviderGateway
+from weai.agent_runtime.request_budget import (
     DEFAULT_MAX_JSON_CHARS,
     DEFAULT_MAX_PREPARATION_CHARS,
     RequestBudgetExceeded,
     RequestBudgetLimits,
     RequestBudgetManager,
 )
-from open_webui.mini_hermes.v2.models import V2Base
-from open_webui.mini_hermes.v2.models.runtime import MhRunEvent
-from open_webui.mini_hermes.v2.runtime import (
+from weai.persistence.v2.models import V2Base
+from weai.persistence.v2.models.runtime import WeAIRunEvent
+from weai.persistence.v2.runtime import (
     FencingTokenMismatchError,
     V2AgentRepository,
     V2AgentRuntime,
     execute_v2_tool_with_retry,
 )
-from open_webui.mini_hermes.v2.tools import ToolError
+from weai.persistence.v2.tools import ToolError
 
 
 async def make_v2_runtime(
@@ -169,7 +169,7 @@ async def test_append_before_publish_monotonic_sequence_and_stream_gap_recovery(
         observed_in_db_during_emit: list[int] = []
 
         async def transport_emitter(event_data: dict):
-            # Verify event is ALREADY durable in mh_run_events BEFORE transport_emitter runs!
+            # Verify event is ALREADY durable in ar_run_events BEFORE transport_emitter runs!
             seq = event_data["runtime_event_sequence"]
             events_in_db = await repo.list_events(run_id, after_sequence=seq - 1)
             assert any(e.sequence == seq for e in events_in_db)
@@ -194,12 +194,12 @@ async def test_append_before_publish_monotonic_sequence_and_stream_gap_recovery(
         assert stream_ok["snapshot_required"] is False
         assert [e.sequence for e in stream_ok["events"]] == [1, 2, 3, 4]
 
-        # Simulate a sequence gap by deleting sequence 2 from mh_run_events
+        # Simulate a sequence gap by deleting sequence 2 from ar_run_events
         async with factory() as db:
             await db.execute(
-                delete(MhRunEvent).where(
-                    MhRunEvent.run_id == uuid.UUID(run_id),
-                    MhRunEvent.sequence == 2,
+                delete(WeAIRunEvent).where(
+                    WeAIRunEvent.run_id == uuid.UUID(run_id),
+                    WeAIRunEvent.sequence == 2,
                 )
             )
             await db.commit()
@@ -211,7 +211,7 @@ async def test_append_before_publish_monotonic_sequence_and_stream_gap_recovery(
         assert "snapshot" in stream_gap
         assert stream_gap["snapshot"]["run_id"] == run_id
 
-        # Verify bounded tool output stores large payload in mh_agent_artifacts
+        # Verify bounded tool output stores large payload in ar_agent_artifacts
         await repo.begin_tool_call(
             run_id,
             call_id="call-big",

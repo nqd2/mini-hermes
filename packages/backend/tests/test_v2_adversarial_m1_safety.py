@@ -20,8 +20,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.environment import (
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.environment import (
     EnvironmentMismatchError,
     LegacyV1TablesDetectedError,
     MissingEnvironmentMarkerError,
@@ -30,12 +30,12 @@ from open_webui.mini_hermes.v2.environment import (
     validate_async_startup_or_exit,
     validate_sync_startup_or_exit,
 )
-from open_webui.mini_hermes.v2.reset_dev_db import (
+from weai.persistence.v2.reset_dev_db import (
     ProductionSafetyViolation,
     reset_dev_database,
     verify_safe_for_dev_reset,
 )
-from open_webui.mini_hermes.v2.storage import (
+from weai.persistence.v2.storage import (
     StorageChecksumMismatchError,
     StorageMarkerMissingError,
     StorageNamespaceViolationError,
@@ -53,17 +53,17 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def adversarial_pg_schema():
     """Provides an isolated disposable PostgreSQL schema for adversarial testing."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
-    schema_name = f"mh_adv_{uuid4().hex[:12]}"
+    schema_name = f"ar_adv_{uuid4().hex[:12]}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
     rendered_url = schema_url.render_as_string(hide_password=False)
@@ -97,7 +97,7 @@ async def adversarial_pg_schema():
         "Chat",
         "Document",
         "mh",
-        "_mh_users",
+        "_ar_users",
         "legacy_data",
     ],
 )
@@ -150,21 +150,21 @@ async def test_startup_fails_closed_on_empty_db_without_marker(adversarial_pg_sc
     with pytest.raises(MissingEnvironmentMarkerError) as exc_info:
         await check_async_database_environment(schema_url, expected_environment_id="development")
 
-    assert "mh_environment_markers" in str(exc_info.value)
+    assert "ar_environment_markers" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_startup_fails_closed_on_empty_environment_marker_table(adversarial_pg_schema):
-    """Starting against a database where mh_environment_markers exists but contains zero rows must raise MissingEnvironmentMarkerError."""
+    """Starting against a database where ar_environment_markers exists but contains zero rows must raise MissingEnvironmentMarkerError."""
     schema_url, _ = adversarial_pg_schema
 
-    # Create only mh_environment_markers table with 0 rows
+    # Create only ar_environment_markers table with 0 rows
     engine = create_async_engine(schema_url)
     try:
         async with engine.begin() as conn:
             await conn.execute(
                 text(
-                    "CREATE TABLE mh_environment_markers ("
+                    "CREATE TABLE ar_environment_markers ("
                     "key VARCHAR(64) PRIMARY KEY, "
                     "instance_id VARCHAR(64) NOT NULL, "
                     "environment_name VARCHAR(64) NOT NULL, "
@@ -201,7 +201,7 @@ async def test_startup_fails_closed_on_environment_mismatch(adversarial_pg_schem
         async with engine.begin() as conn:
             await conn.execute(
                 text(
-                    "CREATE TABLE mh_environment_markers ("
+                    "CREATE TABLE ar_environment_markers ("
                     "key VARCHAR(64) PRIMARY KEY, "
                     "instance_id VARCHAR(64) NOT NULL, "
                     "environment_name VARCHAR(64) NOT NULL, "
@@ -211,7 +211,7 @@ async def test_startup_fails_closed_on_environment_mismatch(adversarial_pg_schem
             )
             await conn.execute(
                 text(
-                    "INSERT INTO mh_environment_markers VALUES "
+                    "INSERT INTO ar_environment_markers VALUES "
                     f"('primary', 'inst-001', '{actual_env}', 1, 'tok-123')"
                 )
             )
@@ -313,20 +313,20 @@ def test_adversarial_storage_path_traversal_bug(tmp_path):
 def test_reset_guard_1_fails_closed_without_confirm():
     """Omitting confirm=False must raise ProductionSafetyViolation."""
     with pytest.raises(ProductionSafetyViolation) as exc_info:
-        verify_safe_for_dev_reset("postgresql://minihermes:pass@localhost:5432/minihermes", confirm=False)
+        verify_safe_for_dev_reset("postgresql://weai:pass@localhost:5432/weai", confirm=False)
     assert "Guard 1 failed" in str(exc_info.value)
 
 
 @pytest.mark.parametrize("bad_allow_val", ["", "false", "0", "no", "FALSE", "disabled", "null", "none"])
 def test_reset_guard_2_fails_closed_on_invalid_allow_env_var(monkeypatch, bad_allow_val):
-    """MH_ALLOW_DEV_RESET must strictly be 'true', '1', or 'yes'; any other value must fail closed."""
+    """AGENT_RUNTIME_ALLOW_DEV_RESET must strictly be 'true', '1', or 'yes'; any other value must fail closed."""
     if bad_allow_val:
-        monkeypatch.setenv("MH_ALLOW_DEV_RESET", bad_allow_val)
+        monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", bad_allow_val)
     else:
-        monkeypatch.delenv("MH_ALLOW_DEV_RESET", raising=False)
+        monkeypatch.delenv("AGENT_RUNTIME_ALLOW_DEV_RESET", raising=False)
 
     with pytest.raises(ProductionSafetyViolation) as exc_info:
-        verify_safe_for_dev_reset("postgresql://minihermes:pass@localhost:5432/minihermes", confirm=True)
+        verify_safe_for_dev_reset("postgresql://weai:pass@localhost:5432/weai", confirm=True)
     assert "Guard 2 failed" in str(exc_info.value)
 
 
@@ -344,32 +344,32 @@ def test_reset_guard_2_fails_closed_on_invalid_allow_env_var(monkeypatch, bad_al
         ("ENVIRONMENT", "production"),
         ("ENVIRONMENT", "staging"),
         ("ENVIRONMENT", "prod_replica"),
-        ("MINI_HERMES_ENV", "production"),
-        ("MINI_HERMES_ENV", "prod"),
-        ("WEBUI_ENV", "staging"),
-        ("WEBUI_ENV", "production"),
+        ("AGENT_RUNTIME_ENV", "production"),
+        ("AGENT_RUNTIME_ENV", "prod"),
+        ("WEAI_ENV", "staging"),
+        ("WEAI_ENV", "production"),
         ("NODE_ENV", "production"),
         ("NODE_ENV", "staging"),
     ],
 )
 def test_reset_guard_3_fails_closed_on_production_environment_variables(monkeypatch, env_var_name, env_val):
     """Any environment variable indicating production/staging/live must fail closed."""
-    monkeypatch.setenv("MH_ALLOW_DEV_RESET", "true")
+    monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", "true")
     monkeypatch.setenv(env_var_name, env_val)
 
     with pytest.raises(ProductionSafetyViolation) as exc_info:
-        verify_safe_for_dev_reset("postgresql://minihermes:pass@localhost:5432/minihermes", confirm=True)
+        verify_safe_for_dev_reset("postgresql://weai:pass@localhost:5432/weai", confirm=True)
     assert "Guard 3 failed" in str(exc_info.value)
 
 
 @pytest.mark.parametrize("unwhitelisted_env", ["custom_qa", "demo", "uat", "preview_branch", "review_app"])
 def test_reset_guard_4_fails_closed_on_unwhitelisted_environment(monkeypatch, unwhitelisted_env):
     """Environments not explicitly whitelisted in ALLOWED_DEV_ENVS must fail closed with Guard 4."""
-    monkeypatch.setenv("MH_ALLOW_DEV_RESET", "true")
+    monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", "true")
     monkeypatch.setenv("ENV", unwhitelisted_env)
 
     with pytest.raises(ProductionSafetyViolation) as exc_info:
-        verify_safe_for_dev_reset("postgresql://minihermes:pass@localhost:5432/minihermes", confirm=True)
+        verify_safe_for_dev_reset("postgresql://weai:pass@localhost:5432/weai", confirm=True)
     assert "Guard 4 failed" in str(exc_info.value)
 
 
@@ -391,7 +391,7 @@ def test_reset_guard_4_fails_closed_on_unwhitelisted_environment(monkeypatch, un
 )
 def test_reset_guard_5_fails_closed_on_remote_and_cloud_hosts(monkeypatch, remote_db_url):
     """Dev reset must strictly reject remote, cloud (RDS, CloudSQL, Azure, Cockroach), or non-local hosts."""
-    monkeypatch.setenv("MH_ALLOW_DEV_RESET", "true")
+    monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", "true")
     monkeypatch.setenv("ENV", "development")
 
     with pytest.raises(ProductionSafetyViolation) as exc_info:
@@ -405,7 +405,7 @@ def test_reset_guard_5_fails_closed_on_remote_and_cloud_hosts(monkeypatch, remot
         "postgresql://user:pass@localhost:5432/prod",
         "postgresql://user:pass@localhost:5432/production",
         "postgresql://user:pass@localhost:5432/hermes_production_v2",
-        "postgresql://user:pass@localhost:5432/minihermes_prod",
+        "postgresql://user:pass@localhost:5432/weai_prod",
         "postgresql://user:pass@localhost:5432/staging",
         "postgresql://user:pass@localhost:5432/hermes_stage",
         "postgresql://user:pass@localhost:5432/live",
@@ -415,7 +415,7 @@ def test_reset_guard_5_fails_closed_on_remote_and_cloud_hosts(monkeypatch, remot
 )
 def test_reset_guard_6_fails_closed_on_protected_database_names(monkeypatch, protected_dbname_url):
     """Dev reset must strictly reject database names containing prod, stage, or live."""
-    monkeypatch.setenv("MH_ALLOW_DEV_RESET", "true")
+    monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", "true")
     monkeypatch.setenv("ENV", "development")
 
     with pytest.raises(ProductionSafetyViolation) as exc_info:
@@ -454,7 +454,7 @@ async def test_reset_safety_halts_before_execution_zero_data_loss(adversarial_pg
         await reset_dev_database(schema_url, confirm=False)
 
     # 3. Attempt reset with ENV=production
-    monkeypatch.setenv("MH_ALLOW_DEV_RESET", "true")
+    monkeypatch.setenv("AGENT_RUNTIME_ALLOW_DEV_RESET", "true")
     monkeypatch.setenv("ENV", "production")
     with pytest.raises(ProductionSafetyViolation):
         await reset_dev_database(schema_url, confirm=True)

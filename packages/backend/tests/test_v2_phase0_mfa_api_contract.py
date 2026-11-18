@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 
-from open_webui.routers import mfa as routes
+from weai.routers import mfa as routes
 
 
 @pytest.fixture

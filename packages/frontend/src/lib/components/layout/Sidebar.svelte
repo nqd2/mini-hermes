@@ -23,7 +23,7 @@
 		visiblePinnedModels,
 		visibleControls,
 		selectedFolder,
-		WEBUI_NAME,
+		WEAI_NAME,
 		sidebarWidth
 	} from '$lib/stores';
 	import {
@@ -64,7 +64,7 @@
 		updateFolderParentIdById
 	} from '$lib/apis/folders';
 	import { updateUserSettings } from '$lib/apis/users';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 
 	import InboxButton from './InboxButton.svelte';
 	import InboxHost from './InboxHost.svelte';
@@ -1011,7 +1011,7 @@
 								class="self-center relative flex size-[calc(30px*var(--app-text-scale,1))] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900"
 							>
 								<img
-									src="{WEBUI_BASE_URL}/static/favicon.png"
+									src="{WEAI_BASE_URL}/static/favicon.png"
 									class="sidebar-new-chat-icon size-5 rounded-full group-hover:hidden"
 									alt=""
 								/>
@@ -1121,7 +1121,7 @@
 										class="self-center relative flex size-[calc(30px*var(--app-text-scale,1))] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900"
 									>
 										<img
-											src={`${WEBUI_API_BASE_URL}/users/${$user?.id}/profile/image`}
+											src={`${WEAI_API_BASE_URL}/users/${$user?.id}/profile/image`}
 											class="size-5.5 object-cover rounded-full"
 											alt={$i18n.t('Open User Profile Menu')}
 											aria-label={$i18n.t('Open User Profile Menu')}
@@ -1189,7 +1189,7 @@
 					>
 						<img
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
+							src="{WEAI_BASE_URL}/static/favicon.png"
 							class="sidebar-new-chat-icon size-5 rounded-full"
 							alt=""
 						/>
@@ -1197,10 +1197,10 @@
 
 					<a href="/" class="flex min-w-0 flex-1 px-0.5" on:click={newChatHandler}>
 						<div
-							id="sidebar-webui-name"
+							id="sidebar-weai-name"
 							class=" self-center truncate font-normal text-gray-700 dark:text-gray-200"
 						>
-							{$WEBUI_NAME}
+							{$WEAI_NAME}
 						</div>
 					</a>
 					<div class="flex shrink-0 items-center gap-px">
@@ -1787,7 +1787,7 @@
 								>
 									<div class=" self-center mr-3 relative flex-shrink-0">
 										<img
-											src={`${WEBUI_API_BASE_URL}/users/${$user?.id}/profile/image`}
+											src={`${WEAI_API_BASE_URL}/users/${$user?.id}/profile/image`}
 											class="size-5.5 object-cover rounded-full"
 											alt={$i18n.t('Open User Profile Menu')}
 											aria-label={$i18n.t('Open User Profile Menu')}

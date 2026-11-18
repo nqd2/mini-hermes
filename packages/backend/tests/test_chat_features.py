@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils.chat_runtime.features import ChatFeatureAdapters, process_chat_features
+from weai.utils.chat_runtime.features import ChatFeatureAdapters, process_chat_features
 
 
 def _adapters(config_get, **overrides):

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { getGroupMembers } from '$lib/apis/groups';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -56,7 +56,7 @@
 									<div class="flex min-w-0 items-center gap-2">
 										<img
 											class="size-6 shrink-0 rounded-full object-cover"
-											src={`${WEBUI_API_BASE_URL}/users/${member.id}/profile/image`}
+											src={`${WEAI_API_BASE_URL}/users/${member.id}/profile/image`}
 											alt=""
 										/>
 										<div class="truncate">{member.name}</div>

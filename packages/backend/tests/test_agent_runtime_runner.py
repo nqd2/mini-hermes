@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.agent_runtime.models import (
+from weai.agent_runtime.models import (
     AgentArtifact,
     AgentCheckpoint,
     AgentEvent,
@@ -16,12 +16,12 @@ from open_webui.agent_runtime.models import (
     AgentTurn,
     Base,
 )
-from open_webui.agent_runtime.repository import AgentRepository
-from open_webui.agent_runtime.runtime import AgentRuntime, _is_retry_safe_builtin
-from open_webui.agent_runtime.artifacts import AgentArtifactStore
-from open_webui.agent_runtime.outputs import ToolOutputManager
-from open_webui.mini_hermes.context_budget import estimate_tokens
-from open_webui.utils.chat_runtime import tool_execution
+from weai.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.runtime import AgentRuntime, _is_retry_safe_builtin
+from weai.agent_runtime.artifacts import AgentArtifactStore
+from weai.agent_runtime.outputs import ToolOutputManager
+from weai.agent_runtime.context_budget import estimate_tokens
+from weai.utils.chat_runtime import tool_execution
 from fastapi import HTTPException
 
 
@@ -96,7 +96,7 @@ async def test_continuation_cannot_bypass_approval_or_unknown_outcomes(tmp_path)
 @pytest.mark.parametrize('streaming', [False, True])
 async def test_response_error_event_fails_run_even_when_handler_returns_normally(tmp_path, monkeypatch, streaming):
     from fastapi.responses import StreamingResponse
-    from open_webui.utils.chat_runtime.response_context import ResponseContextAdapters, resolve_response_event_handlers
+    from weai.utils.chat_runtime.response_context import ResponseContextAdapters, resolve_response_event_handlers
 
     engine, repository = await _repository(tmp_path)
     runtime = AgentRuntime(repository, worker_id='worker')
@@ -143,7 +143,7 @@ async def test_response_error_event_fails_run_even_when_handler_returns_normally
 @pytest.mark.asyncio
 async def test_provider_checkpoint_uses_run_metadata_instead_of_shared_request_state(tmp_path, monkeypatch):
     from types import SimpleNamespace
-    from open_webui.agent_runtime.gateway import ProviderGateway
+    from weai.agent_runtime.gateway import ProviderGateway
 
     engine, repository = await _repository(tmp_path)
     runtime = AgentRuntime(repository, worker_id='worker')
@@ -391,7 +391,7 @@ async def test_stream_gap_recovery_includes_owner_scoped_status_snapshot(tmp_pat
         await repository.append_event(turn.id, 'assistant.delta', {'text': 'one'})
         await repository.append_event(turn.id, 'assistant.delta', {'text': 'two'})
         async with repository._session_factory() as db:
-            from open_webui.agent_runtime.models import AgentEvent
+            from weai.agent_runtime.models import AgentEvent
 
             await db.execute(delete(AgentEvent).where(AgentEvent.turn_id == turn.id, AgentEvent.sequence == 2))
             await db.commit()
@@ -1185,7 +1185,7 @@ async def test_status_event_is_durable_and_old_run_cannot_emit_it(tmp_path):
 async def test_stale_provider_request_cannot_bind_or_checkpoint_new_run(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
     from types import SimpleNamespace
-    from open_webui.agent_runtime.gateway import ProviderGateway
+    from weai.agent_runtime.gateway import ProviderGateway
 
     engine, repository = await _repository(tmp_path)
     try:

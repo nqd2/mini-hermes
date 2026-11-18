@@ -9,7 +9,7 @@ migration statements do not override the current production runtime decision.
 
 The application orchestrates resource tasks. Resource services own versions,
 permissions, extraction and provenance. PostgreSQL owns durable task checkpoints.
-The sandbox owns temporary execution artifacts only. Open WebUI owns transport,
+The sandbox owns temporary execution artifacts only. WeAI owns transport,
 approval UI and the existing model tool loop.
 
 Dependencies point from HTTP/UI adapters to application services and typed domain

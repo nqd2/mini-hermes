@@ -26,7 +26,7 @@
 		resolveLocalizedModelPromptSuggestions,
 		resolveLocalizedPromptSuggestions
 	} from '$lib/utils/localizedContent';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 
 	import Suggestions from './Suggestions.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -170,7 +170,7 @@
 										}}
 									>
 										<img
-											src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
+											src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
 											alt=""
 											class=" size-9 @sm:size-10 rounded-2xl"
 											aria-hidden="true"

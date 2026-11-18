@@ -1,0 +1,217 @@
+import logging
+from copy import deepcopy
+from typing import Callable, Optional
+
+from fastapi import HTTPException
+
+from weai.utils.chat_variables import render_chat_variables, render_user_variables
+from weai.utils.json_codec import JSONCodec
+from weai.utils.misc import (
+    add_or_update_system_message,
+    convert_logit_bias_input_to_json,
+    deep_update,
+    replace_system_message_content,
+)
+from weai.utils.task import prompt_template, prompt_variables_template
+
+log = logging.getLogger(__name__)
+
+
+def apply_model_controls(params: dict, controls: dict, model_options: dict) -> dict:
+    """Expand approved choices into ordinary Custom Params before normal request processing."""
+    if not isinstance(model_options, dict):
+        raise HTTPException(400, 'Model control options must be an object.')
+    for key, choice in model_options.items():
+        # Picks for removed controls are skipped: the user has no menu left to clear them.
+        if key in controls and (not isinstance(choice, str) or choice not in controls[key]['options']):
+            raise HTTPException(400, f'Model control {key}: the selected option is no longer available.')
+    for key, control in controls.items():
+        choice = model_options.get(key, control.get('default'))
+        if choice is not None:
+            params['custom_params'] = deep_update(
+                deepcopy(params.get('custom_params') or {}), deepcopy(control['options'][choice]['params'])
+            )
+    return params
+
+
+async def resolve_system_prompt(
+    system: Optional[str],
+    metadata: Optional[dict] = None,
+    user=None,
+) -> str:
+    if not system:
+        return ''
+
+    if metadata:
+        system = render_chat_variables(
+            system,
+            metadata.get('chat_variables', {}),
+            required=False,
+        )
+
+    system = render_user_variables(system, getattr(user, 'variables', {}) if user else {})
+
+    # Metadata (WebUI Usage)
+    if metadata:
+        variables = metadata.get('variables', {})
+        if variables:
+            system = prompt_variables_template(system, variables)
+
+    # Legacy (API Usage)
+    system = await prompt_template(system, user)
+
+    return system
+
+
+# What goes out cannot be taken back. Let it be shaped
+# well before it leaves this place.
+# Mutates form_data in place.
+async def apply_system_prompt_to_body(
+    system: Optional[str],
+    form_data: dict,
+    metadata: Optional[dict] = None,
+    user=None,
+    replace: bool = False,
+) -> dict:
+    system = await resolve_system_prompt(system, metadata, user)
+    if not system:
+        return form_data
+
+    if replace:
+        form_data['messages'] = replace_system_message_content(system, form_data.get('messages', []))
+    else:
+        form_data['messages'] = add_or_update_system_message(system, form_data.get('messages', []))
+
+    return form_data
+
+
+# inplace function: form_data is modified
+def apply_model_params_to_body(params: dict, form_data: dict, mappings: dict[str, Callable]) -> dict:
+    if not params:
+        return form_data
+
+    for key, value in params.items():
+        if value is not None and key not in form_data:
+            if key in mappings:
+                cast_func = mappings[key]
+                if isinstance(cast_func, Callable):
+                    form_data[key] = cast_func(value)
+            else:
+                form_data[key] = value
+
+    return form_data
+
+
+def apply_params_to_form_data(form_data: dict, model: dict, params: dict | None = None) -> dict:
+    payload_params = form_data.pop('params', {}) or {}
+    params = payload_params if params is None else dict(params)
+    custom_params = params.pop('custom_params', {})
+
+    weai_params = {
+        'stream_response': bool,
+        'stream_delta_chunk_size': int,
+        'function_calling': str,
+        'reasoning_tags': list,
+        'compact_token_threshold': int,
+        'system': str,
+        'note_id': str,
+        'tool_approval_mode': str,
+        'model_controls': dict,
+    }
+
+    for key in list(params.keys()):
+        if key in weai_params:
+            del params[key]
+
+    if custom_params:
+        for key, value in custom_params.items():
+            if isinstance(value, str):
+                try:
+                    custom_params[key] = JSONCodec.loads(value)
+                except JSONCodec.JSONDecodeError:
+                    pass
+
+        params = deep_update(params, custom_params)
+
+    if model.get('owned_by') == 'ollama':
+        form_data['options'] = {**params, **(form_data.get('options') or {})}
+    else:
+        if isinstance(params, dict):
+            for key, value in params.items():
+                if value is not None and key not in form_data:
+                    form_data[key] = value
+
+        if 'logit_bias' in params and params['logit_bias'] is not None and 'logit_bias' not in form_data:
+            try:
+                logit_bias = convert_logit_bias_input_to_json(params['logit_bias'])
+
+                if logit_bias:
+                    form_data['logit_bias'] = JSONCodec.loads(logit_bias)
+            except Exception as e:
+                log.exception(f'Error parsing logit_bias: {e}')
+
+    return form_data
+
+
+def remove_weai_params(params: dict) -> dict:
+    """
+    Removes WeAI specific parameters from the provided dictionary.
+
+    Args:
+        params (dict): The dictionary containing parameters.
+
+    Returns:
+        dict: The modified dictionary with WeAI parameters removed.
+    """
+    weai_params = {
+        'stream_response': bool,
+        'stream_delta_chunk_size': int,
+        'function_calling': str,
+        'reasoning_tags': list,
+        'compact_token_threshold': int,
+        'system': str,
+        'note_id': str,
+        'tool_approval_mode': str,
+        'model_controls': dict,
+    }
+
+    for key in list(params.keys()):
+        if key in weai_params:
+            del params[key]
+
+    return params
+
+
+# inplace function: form_data is modified
+def apply_model_params_to_body_openai(params: dict, form_data: dict) -> dict:
+    params = remove_weai_params(params)
+
+    custom_params = params.pop('custom_params', {})
+    if custom_params:
+        # Attempt to parse custom_params if they are strings
+        for key, value in custom_params.items():
+            if isinstance(value, str):
+                try:
+                    # Attempt to parse the string as JSON
+                    custom_params[key] = JSONCodec.loads(value)
+                except JSONCodec.JSONDecodeError:
+                    # If it fails, keep the original string
+                    pass
+
+        # If there are custom parameters, we need to apply them first
+        params = deep_update(params, custom_params)
+
+    mappings = {
+        'temperature': float,
+        'top_p': float,
+        'min_p': float,
+        'max_tokens': int,
+        'frequency_penalty': float,
+        'presence_penalty': float,
+        'reasoning_effort': str,
+        'seed': lambda x: x,
+        'stop': lambda x: [stop.encode('latin-1', 'backslashreplace').decode('unicode_escape') for stop in x],
+        'logit_bias': lambda x: x,
+        'response_format': dict,
+    }
+    return apply_model_params_to_body(params, form_data, mappings)

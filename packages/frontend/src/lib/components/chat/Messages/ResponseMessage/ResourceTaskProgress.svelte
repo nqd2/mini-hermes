@@ -2,7 +2,7 @@
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as I18n } from 'i18next';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 
 	export type ResourceTaskProgressData = {
@@ -49,9 +49,9 @@
 		try {
 			const url =
 				current.kind === 'index' && current.index_job_id
-					? `${WEBUI_BASE_URL}/api/v1/mini-hermes/index-jobs/${encodeURIComponent(current.index_job_id)}`
+					? `${WEAI_BASE_URL}/api/v1/agent-runtime/index-jobs/${encodeURIComponent(current.index_job_id)}`
 					: current.task_id
-						? `${WEBUI_BASE_URL}/api/v1/mini-hermes/tasks/${encodeURIComponent(current.task_id)}?include_analysis=false&evidence_limit=1`
+						? `${WEAI_BASE_URL}/api/v1/agent-runtime/tasks/${encodeURIComponent(current.task_id)}?include_analysis=false&evidence_limit=1`
 						: null;
 			if (!url) return;
 			const res = await fetch(url, {
@@ -84,7 +84,7 @@
 		localError = '';
 		try {
 			const res = await fetch(
-				`${WEBUI_BASE_URL}/api/v1/mini-hermes/tasks/${encodeURIComponent(current.task_id)}/cancel`,
+				`${WEAI_BASE_URL}/api/v1/agent-runtime/tasks/${encodeURIComponent(current.task_id)}/cancel`,
 				{ method: 'POST', headers: { Authorization: `Bearer ${localStorage.token}` }, signal: controller.signal }
 			);
 			if (!res.ok) throw new Error(String(res.status));
@@ -102,7 +102,7 @@
 		localError = '';
 		try {
 			const res = await fetch(
-				`${WEBUI_BASE_URL}/api/v1/mini-hermes/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/resume-resource`,
+				`${WEAI_BASE_URL}/api/v1/agent-runtime/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/resume-resource`,
 				{ method: 'POST', headers: { Authorization: `Bearer ${localStorage.token}` }, signal: controller.signal }
 			);
 			if (!res.ok) throw new Error(String(res.status));

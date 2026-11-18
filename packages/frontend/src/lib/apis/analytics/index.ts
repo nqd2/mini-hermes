@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export const getModelAnalytics = async (
 	token: string = '',
@@ -13,7 +13,7 @@ export const getModelAnalytics = async (
 	if (endDate) searchParams.append('end_date', endDate.toString());
 	if (groupId) searchParams.append('group_id', groupId);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/analytics/models?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/analytics/models?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -55,7 +55,7 @@ export const getUserAnalytics = async (
 	if (groupId) searchParams.append('group_id', groupId);
 	searchParams.append('metric', metric);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/analytics/users?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/analytics/users?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -101,7 +101,7 @@ export const getMessages = async (
 	if (skip) searchParams.append('skip', skip.toString());
 	if (limit) searchParams.append('limit', limit.toString());
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/analytics/messages?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/analytics/messages?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -139,7 +139,7 @@ export const getSummary = async (
 	if (endDate) searchParams.append('end_date', endDate.toString());
 	if (groupId) searchParams.append('group_id', groupId);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/analytics/summary?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/analytics/summary?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -183,7 +183,7 @@ export const getDailyStats = async (
 	if (compare) searchParams.append('compare', 'true');
 	if (groupId) searchParams.append('group_id', groupId);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/analytics/daily?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/analytics/daily?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -221,7 +221,7 @@ export const getTokenUsage = async (
 	if (endDate) searchParams.append('end_date', endDate.toString());
 	if (groupId) searchParams.append('group_id', groupId);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/analytics/tokens?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/analytics/tokens?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -269,7 +269,7 @@ export const getModelChats = async (
 	if (groupId) searchParams.append('group_id', groupId);
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/analytics/models/${encodeURIComponent(modelId)}/chats?${searchParams.toString()}`,
+		`${WEAI_API_BASE_URL}/analytics/models/${encodeURIComponent(modelId)}/chats?${searchParams.toString()}`,
 		{
 			method: 'GET',
 			headers: {
@@ -303,7 +303,7 @@ export const getModelOverview = async (token: string = '', modelId: string, days
 	searchParams.append('days', days.toString());
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/analytics/models/${encodeURIComponent(modelId)}/overview?${searchParams.toString()}`,
+		`${WEAI_API_BASE_URL}/analytics/models/${encodeURIComponent(modelId)}/overview?${searchParams.toString()}`,
 		{
 			method: 'GET',
 			headers: {

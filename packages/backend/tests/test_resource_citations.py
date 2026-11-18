@@ -3,9 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from open_webui.mini_hermes.provenance import content_version, evidence_id
-from open_webui.utils.chat_runtime.citations import get_citation_source_from_tool_result, get_source_context
-from open_webui.utils.json_codec import JSONCodec
+from weai.documents.provenance import content_version, evidence_id
+from weai.utils.chat_runtime.citations import get_citation_source_from_tool_result, get_source_context
+from weai.utils.json_codec import JSONCodec
 
 
 def test_source_context_exposes_bounded_resource_provenance_to_model():
@@ -104,10 +104,10 @@ def test_exact_search_citation_keeps_line_and_version_provenance():
 
 @pytest.mark.asyncio
 async def test_knowledge_file_reader_emits_provenance_used_by_citations(monkeypatch):
-    from open_webui.models.files import Files
-    from open_webui.models.groups import Groups
-    from open_webui.models.knowledge import Knowledges
-    from open_webui.tools import builtin
+    from weai.models.files import Files
+    from weai.models.groups import Groups
+    from weai.models.knowledge import Knowledges
+    from weai.tools import builtin
 
     content = 'first page\nsecond section'
     file = SimpleNamespace(
@@ -153,8 +153,8 @@ async def test_knowledge_file_reader_emits_provenance_used_by_citations(monkeypa
 
 @pytest.mark.asyncio
 async def test_line_number_rendering_does_not_change_the_underlying_evidence_span(monkeypatch):
-    from open_webui.models.files import Files
-    from open_webui.tools import builtin
+    from weai.models.files import Files
+    from weai.tools import builtin
 
     content = 'first line\nsecond line\nthird line'
     file = SimpleNamespace(

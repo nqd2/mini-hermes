@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils import middleware
+from weai.utils import middleware
 
 
 def _context(event_emitter, *, continuing=False):

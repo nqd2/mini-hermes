@@ -15,8 +15,8 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.indexing import (
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.indexing import (
     IndexBuildNotFoundError,
     IndexingError,
     IndexLifecycleManager,
@@ -28,19 +28,19 @@ from open_webui.mini_hermes.v2.indexing import (
     V2_XLSX_PARSER_VERSION,
     compute_index_manifest_hash,
 )
-from open_webui.mini_hermes.v2.models import (
+from weai.persistence.v2.models import (
     FormatType,
     IndexBuildState,
-    MhActiveIndex,
-    MhDocument,
-    MhDocumentRevision,
-    MhIndexBuild,
+    WeAIActiveIndex,
+    WeAIDocument,
+    WeAIDocumentRevision,
+    WeAIIndexBuild,
     utcnow,
 )
 
 if sys.platform == "win32":
     try:
-        from open_webui.utils.windows_asyncio import install_windows_selector_policy
+        from weai.utils.windows_asyncio import install_windows_selector_policy
 
         install_windows_selector_policy()
     except ImportError:
@@ -57,13 +57,13 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def disposable_pg_schema():
     """Fixture providing an isolated temporary PostgreSQL schema for integration tests."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
@@ -75,7 +75,7 @@ async def disposable_pg_schema():
     except (OSError, socket.timeout):
         pytest.skip(f"PostgreSQL server at {host}:{port} is offline")
 
-    schema_name = f"mh_test_idx_{uuid.uuid4().hex}"
+    schema_name = f"ar_test_idx_{uuid.uuid4().hex}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
 
@@ -170,7 +170,7 @@ async def test_index_build_lifecycle_state_machine(disposable_pg_schema):
     # Setup parent doc and rev records
     async with session_factory() as session:
         async with session.begin():
-            doc = MhDocument(
+            doc = WeAIDocument(
                 id=doc_id,
                 tenant_id="default",
                 name="test.xlsx",
@@ -180,7 +180,7 @@ async def test_index_build_lifecycle_state_machine(disposable_pg_schema):
             )
             session.add(doc)
             await session.flush()
-            rev = MhDocumentRevision(
+            rev = WeAIDocumentRevision(
                 id=rev_id,
                 document_id=doc_id,
                 revision_no=1,
@@ -248,7 +248,7 @@ async def test_index_build_revision_advancement_isolation(disposable_pg_schema):
 
     async with session_factory() as session:
         async with session.begin():
-            doc = MhDocument(
+            doc = WeAIDocument(
                 id=doc_id,
                 tenant_id="default",
                 name="test.xlsx",
@@ -258,7 +258,7 @@ async def test_index_build_revision_advancement_isolation(disposable_pg_schema):
             )
             session.add(doc)
             await session.flush()
-            rev1 = MhDocumentRevision(
+            rev1 = WeAIDocumentRevision(
                 id=rev1_id,
                 document_id=doc_id,
                 revision_no=1,
@@ -267,7 +267,7 @@ async def test_index_build_revision_advancement_isolation(disposable_pg_schema):
                 byte_size=1000,
                 committed_by="user1",
             )
-            rev2 = MhDocumentRevision(
+            rev2 = WeAIDocumentRevision(
                 id=rev2_id,
                 document_id=doc_id,
                 revision_no=2,
@@ -316,7 +316,7 @@ async def test_index_build_schema_incompatibility_fails_closed(disposable_pg_sch
 
     async with session_factory() as session:
         async with session.begin():
-            doc = MhDocument(
+            doc = WeAIDocument(
                 id=doc_id,
                 tenant_id="default",
                 name="test.xlsx",
@@ -326,7 +326,7 @@ async def test_index_build_schema_incompatibility_fails_closed(disposable_pg_sch
             )
             session.add(doc)
             await session.flush()
-            rev = MhDocumentRevision(
+            rev = WeAIDocumentRevision(
                 id=rev_id,
                 document_id=doc_id,
                 revision_no=1,
@@ -371,7 +371,7 @@ async def test_index_build_supersession_retires_old_build(disposable_pg_schema):
 
     async with session_factory() as session:
         async with session.begin():
-            doc = MhDocument(
+            doc = WeAIDocument(
                 id=doc_id,
                 tenant_id="default",
                 name="test.xlsx",
@@ -381,7 +381,7 @@ async def test_index_build_supersession_retires_old_build(disposable_pg_schema):
             )
             session.add(doc)
             await session.flush()
-            rev = MhDocumentRevision(
+            rev = WeAIDocumentRevision(
                 id=rev_id,
                 document_id=doc_id,
                 revision_no=1,
@@ -412,7 +412,7 @@ async def test_index_build_supersession_retires_old_build(disposable_pg_schema):
 
     # Old build1 must be RETIRED
     async with session_factory() as session:
-        old_b = await session.get(MhIndexBuild, build1.id)
+        old_b = await session.get(WeAIIndexBuild, build1.id)
         assert old_b.build_state == IndexBuildState.RETIRED.value
 
     await engine.dispose()

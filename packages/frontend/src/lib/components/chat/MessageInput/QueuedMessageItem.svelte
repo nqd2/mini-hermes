@@ -6,7 +6,7 @@
 	import GarbageBin from '$lib/components/icons/GarbageBin.svelte';
 	import EditPencil from '$lib/components/icons/EditPencil.svelte';
 	import ArrowForward from '$lib/components/icons/ArrowForward.svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { isRasterImageContentType } from '$lib/utils';
 
 	const i18n = getContext<any>('i18n');
@@ -45,7 +45,7 @@
 						{@const fileUrl =
 							file.url?.startsWith('data') || file.url?.startsWith('http')
 								? file.url
-								: `${WEBUI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
+								: `${WEAI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
 						<div
 							class="relative size-6 shrink-0 overflow-hidden rounded-lg border border-gray-100/60 bg-white/60 dark:border-white/[0.06] dark:bg-white/[0.025]"
 						>

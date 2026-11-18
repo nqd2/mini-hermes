@@ -12,11 +12,11 @@
 	import { getBanners } from '$lib/apis/configs';
 	import { getTerminalServers } from '$lib/apis/terminal';
 	import { getUserSettings, updateUserSettings } from '$lib/apis/users';
-	import { getMhRelease, type MhRelease } from '$lib/apis/mini-hermes/release';
-	import { shouldShowMhRelease } from '$lib/utils/mhReleaseVisibility';
+	import { getRelease, type Release } from '$lib/apis/releases/release';
+	import { shouldShowRelease } from '$lib/utils/releaseVisibility';
 	import { setAppFontFamily, setTextScale } from '$lib/utils/text-scale';
 
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import {
 		config,
@@ -46,7 +46,7 @@
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
-	import MhReleaseModal from '$lib/components/MhReleaseModal.svelte';
+	import ReleaseModal from '$lib/components/ReleaseModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { loadKeybindings, matchKeybinding, Shortcut } from '$lib/shortcuts';
@@ -56,16 +56,16 @@
 
 	let loaded = false;
 
-	let release: MhRelease | null = null;
+	let release: Release | null = null;
 
-	const loadMhRelease = async () => {
+	const loadRelease = async () => {
 		if (!['user', 'admin'].includes($user?.role)) return;
 		const userId = $user.id;
 		try {
-			const loadedRelease = await getMhRelease(localStorage.token);
+			const loadedRelease = await getRelease(localStorage.token);
 			if ($user?.id !== userId) return;
 			release = loadedRelease;
-			if (shouldShowMhRelease(release.version, $settings?.mh_last_seen_release_version,
+			if (shouldShowRelease(release.version, $settings?.last_seen_release_version,
 				$settings?.showChangelog ?? true)) {
 				showChangelog.set(true);
 			}
@@ -74,15 +74,15 @@
 		}
 	};
 
-	const dismissMhRelease = async () => {
+	const dismissRelease = async () => {
 		showChangelog.set(false);
-		if (!release || release.version === 'dev' || $settings?.mh_last_seen_release_version === release.version) return;
+		if (!release || release.version === 'dev' || $settings?.last_seen_release_version === release.version) return;
 		const version = release.version;
 		const userId = $user?.id;
 		try {
-			await updateUserSettings(localStorage.token, { ui: { mh_last_seen_release_version: version } });
+			await updateUserSettings(localStorage.token, { ui: { last_seen_release_version: version } });
 			if ($user?.id === userId) {
-				settings.update((current) => ({ ...current, mh_last_seen_release_version: version }));
+				settings.update((current) => ({ ...current, last_seen_release_version: version }));
 			}
 		} catch {
 			toast.error($i18n.t('Failed to update settings'));
@@ -188,7 +188,7 @@
 			// Store with proxy URL and session key for FileNav file browsing
 			...systemTerminals.map((t) => ({
 				id: t.id,
-				url: `${WEBUI_API_BASE_URL}/terminals/${t.id}`,
+				url: `${WEAI_API_BASE_URL}/terminals/${t.id}`,
 				name: t.name,
 				key: localStorage.token,
 				contexts: t.contexts ?? {},
@@ -422,7 +422,7 @@
 		};
 		setupKeyboardShortcuts();
 
-		void loadMhRelease();
+		void loadRelease();
 
 		if ($user?.role === 'admin' || ($user?.permissions?.chat?.temporary ?? true)) {
 			if ($page.url.searchParams.get('temporary-chat') === 'true') {
@@ -470,7 +470,7 @@
 </script>
 
 <SettingsModal bind:show={$showSettings} />
-<MhReleaseModal show={$showChangelog} {release} close={dismissMhRelease} />
+<ReleaseModal show={$showChangelog} {release} close={dismissRelease} />
 
 {#if $user}
 	<div class="app relative">

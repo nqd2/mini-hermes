@@ -88,9 +88,9 @@ def scan_mounts(source: str) -> list[dict]:
     tree = ast.parse(source)
     imports = {}
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith('open_webui.'):
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith('weai.'):
             for alias in node.names:
-                if node.module == 'open_webui.routers':
+                if node.module == 'weai.routers':
                     module = f'{node.module}.{alias.name}'
                 else:
                     module = node.module
@@ -123,13 +123,13 @@ def scan_mounts(source: str) -> list[dict]:
 
 
 def inventory(root: Path) -> dict:
-    package = root / 'open_webui'
+    package = root / 'weai'
     mounts = scan_mounts((package / 'main.py').read_text(encoding='utf-8'))
     by_module = {}
     for mount in mounts:
         if mount['module']:
             by_module.setdefault(mount['module'], []).append(mount)
-    result = {'source_root': 'packages/backend/open_webui', 'mounts': mounts, 'routes': [], 'warnings': []}
+    result = {'source_root': 'packages/backend/weai', 'mounts': mounts, 'routes': [], 'warnings': []}
     for file in sorted(package.rglob('*.py')):
         if '__pycache__' in file.parts:
             continue
@@ -148,7 +148,7 @@ def inventory(root: Path) -> dict:
             result['warnings'].append({'source': relative, 'message': 'Nested router requires manual resolution', **nested})
         for route in scanned['routes']:
             candidates = by_module.get(module, []) if route['router'] != 'app' else (
-                [{'prefix': '', 'conditional': False, 'line': None}] if module == 'open_webui.main' else []
+                [{'prefix': '', 'conditional': False, 'line': None}] if module == 'weai.main' else []
             )
             prefix = scanned['router_prefixes'].get(route['router'], '' if route['router'] == 'app' else None)
             if not candidates:
@@ -188,8 +188,8 @@ def pair_static_routes(frontend: dict, backend: dict) -> dict:
 
     result = {'matched': [], 'matched_template': [], 'no_exact_match': [], 'unresolved': []}
     bases = {
-        'WEBUI_BASE_URL': '',
-        'WEBUI_API_BASE_URL': '/api/v1',
+        'WEAI_BASE_URL': '',
+        'WEAI_API_BASE_URL': '/api/v1',
         'OPENAI_API_BASE_URL': '/openai',
         'AUDIO_API_BASE_URL': '/api/v1/audio',
         'IMAGES_API_BASE_URL': '/api/v1/images',

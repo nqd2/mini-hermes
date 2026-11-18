@@ -404,10 +404,10 @@
 					} else {
 						return e.name;
 					}
-				}, '')} / Open WebUI</title
+				}, '')} / WeAI</title
 		>
 	{:else}
-		<title>#{channel?.name ?? 'Channel'} / Open WebUI</title>
+		<title>#{channel?.name ?? 'Channel'} / WeAI</title>
 	{/if}
 </svelte:head>
 

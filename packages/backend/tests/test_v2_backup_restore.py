@@ -12,12 +12,12 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.backup import dump_v2_database, restore_v2_database
-from open_webui.mini_hermes.v2 import backup as backup_module
-from open_webui.agent_runtime.repository import AgentRepository
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.outbox import insert_outbox_event
-from open_webui.mini_hermes.v2.verify_backup import verify_database_parity
+from weai.persistence.v2.backup import dump_v2_database, restore_v2_database
+from weai.persistence.v2 import backup as backup_module
+from weai.agent_runtime.repository import AgentRepository
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.outbox import insert_outbox_event
+from weai.persistence.v2.verify_backup import verify_database_parity
 
 
 @pytest.fixture(scope="module")
@@ -30,18 +30,18 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def dual_pg_schemas():
     """Fixture providing two disposable schemas: source and target."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
-    src_schema = f"mh_test_src_{uuid4().hex}"
-    tgt_schema = f"mh_test_tgt_{uuid4().hex}"
+    src_schema = f"ar_test_src_{uuid4().hex}"
+    tgt_schema = f"ar_test_tgt_{uuid4().hex}"
 
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     src_url = url.set(query={**dict(url.query), "options": f"-csearch_path={src_schema}"})
@@ -119,7 +119,7 @@ async def test_full_backup_restore_and_8_point_parity_verification(dual_pg_schem
     target_engine = create_async_engine(tgt_url)
     try:
         async with target_engine.connect() as conn:
-            assert await conn.scalar(text("SELECT count(*) FROM mh_agent_session")) == 1
+            assert await conn.scalar(text("SELECT count(*) FROM ar_agent_session")) == 1
     finally:
         await target_engine.dispose()
 
@@ -148,7 +148,7 @@ async def test_json_restore_rejects_orphan_runtime_row_without_losing_target(
     await restore_v2_database(tgt_url, dump_file, force=True)
 
     data = json.loads(dump_file.read_text(encoding="utf-8"))
-    data["tables"]["mh_agent_session"][0]["parent_session_id"] = str(uuid4())
+    data["tables"]["ar_agent_session"][0]["parent_session_id"] = str(uuid4())
     dump_file.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(RuntimeError, match="violates foreign key"):
         await restore_v2_database(tgt_url, dump_file, force=True)
@@ -156,7 +156,7 @@ async def test_json_restore_rejects_orphan_runtime_row_without_losing_target(
     target = create_async_engine(tgt_url)
     try:
         async with target.connect() as conn:
-            assert await conn.scalar(text("SELECT count(*) FROM mh_agent_session")) == 1
-            assert await conn.scalar(text("SELECT parent_session_id FROM mh_agent_session")) is None
+            assert await conn.scalar(text("SELECT count(*) FROM ar_agent_session")) == 1
+            assert await conn.scalar(text("SELECT parent_session_id FROM ar_agent_session")) is None
     finally:
         await target.dispose()

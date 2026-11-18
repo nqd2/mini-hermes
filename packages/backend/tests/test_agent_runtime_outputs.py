@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from open_webui.agent_runtime.outputs import ToolOutputManager
-from open_webui.mini_hermes.context_budget import estimate_tokens
+from weai.agent_runtime.outputs import ToolOutputManager
+from weai.agent_runtime.context_budget import estimate_tokens
 
 
 def test_tool_output_manager_keeps_prefix_suffix_and_reports_full_size():

@@ -3,9 +3,9 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_summary_accepts_document_list_after_tool_result_processing():
-    from open_webui.utils.chat_runtime.tool_results import process_tool_result
-    from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
-    from open_webui.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
+    from weai.utils.chat_runtime.tool_results import process_tool_result
+    from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+    from weai.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
 
     state = metadata()
     state.update(resource_summary_task_required=True, resource_summary_task_phase='list')
@@ -21,8 +21,8 @@ async def test_summary_accepts_document_list_after_tool_result_processing():
 @pytest.mark.parametrize('documents', [[], [{'id': 'doc-1'}, {'id': 'doc-2'}], [{}]])
 @pytest.mark.asyncio
 async def test_summary_rejects_ambiguous_or_missing_processed_document_list(documents):
-    from open_webui.utils.chat_runtime.tool_results import process_tool_result
-    from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+    from weai.utils.chat_runtime.tool_results import process_tool_result
+    from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
 
     state = metadata()
     state.update(resource_summary_task_required=True, resource_summary_task_phase='list')
@@ -42,9 +42,9 @@ def metadata():
 
 
 def test_gate_holds_prose_but_keeps_tools_visible(monkeypatch):
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+    from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
 
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'true')
     gate = ResourceAnswerGate(metadata())
     output = [
         {'type': 'message', 'content': [{'type': 'output_text', 'text': 'unverified'}]},
@@ -58,10 +58,10 @@ def test_gate_holds_prose_but_keeps_tools_visible(monkeypatch):
 
 
 def test_gate_releases_answer_only_after_real_evidence(monkeypatch):
-    from open_webui.mini_hermes.agent_execution import record_tool_result
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+    from weai.agent_runtime.agent_execution import record_tool_result
+    from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
 
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'true')
     state = metadata()
     gate = ResourceAnswerGate(state)
     record_tool_result(state['agent_task_state'], 'read_editable_document', {'text': 'value', 'evidence_id': 'ev'})
@@ -71,7 +71,7 @@ def test_gate_releases_answer_only_after_real_evidence(monkeypatch):
 
 
 def test_rejected_tool_output_is_not_recorded_as_supplied_evidence():
-    from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+    from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
 
     state = metadata()
     state['resource_file_context_char_budget'] = 100
@@ -87,17 +87,17 @@ def test_rejected_tool_output_is_not_recorded_as_supplied_evidence():
 
 
 def test_gate_flag_off_preserves_wire_output(monkeypatch):
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+    from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
 
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'false')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'false')
     output = [{'type': 'message', 'content': []}]
     assert ResourceAnswerGate(metadata()).present(output) == output
 
 
 def test_stream_gate_drops_provisional_text_and_preserves_tool_progress(monkeypatch):
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+    from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
 
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'true')
     gate = ResourceAnswerGate(metadata())
     assert (
         gate.present_event(
@@ -116,9 +116,9 @@ def test_stream_gate_drops_provisional_text_and_preserves_tool_progress(monkeypa
 
 
 def test_provider_stream_payload_suppresses_unverified_content(monkeypatch):
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+    from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
 
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'true')
     gate = ResourceAnswerGate(metadata())
     payload = {'choices': [{'delta': {'content': 'unverified', 'reasoning_content': 'guess'}}]}
     filtered = gate.filter_provider_payload(payload)
@@ -127,11 +127,11 @@ def test_provider_stream_payload_suppresses_unverified_content(monkeypatch):
 
 
 def test_large_summary_task_is_durable_and_reports_actionable_pending_state(monkeypatch):
-    from open_webui.mini_hermes.agent_execution import task_checkpoint
-    from open_webui.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
-    from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result, ResourceAnswerGate
+    from weai.agent_runtime.agent_execution import task_checkpoint
+    from weai.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
+    from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result, ResourceAnswerGate
 
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'true')
     state = metadata()
     state.update(
         resource_scope_ids=['upload-1'],
@@ -190,11 +190,11 @@ def test_large_summary_task_is_durable_and_reports_actionable_pending_state(monk
 
 
 def test_completed_summary_task_satisfies_full_coverage_gate(monkeypatch):
-    from open_webui.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
-    from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
+    from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'true')
     state = metadata()
     state.update(
         resource_scope_ids=['upload-1'],
@@ -240,9 +240,9 @@ def test_completed_summary_task_satisfies_full_coverage_gate(monkeypatch):
 
 
 def test_index_pending_summary_can_resume_after_document_indexing(monkeypatch):
-    from open_webui.mini_hermes.agent_execution import task_checkpoint
-    from open_webui.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
-    from open_webui.utils.chat_runtime.resource_execution import advance_resource_summary_task_phase, ResourceAnswerGate
+    from weai.agent_runtime.agent_execution import task_checkpoint
+    from weai.utils.chat_runtime.resource_context_preparation import apply_resource_summary_tool_choice
+    from weai.utils.chat_runtime.resource_execution import advance_resource_summary_task_phase, ResourceAnswerGate
 
     state = metadata()
     state.update(
@@ -275,7 +275,7 @@ def test_index_pending_summary_can_resume_after_document_indexing(monkeypatch):
 
 
 def test_resolved_ask_user_preserves_assistant_explanation_when_coverage_partial():
-    from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
+    from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
 
     state = {
         'resource_aware_files': ['upload-1'],

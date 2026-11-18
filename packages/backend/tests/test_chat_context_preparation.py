@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils.chat_runtime.context_preparation import ContextPreparationAdapters, prepare_chat_context
+from weai.utils.chat_runtime.context_preparation import ContextPreparationAdapters, prepare_chat_context
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_direct_chat_model_resolution_preserves_request_binding(monkeypatch):
-    main = importlib.import_module('open_webui.main')
+    main = importlib.import_module('weai.main')
 
     request = SimpleNamespace(state=SimpleNamespace(), app=SimpleNamespace(state=SimpleNamespace(MODELS={})))
     direct_model = {'id': 'direct', 'direct': True, 'info': {'meta': {'capabilities': {'usage': True}}}}
@@ -25,7 +25,7 @@ async def test_direct_chat_model_resolution_preserves_request_binding(monkeypatc
 
 @pytest.mark.asyncio
 async def test_missing_base_model_checks_fallback_access(monkeypatch):
-    main = importlib.import_module('open_webui.main')
+    main = importlib.import_module('weai.main')
     model = {'id': 'custom'}
     fallback = {'id': 'fallback'}
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(MODELS={
@@ -52,13 +52,13 @@ async def test_missing_base_model_checks_fallback_access(monkeypatch):
 @pytest.mark.asyncio
 async def test_tier_user_cannot_bind_a_browser_provider_even_with_an_allowed_alias(monkeypatch):
     from fastapi import HTTPException
-    from open_webui.mini_hermes.tier_service import PlanSnapshot, tier_repository
+    from weai.model_routing.tier_service import PlanSnapshot, tier_repository
 
-    main = importlib.import_module('open_webui.main')
+    main = importlib.import_module('weai.main')
     request = SimpleNamespace(state=SimpleNamespace())
     monkeypatch.setattr(tier_repository, 'get_plan', AsyncMock(return_value=PlanSnapshot('free', None)))
     with pytest.raises(HTTPException) as error:
         await main._resolve_chat_model(
-            request, SimpleNamespace(id='user', role='user'), 'mh-free-small', {'direct': True},
+            request, SimpleNamespace(id='user', role='user'), 'agent-runtime-free-small', {'direct': True},
         )
     assert error.value.status_code == 403

@@ -15,44 +15,44 @@ IF /I "%WEB_LOADER_ENGINE%" == "playwright" (
     )
 )
 
-SET "KEY_FILE=.webui_secret_key"
-IF NOT "%WEBUI_SECRET_KEY_FILE%" == "" (
-    SET "KEY_FILE=%WEBUI_SECRET_KEY_FILE%"
+SET "KEY_FILE=.weai_secret_key"
+IF NOT "%WEAI_SECRET_KEY_FILE%" == "" (
+    SET "KEY_FILE=%WEAI_SECRET_KEY_FILE%"
 )
 
 IF "%PORT%"=="" SET PORT=8080
 IF "%HOST%"=="" SET HOST=0.0.0.0
 IF "%FORWARDED_ALLOW_IPS%"=="" SET "FORWARDED_ALLOW_IPS='*'"
-SET "WEBUI_SECRET_KEY=%WEBUI_SECRET_KEY%"
-SET "WEBUI_JWT_SECRET_KEY=%WEBUI_JWT_SECRET_KEY%"
-IF "%WEBUI_SECRET_KEY_LENGTH%" == "" (
-    SET "WEBUI_SECRET_KEY_LENGTH=24"
+SET "WEAI_SECRET_KEY=%WEAI_SECRET_KEY%"
+SET "WEAI_JWT_SECRET_KEY=%WEAI_JWT_SECRET_KEY%"
+IF "%WEAI_SECRET_KEY_LENGTH%" == "" (
+    SET "WEAI_SECRET_KEY_LENGTH=24"
 )
 
-:: Check if WEBUI_SECRET_KEY and WEBUI_JWT_SECRET_KEY are not set
-IF "%WEBUI_SECRET_KEY% %WEBUI_JWT_SECRET_KEY%" == " " (
-    echo Loading WEBUI_SECRET_KEY from file, not provided as an environment variable.
+:: Check if WEAI_SECRET_KEY and WEAI_JWT_SECRET_KEY are not set
+IF "%WEAI_SECRET_KEY% %WEAI_JWT_SECRET_KEY%" == " " (
+    echo Loading WEAI_SECRET_KEY from file, not provided as an environment variable.
 
     IF NOT EXIST "!KEY_FILE!" (
-        echo Generating WEBUI_SECRET_KEY
-        :: Generate a random value to use as a WEBUI_SECRET_KEY in case the user didn't provide one
+        echo Generating WEAI_SECRET_KEY
+        :: Generate a random value to use as a WEAI_SECRET_KEY in case the user didn't provide one
         SET "CHARSET=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        SET "WEBUI_SECRET_KEY="
-        FOR /L %%i IN (1,1,!WEBUI_SECRET_KEY_LENGTH!) DO (
+        SET "WEAI_SECRET_KEY="
+        FOR /L %%i IN (1,1,!WEAI_SECRET_KEY_LENGTH!) DO (
             SET /A "INDEX=!RANDOM! %% 62"
-            FOR %%j IN (!INDEX!) DO SET "WEBUI_SECRET_KEY=!WEBUI_SECRET_KEY!!CHARSET:~%%j,1!"
+            FOR %%j IN (!INDEX!) DO SET "WEAI_SECRET_KEY=!WEAI_SECRET_KEY!!CHARSET:~%%j,1!"
         )
-        <nul SET /p="!WEBUI_SECRET_KEY!">"!KEY_FILE!"
-        echo WEBUI_SECRET_KEY generated
+        <nul SET /p="!WEAI_SECRET_KEY!">"!KEY_FILE!"
+        echo WEAI_SECRET_KEY generated
     )
 
-    echo Loading WEBUI_SECRET_KEY from !KEY_FILE!
-    SET /p WEBUI_SECRET_KEY=<"!KEY_FILE!"
+    echo Loading WEAI_SECRET_KEY from !KEY_FILE!
+    SET /p WEAI_SECRET_KEY=<"!KEY_FILE!"
 )
 
 :: Execute uvicorn
-SET "WEBUI_SECRET_KEY=%WEBUI_SECRET_KEY%"
+SET "WEAI_SECRET_KEY=%WEAI_SECRET_KEY%"
 IF "%UVICORN_WORKERS%"=="" SET UVICORN_WORKERS=1
 if "%UVICORN_WS_PER_MESSAGE_DEFLATE%" == "" set "UVICORN_WS_PER_MESSAGE_DEFLATE=true"
-uvicorn open_webui.main:app --host "%HOST%" --port "%PORT%" --forwarded-allow-ips %FORWARDED_ALLOW_IPS% --workers %UVICORN_WORKERS% --ws auto --ws-per-message-deflate %UVICORN_WS_PER_MESSAGE_DEFLATE%
-:: For ssl user uvicorn open_webui.main:app --host "%HOST%" --port "%PORT%" --forwarded-allow-ips '*' --ssl-keyfile "key.pem" --ssl-certfile "cert.pem" --ws auto
+uvicorn weai.main:app --host "%HOST%" --port "%PORT%" --forwarded-allow-ips %FORWARDED_ALLOW_IPS% --workers %UVICORN_WORKERS% --ws auto --ws-per-message-deflate %UVICORN_WS_PER_MESSAGE_DEFLATE%
+:: For ssl user uvicorn weai.main:app --host "%HOST%" --port "%PORT%" --forwarded-allow-ips '*' --ssl-keyfile "key.pem" --ssl-certfile "cert.pem" --ws auto

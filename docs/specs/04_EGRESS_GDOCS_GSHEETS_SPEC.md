@@ -153,11 +153,11 @@ Toàn bộ nội dung khi chuyển sang Google Docs phải được đặt trong
 - **Headers:**
   ```http
   Authorization: Bearer {USER_GOOGLE_ACCESS_TOKEN}
-  Content-Type: multipart/related; boundary=mini_hermes_boundary_part
+  Content-Type: multipart/related; boundary=agent_runtime_boundary_part
   ```
 - **Body:**
   ```http
-  --mini_hermes_boundary_part
+  --agent_runtime_boundary_part
   Content-Type: application/json; charset=UTF-8
 
   {
@@ -165,14 +165,14 @@ Toàn bộ nội dung khi chuyển sang Google Docs phải được đặt trong
     "mimeType": "application/vnd.google-apps.document",
     "parents": ["{GOOGLE_DRIVE_FOLDER_ID}"]
   }
-  --mini_hermes_boundary_part
+  --agent_runtime_boundary_part
   Content-Type: text/html; charset=UTF-8
 
   <!DOCTYPE html>
   <html>
   ... nội dung clean html ...
   </html>
-  --mini_hermes_boundary_part--
+  --agent_runtime_boundary_part--
   ```
 
 ### 3.2. Cập nhật Google Docs đã có (`PATCH /upload/drive/v3/files/{file_id}?uploadType=multipart`)

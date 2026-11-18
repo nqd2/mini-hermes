@@ -29,7 +29,7 @@
 	import { copyToClipboard, unescapeHtml } from '$lib/utils';
 	import { resolveChatMessageToolCall } from '$lib/apis/chats';
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { settings } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 
@@ -604,7 +604,7 @@
 		<HtmlToken {id} {token} {onSourceClick} />
 	{:else if token.type === 'iframe'}
 		<iframe
-			src="{WEBUI_BASE_URL}/api/v1/files/{token.fileId}/content"
+			src="{WEAI_BASE_URL}/api/v1/files/{token.fileId}/content"
 			title={token.fileId}
 			width="100%"
 			frameborder="0"

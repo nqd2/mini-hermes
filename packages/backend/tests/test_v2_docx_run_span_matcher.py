@@ -8,8 +8,8 @@ import pytest
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-from open_webui.mini_hermes.v2.canonical.document import CanonicalDocumentModel
-from open_webui.mini_hermes.v2.parsers.docx import (
+from weai.persistence.v2.canonical.document import CanonicalDocumentModel
+from weai.persistence.v2.parsers.docx import (
     DocxFormatError,
     DocxParser,
     RunSpanMatcher,

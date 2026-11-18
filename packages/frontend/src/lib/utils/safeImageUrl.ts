@@ -1,4 +1,4 @@
-import { WEBUI_BASE_URL } from '$lib/constants';
+import { WEAI_BASE_URL } from '$lib/constants';
 
 const PLACEHOLDER_IMAGE = '/favicon.png';
 
@@ -9,7 +9,7 @@ const PLACEHOLDER_IMAGE = '/favicon.png';
  * Allowed patterns:
  *   - Relative paths (starting with '/')
  *   - data:image/* URIs
- *   - Same-origin URLs (starting with WEBUI_BASE_URL)
+ *   - Same-origin URLs (starting with WEAI_BASE_URL)
  *   - Gravatar URLs (https://www.gravatar.com/avatar/)
  *   - External HTTP(S) URLs when allowExternal is true
  *
@@ -18,11 +18,11 @@ const PLACEHOLDER_IMAGE = '/favicon.png';
  */
 export function safeImageUrl(url: string, allowExternal = false): string {
 	if (!url || url === '') {
-		return `${WEBUI_BASE_URL}${PLACEHOLDER_IMAGE}`;
+		return `${WEAI_BASE_URL}${PLACEHOLDER_IMAGE}`;
 	}
 
 	if (
-		(WEBUI_BASE_URL && url.startsWith(WEBUI_BASE_URL)) ||
+		(WEAI_BASE_URL && url.startsWith(WEAI_BASE_URL)) ||
 		url.startsWith('https://www.gravatar.com/avatar/') ||
 		(allowExternal && /^https?:\/\//i.test(url)) ||
 		url.startsWith('data:') ||
@@ -31,5 +31,5 @@ export function safeImageUrl(url: string, allowExternal = false): string {
 		return url;
 	}
 
-	return `${WEBUI_BASE_URL}${PLACEHOLDER_IMAGE}`;
+	return `${WEAI_BASE_URL}${PLACEHOLDER_IMAGE}`;
 }

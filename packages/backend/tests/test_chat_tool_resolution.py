@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from open_webui.utils.chat_runtime.tool_resolution import ToolResolutionAdapters, resolve_chat_tools
-from open_webui.utils.misc import add_or_update_system_message
+from weai.utils.chat_runtime.tool_resolution import ToolResolutionAdapters, resolve_chat_tools
+from weai.utils.misc import add_or_update_system_message
 
 
 def _adapters(**overrides):

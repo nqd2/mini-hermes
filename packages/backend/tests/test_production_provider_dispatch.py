@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException, Request
 
-from open_webui.utils.chat import generate_chat_completion
-from open_webui.utils.embeddings import generate_embeddings
+from weai.utils.chat import generate_chat_completion
+from weai.utils.embeddings import generate_embeddings
 
 
 def _request_with_model(*, direct: bool = False) -> Request:

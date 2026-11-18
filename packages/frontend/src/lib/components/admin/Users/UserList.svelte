@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { adminUserCount, config, user } from '$lib/stores';
 	import { getContext, onDestroy } from 'svelte';
 
@@ -359,7 +359,7 @@
 								<ProfilePreview {user} side="right" align="center" sideOffset={6}>
 									<img
 										class="rounded-full size-5.5 object-cover flex-shrink-0"
-										src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
+										src={`${WEAI_API_BASE_URL}/users/${user.id}/profile/image`}
 										alt="user"
 										on:error={(e) => {
 											e.currentTarget.src = '/favicon.png';

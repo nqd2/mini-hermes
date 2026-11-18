@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import (
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -16,7 +16,7 @@ from open_webui.mini_hermes.models import (
 
 @pytest.mark.asyncio
 async def test_worker_reclaims_expired_resource_task_lease_after_restart(monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -68,7 +68,7 @@ async def test_worker_reclaims_expired_resource_task_lease_after_restart(monkeyp
 
 @pytest.mark.asyncio
 async def test_worker_processes_and_persists_one_summary_checkpoint(monkeypatch):
-    from open_webui.mini_hermes import resource_tasks, worker
+    from weai.documents import resource_tasks, worker
 
     async def summarize(text):
         return f'summary:{text}'
@@ -154,7 +154,7 @@ async def test_worker_processes_and_persists_one_summary_checkpoint(monkeypatch)
 
 
 async def _description_worker_database(monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -200,7 +200,7 @@ async def _description_worker_database(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_description_provider_receives_bounded_source_text(monkeypatch):
-    from open_webui.mini_hermes import resource_tasks, worker
+    from weai.documents import resource_tasks, worker
 
     engine, sessions = await _description_worker_database(monkeypatch)
     submitted = []
@@ -225,7 +225,7 @@ async def test_description_provider_receives_bounded_source_text(monkeypatch):
 async def test_description_context_rejection_is_terminal_until_manual_retry(monkeypatch):
     from fastapi import HTTPException
 
-    from open_webui.mini_hermes import resource_tasks, worker
+    from weai.documents import resource_tasks, worker
 
     engine, sessions = await _description_worker_database(monkeypatch)
     submitted = []

@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type Embed = {
 	title?: string;
@@ -31,7 +31,7 @@ export type App = {
 export const getApps = async (token: string = ''): Promise<App[]> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -59,7 +59,7 @@ export const getApps = async (token: string = ''): Promise<App[]> => {
 export const getAppById = async (token: string = '', app_id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -87,7 +87,7 @@ export const getAppById = async (token: string = '', app_id: string) => {
 export const createNewApp = async (token: string = '', app: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -116,7 +116,7 @@ export const createNewApp = async (token: string = '', app: object) => {
 export const updateAppById = async (token: string = '', app_id: string, app: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`, {
 		method: 'PATCH',
 		headers: {
 			Accept: 'application/json',
@@ -145,7 +145,7 @@ export const updateAppById = async (token: string = '', app_id: string, app: obj
 export const deleteAppById = async (token: string = '', app_id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -177,7 +177,7 @@ export const previewAppManifest = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps/manifest/preview`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps/manifest/preview`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -210,7 +210,7 @@ export const connectAppById = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}/connect`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}/connect`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -243,7 +243,7 @@ export const createAppInteraction = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}/interactions`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/apps/${encodeURIComponent(app_id)}/interactions`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',

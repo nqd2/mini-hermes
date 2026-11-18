@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { onMount } from 'svelte';
 
 	export let imageUrls = [
-		`${WEBUI_BASE_URL}/assets/images/adam.jpg`,
-		`${WEBUI_BASE_URL}/assets/images/galaxy.jpg`,
-		`${WEBUI_BASE_URL}/assets/images/earth.jpg`,
-		`${WEBUI_BASE_URL}/assets/images/space.jpg`
+		`${WEAI_BASE_URL}/assets/images/adam.jpg`,
+		`${WEAI_BASE_URL}/assets/images/galaxy.jpg`,
+		`${WEAI_BASE_URL}/assets/images/earth.jpg`,
+		`${WEAI_BASE_URL}/assets/images/space.jpg`
 	];
 	export let duration = 5000;
 	let selectedImageIdx = 0;

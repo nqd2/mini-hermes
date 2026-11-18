@@ -2,7 +2,7 @@
 	// Keep keys in nested template expressions visible to i18next-parser.
 	// $i18n.t("licensed under");
 
-	import { WEBUI_NAME, settings, showChangelog } from '$lib/stores';
+	import { WEAI_NAME, settings, showChangelog } from '$lib/stores';
 	import { getContext } from 'svelte';
 
 	import BuildVersion from '$lib/components/common/BuildVersion.svelte';
@@ -23,7 +23,7 @@
 
 	<div class="flex-1 min-h-0 overflow-y-auto scrollbar-hover pr-1.5">
 		<UserSettingSection
-			title={`${$WEBUI_NAME} ${$i18n.t('settings.personal.about.sections.version.title')}`}
+			title={`${$WEAI_NAME} ${$i18n.t('settings.personal.about.sections.version.title')}`}
 			first
 		>
 			<UserSettingRow description={$i18n.t('settings.personal.about.seeWhatSNew.description')}>
@@ -67,7 +67,7 @@
 					<a
 						class="hover:text-gray-700 dark:hover:text-gray-400"
 						href="https://github.com/open-webui/open-webui"
-						target="_blank">GitHub</a
+						target="_blank">Open WebUI · GitHub</a
 					>
 			</div>
 

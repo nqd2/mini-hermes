@@ -2871,7 +2871,7 @@ wheels = [
 ]
 
 [[package]]
-name = "open-webui"
+name = "weai"
 version = "0.13.0"
 source = { editable = "." }
 dependencies = [

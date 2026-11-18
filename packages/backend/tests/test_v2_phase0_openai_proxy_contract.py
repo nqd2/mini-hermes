@@ -1,4 +1,4 @@
-"""Selected existing Open WebUI OpenAI proxy contracts without provider traffic."""
+"""Selected existing WeAI OpenAI proxy contracts without provider traffic."""
 
 from types import SimpleNamespace
 
@@ -6,7 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from open_webui.routers import openai
+from weai.routers import openai
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,7 @@
 	import dayjs from 'dayjs';
 	import ProfileImage from '$lib/components/chat/Messages/ProfileImage.svelte';
 	import ProfilePreview from '$lib/components/channel/Messages/Message/ProfilePreview.svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import GarbageBin from '$lib/components/icons/GarbageBin.svelte';
 	import Link from '$lib/components/icons/Link.svelte';
@@ -88,7 +88,7 @@
 					<ProfilePreview user={comment.user}>
 						<ProfileImage
 							src={comment.user?.id
-								? `${WEBUI_API_BASE_URL}/users/${comment.user.id}/profile/image`
+								? `${WEAI_API_BASE_URL}/users/${comment.user.id}/profile/image`
 								: undefined}
 							className="size-6 shrink-0 rounded-full!"
 						/>

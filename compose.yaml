@@ -1,35 +1,40 @@
-name: ${COMPOSE_PROJECT_NAME:-mini-hermes}
+name: ${COMPOSE_PROJECT_NAME:-weai}
 
 x-app-env: &app-env
-  DATABASE_URL: postgresql://minihermes:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/minihermes
+  AGENT_RUNTIME_ENVIRONMENT_ID: ${AGENT_RUNTIME_ENVIRONMENT_ID:-development}
+  DATABASE_URL: postgresql://weai:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/weai
   REDIS_URL: redis://redis:6379/0
   STORAGE_PROVIDER: s3
   S3_ENDPOINT_URL: http://seaweedfs:8333
-  S3_BUCKET_NAME: ${S3_BUCKET_NAME:-mini-hermes}
+  S3_BUCKET_NAME: ${S3_BUCKET_NAME:-agent-runtime}
   S3_ACCESS_KEY_ID: admin
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
   S3_ADDRESSING_STYLE: path
-  WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env}
-  MH_TOKEN_ENCRYPTION_KEY: ${MH_TOKEN_ENCRYPTION_KEY:?Set MH_TOKEN_ENCRYPTION_KEY in .env}
-  MH_CONNECTOR_SECRET: ${MH_CONNECTOR_SECRET:?Set MH_CONNECTOR_SECRET in .env}
-  MH_CONNECTOR_URL: http://google-connector:8090
-  MH_SANDBOX_URL: http://sandbox:8765
-  MH_SANDBOX_TOKEN: ${MH_SANDBOX_TOKEN:?Set MH_SANDBOX_TOKEN in .env}
+  WEAI_SECRET_KEY: ${WEAI_SECRET_KEY:?Set WEAI_SECRET_KEY in .env}
+  AGENT_RUNTIME_TOKEN_ENCRYPTION_KEY: ${AGENT_RUNTIME_TOKEN_ENCRYPTION_KEY:?Set AGENT_RUNTIME_TOKEN_ENCRYPTION_KEY in .env}
+  AGENT_RUNTIME_CONNECTOR_SECRET: ${AGENT_RUNTIME_CONNECTOR_SECRET:?Set AGENT_RUNTIME_CONNECTOR_SECRET in .env}
+  AGENT_RUNTIME_CONNECTOR_URL: http://google-connector:8090
+  AGENT_RUNTIME_SANDBOX_URL: http://sandbox:8765
+  AGENT_RUNTIME_SANDBOX_TOKEN: ${AGENT_RUNTIME_SANDBOX_TOKEN:?Set AGENT_RUNTIME_SANDBOX_TOKEN in .env}
   OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.1min.ai/openai/v1}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-  MH_SMALL_TASK_MODEL: ${MH_SMALL_TASK_MODEL:-gpt-4.1-mini}
-  MH_GOOGLE_CLIENT_ID: ${MH_GOOGLE_CLIENT_ID:-}
-  MH_GOOGLE_CLIENT_SECRET: ${MH_GOOGLE_CLIENT_SECRET:-}
-  MH_GOOGLE_REDIRECT_URI: ${MH_GOOGLE_REDIRECT_URI:-http://localhost:8080/api/v1/mini-hermes/drive/callback}
-  FRONTEND_BUILD_DIR: /app/packages/backend/open_webui/frontend
+  AGENT_RUNTIME_SMALL_TASK_MODEL: ${AGENT_RUNTIME_SMALL_TASK_MODEL:-gpt-4.1-mini}
+  AGENT_RUNTIME_GOOGLE_CLIENT_ID: ${AGENT_RUNTIME_GOOGLE_CLIENT_ID:-}
+  AGENT_RUNTIME_GOOGLE_CLIENT_SECRET: ${AGENT_RUNTIME_GOOGLE_CLIENT_SECRET:-}
+  AGENT_RUNTIME_GOOGLE_REDIRECT_URI: ${AGENT_RUNTIME_GOOGLE_REDIRECT_URI:-http://localhost:8080/api/v1/agent-runtime/drive/callback}
+  FRONTEND_BUILD_DIR: /app/packages/backend/weai/frontend
   ENABLE_VERSION_UPDATE_CHECK: 'false'
   USE_SLIM_DOCKER: 'true'
   ANONYMIZED_TELEMETRY: 'false'
 
 services:
   app:
-    image: ${IMAGE_NAME:-mini-hermes}:${IMAGE_TAG:-local}
-    container_name: ${COMPOSE_PROJECT_NAME:-mini-hermes}-app
+    build:
+      context: .
+      args:
+        WEAI_RELEASE_VERSION: ${WEAI_RELEASE_VERSION:-dev}
+    image: ${IMAGE_NAME:-weai}:${IMAGE_TAG:-local}
+    container_name: ${COMPOSE_PROJECT_NAME:-weai}-app
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -61,10 +66,10 @@ services:
         condition: service_started
 
   worker:
-    image: ${IMAGE_NAME:-mini-hermes}:${IMAGE_TAG:-local}
-    container_name: ${COMPOSE_PROJECT_NAME:-mini-hermes}-worker
+    image: ${IMAGE_NAME:-weai}:${IMAGE_TAG:-local}
+    container_name: ${COMPOSE_PROJECT_NAME:-weai}-worker
     restart: unless-stopped
-    command: ["python", "-m", "open_webui.mini_hermes.worker"]
+    command: ["python", "-m", "weai.documents.worker"]
     environment: *app-env
     volumes:
       - app-data:/app/data
@@ -76,14 +81,14 @@ services:
         condition: service_healthy
 
   sandbox:
-    image: ${IMAGE_NAME:-mini-hermes}:${IMAGE_TAG:-local}
-    container_name: ${COMPOSE_PROJECT_NAME:-mini-hermes}-sandbox
+    image: ${IMAGE_NAME:-weai}:${IMAGE_TAG:-local}
+    container_name: ${COMPOSE_PROJECT_NAME:-weai}-sandbox
     restart: unless-stopped
-    command: ["python", "-m", "open_webui.mini_hermes.sandbox_service"]
+    command: ["python", "-m", "weai.agent_runtime.sandbox_service"]
     environment:
-      MH_SANDBOX_HOST: 0.0.0.0
-      MH_SANDBOX_PORT: '8765'
-      MH_SANDBOX_TOKEN: ${MH_SANDBOX_TOKEN:?Set MH_SANDBOX_TOKEN in .env}
+      AGENT_RUNTIME_SANDBOX_HOST: 0.0.0.0
+      AGENT_RUNTIME_SANDBOX_PORT: '8765'
+      AGENT_RUNTIME_SANDBOX_TOKEN: ${AGENT_RUNTIME_SANDBOX_TOKEN:?Set AGENT_RUNTIME_SANDBOX_TOKEN in .env}
       PYTHONDONTWRITEBYTECODE: '1'
       HOME: /tmp
     expose:
@@ -108,10 +113,10 @@ services:
     cpus: 1.0
 
   google-connector:
-    image: ${IMAGE_NAME:-mini-hermes}:${IMAGE_TAG:-local}
-    container_name: ${COMPOSE_PROJECT_NAME:-mini-hermes}-google-connector
+    image: ${IMAGE_NAME:-weai}:${IMAGE_TAG:-local}
+    container_name: ${COMPOSE_PROJECT_NAME:-weai}-google-connector
     restart: unless-stopped
-    command: ["uvicorn", "open_webui.mini_hermes.drive:app", "--host", "0.0.0.0", "--port", "8090"]
+    command: ["uvicorn", "weai.documents.drive:app", "--host", "0.0.0.0", "--port", "8090"]
     environment: *app-env
     expose:
       - '8090'
@@ -123,16 +128,16 @@ services:
 
   postgres:
     image: postgres:17.6
-    container_name: ${COMPOSE_PROJECT_NAME:-mini-hermes}-postgres
+    container_name: ${COMPOSE_PROJECT_NAME:-weai}-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: minihermes
-      POSTGRES_USER: minihermes
+      POSTGRES_DB: weai
+      POSTGRES_USER: weai
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U minihermes"]
+      test: ["CMD-SHELL", "pg_isready -U weai"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -141,7 +146,7 @@ services:
 
   redis:
     image: redis:7.4.6-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-mini-hermes}-redis
+    container_name: ${COMPOSE_PROJECT_NAME:-weai}-redis
     restart: unless-stopped
     volumes:
       - redis-data:/data
@@ -150,12 +155,12 @@ services:
 
   seaweedfs:
     image: chrislusf/seaweedfs:4.52
-    container_name: ${COMPOSE_PROJECT_NAME:-mini-hermes}-seaweedfs
+    container_name: ${COMPOSE_PROJECT_NAME:-weai}-seaweedfs
     restart: unless-stopped
     environment:
       AWS_ACCESS_KEY_ID: admin
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
-      S3_BUCKET: ${S3_BUCKET_NAME:-mini-hermes}
+      S3_BUCKET: ${S3_BUCKET_NAME:-agent-runtime}
     volumes:
       - seaweedfs-data:/data
     networks:

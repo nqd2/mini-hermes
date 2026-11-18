@@ -16,7 +16,7 @@
 		formatMessageTimestampFull,
 		isRasterImageContentType
 	} from '$lib/utils';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import equal from 'fast-deep-equal';
 
 	import Name from './Name.svelte';
@@ -169,8 +169,8 @@
 			<ProfilePreview user={{ id: authorId, name: authorName }}>
 				<ProfileImage
 					src={authorId
-						? `${WEBUI_API_BASE_URL}/users/${authorId}/profile/image`
-						: `${WEBUI_BASE_URL}/static/favicon.png`}
+						? `${WEAI_API_BASE_URL}/users/${authorId}/profile/image`
+						: `${WEAI_BASE_URL}/static/favicon.png`}
 					className={'size-7 user-message-profile-image'}
 				/>
 			</ProfilePreview>
@@ -216,7 +216,7 @@
 							{@const fileUrl =
 								file.url?.startsWith('data') || file.url?.startsWith('http')
 									? file.url
-									: `${WEBUI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
+									: `${WEAI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
 							<div
 								class={($settings?.chatBubble ?? true) ? (isOwn ? 'self-end' : 'self-start') : ''}
 							>
@@ -252,7 +252,7 @@
 									{@const fileUrl =
 										file.url?.startsWith('data') || file.url?.startsWith('http')
 											? file.url
-											: `${WEBUI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
+											: `${WEAI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
 									<div class=" relative group">
 										<div class="relative flex items-center">
 											<Image

@@ -12,7 +12,7 @@
 	import Loader from '$lib/components/common/Loader.svelte';
 	import Bell from '$lib/components/icons/Bell.svelte';
 	import ProfileImage from '$lib/components/chat/Messages/ProfileImage.svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	export let active = false;
 	let mounted = false;
 	export let onClose: () => void;
@@ -174,7 +174,7 @@
 				<span class="relative mt-0.5 flex size-5 shrink-0 items-center justify-center">
 					{#if item.actor}
 						<ProfileImage
-							src={`${WEBUI_API_BASE_URL}/users/${encodeURIComponent(item.actor.id)}/profile/image`}
+							src={`${WEAI_API_BASE_URL}/users/${encodeURIComponent(item.actor.id)}/profile/image`}
 							className="size-5 rounded-full!"
 						/>
 					{:else}

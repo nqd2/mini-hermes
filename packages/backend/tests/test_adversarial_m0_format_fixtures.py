@@ -21,12 +21,12 @@ import openpyxl
 import pytest
 from fastapi import HTTPException
 
-from open_webui.mini_hermes.chunks import extract_structured_text
-from open_webui.mini_hermes.edits import apply_operations, extract_text
-from open_webui.mini_hermes.models import Document, Revision
-from open_webui.mini_hermes.parsers import extract_sections
-from open_webui.mini_hermes.revision_integrity import get_verified_revision_content
-from open_webui.mini_hermes.service import (
+from weai.documents.chunks import extract_structured_text
+from weai.documents.edits import apply_operations, extract_text
+from weai.documents.models import Document, Revision
+from weai.documents.parsers import extract_sections
+from weai.documents.revision_integrity import get_verified_revision_content
+from weai.documents.service import (
     create_artifact_preview,
     create_preview,
     publish_generated_document,

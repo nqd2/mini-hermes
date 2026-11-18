@@ -16,9 +16,9 @@
 		models,
 		settings,
 		theme,
-		WEBUI_NAME,
-		WEBUI_VERSION,
-		WEBUI_DEPLOYMENT_ID,
+		WEAI_NAME,
+		WEAI_VERSION,
+		WEAI_DEPLOYMENT_ID,
 		mobile,
 		socket,
 		socketConnected,
@@ -66,7 +66,7 @@
 		removeTerminalConnection
 	} from '$lib/utils/connections';
 
-	import { COMMUNITY_ORIGINS, WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { COMMUNITY_ORIGINS, WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import {
 		bestMatchingLanguage,
 		cleanText,
@@ -177,7 +177,7 @@
 	};
 
 	const setupSocket = async (enableWebsocket) => {
-		const _socket = io(`${WEBUI_BASE_URL}` || undefined, {
+		const _socket = io(`${WEAI_BASE_URL}` || undefined, {
 			reconnection: true,
 			reconnectionDelay: 1000,
 			reconnectionDelayMax: 5000,
@@ -219,8 +219,8 @@
 			if (version !== null || deploymentId !== null) {
 				if (
 					!mfaManagement &&
-					(($WEBUI_VERSION !== null && version !== $WEBUI_VERSION) ||
-						($WEBUI_DEPLOYMENT_ID !== null && deploymentId !== $WEBUI_DEPLOYMENT_ID))
+					(($WEAI_VERSION !== null && version !== $WEAI_VERSION) ||
+						($WEAI_DEPLOYMENT_ID !== null && deploymentId !== $WEAI_DEPLOYMENT_ID))
 				) {
 					await unregisterServiceWorkers();
 					location.href = location.href;
@@ -239,12 +239,12 @@
 			);
 
 			if (deploymentId !== null) {
-				WEBUI_DEPLOYMENT_ID.set(deploymentId);
+				WEAI_DEPLOYMENT_ID.set(deploymentId);
 			}
 
 			if (version !== null) {
-				WEBUI_VERSION.set(version);
-				window.WEBUI_VERSION = version;
+				WEAI_VERSION.set(version);
+				window.WEAI_VERSION = version;
 			}
 
 			console.log('version', version);
@@ -627,9 +627,9 @@
 
 			if ($isLastActiveTab) {
 				if ($settings?.notificationEnabled ?? false) {
-					new Notification(`${data.title} / Open WebUI`, {
+					new Notification(`${data.title} / WeAI`, {
 						body: timeStr,
-						icon: `${WEBUI_BASE_URL}/static/favicon.png`
+						icon: `${WEAI_BASE_URL}/static/favicon.png`
 					});
 				}
 			}
@@ -786,9 +786,9 @@
 
 					if ($isLastActiveTab) {
 						if ($settings?.notificationEnabled ?? false) {
-							new Notification(`${displayTitle} / Open WebUI`, {
+							new Notification(`${displayTitle} / WeAI`, {
 								body: contentPreview,
-								icon: `${WEBUI_BASE_URL}/static/favicon.png`
+								icon: `${WEAI_BASE_URL}/static/favicon.png`
 							});
 						}
 					}
@@ -920,9 +920,9 @@
 
 				if ($isLastActiveTab) {
 					if ($settings?.notificationEnabled ?? false) {
-						new Notification(`${title} / Open WebUI`, {
+						new Notification(`${title} / WeAI`, {
 							body: content,
-							icon: `${WEBUI_API_BASE_URL}/users/${data?.user?.id}/profile/image`
+							icon: `${WEAI_API_BASE_URL}/users/${data?.user?.id}/profile/image`
 						});
 					}
 				}
@@ -968,7 +968,7 @@
 	const isAuthenticatedBackendFetch = (input, init) => {
 		try {
 			const requestUrl = resolveFetchUrl(input);
-			const backendOrigin = new URL(WEBUI_BASE_URL || '/', window.location.origin).origin;
+			const backendOrigin = new URL(WEAI_BASE_URL || '/', window.location.origin).origin;
 
 			return (
 				requestUrl.origin === backendOrigin && resolveFetchHeaders(input, init).has('authorization')
@@ -1000,7 +1000,7 @@
 	};
 
 	const isCurrentSessionUnauthorized = async (originalFetch) => {
-		return originalFetch(`${WEBUI_API_BASE_URL}/auths/`, {
+		return originalFetch(`${WEAI_API_BASE_URL}/auths/`, {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',
@@ -1330,7 +1330,7 @@
 		if (backendConfig) {
 			// Save Backend Status to Store
 			await config.set(backendConfig);
-			await WEBUI_NAME.set(backendConfig.name);
+			await WEAI_NAME.set(backendConfig.name);
 
 			if ($config) {
 				await setupSocket($config.features?.enable_websocket ?? true);
@@ -1452,15 +1452,15 @@
 </script>
 
 <svelte:head>
-	<title>{$WEBUI_NAME}</title>
-	<link crossorigin="anonymous" rel="icon" href="{WEBUI_BASE_URL}/static/favicon.png" />
+	<title>{$WEAI_NAME}</title>
+	<link crossorigin="anonymous" rel="icon" href="{WEAI_BASE_URL}/static/favicon.png" />
 
-	<meta name="apple-mobile-web-app-title" content={$WEBUI_NAME} />
-	<meta name="description" content={$WEBUI_NAME} />
+	<meta name="apple-mobile-web-app-title" content={$WEAI_NAME} />
+	<meta name="description" content={$WEAI_NAME} />
 	<link
 		rel="search"
 		type="application/opensearchdescription+xml"
-		title={$WEBUI_NAME}
+		title={$WEAI_NAME}
 		href="/opensearch.xml"
 		crossorigin="use-credentials"
 	/>

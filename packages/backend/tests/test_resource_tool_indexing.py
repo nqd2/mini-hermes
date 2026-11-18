@@ -5,7 +5,7 @@ import pytest_asyncio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import (
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -65,7 +65,8 @@ async def seed_document(sessions):
 
 
 def install_tool_scope(monkeypatch, sessions, document):
-    from open_webui.mini_hermes import storage, tools
+    from weai.documents import storage
+    from weai.agent_runtime import tools
 
     @asynccontextmanager
     async def open_db():
@@ -214,9 +215,9 @@ async def test_completed_document_task_for_old_revision_is_not_current_evidence(
 
 @pytest.mark.asyncio
 async def test_csv_chat_upload_adoption_queues_real_resource_indexing(resource_db, monkeypatch, tmp_path):
-    from open_webui.mini_hermes.resource_uploads import register_chat_upload
-    from open_webui.models.files import Files
-    from open_webui.storage.provider import Storage
+    from weai.documents.resource_uploads import register_chat_upload
+    from weai.models.files import Files
+    from weai.storage.provider import Storage
 
     source = tmp_path / 'source.csv'
     source.write_bytes(b'name,value\nalpha,1')

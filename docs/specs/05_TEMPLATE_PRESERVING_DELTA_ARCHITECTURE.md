@@ -2,7 +2,7 @@
 
 **Mã tài liệu:** SPEC-ARCH-05  
 **Trạng thái:** Approved / Implementation Baseline  
-**Mục tiêu:** Giải quyết triệt để vấn đề mất định dạng, mất công thức và lẫn rác HTML khi xử lý tài liệu Word (.docx), Excel (.xlsx) và PDF trong Mini-Hermes MVP.
+**Mục tiêu:** Giải quyết triệt để vấn đề mất định dạng, mất công thức và lẫn rác HTML khi xử lý tài liệu Word (.docx), Excel (.xlsx) và PDF trong Agent Runtime MVP.
 
 ---
 
@@ -21,7 +21,7 @@
 - **Hậu quả nếu replace thông thường:**
   - Nếu quét `if find_text in run.text`: Không bao giờ tìm thấy vì `"200.000.000 VNĐ"` không nằm trọn trong bất kỳ run đơn lẻ nào.
   - Nếu gán đè `paragraph.text = new_text`: Thư viện sẽ xóa sạch toàn bộ các thẻ con `<w:r>`, làm **mất 100% định dạng in đậm, in nghiêng, màu sắc và font chữ riêng** của đoạn văn!
-- **Giải pháp Triệt để của Mini-Hermes:**
+- **Giải pháp Triệt để của Agent Runtime:**
   - Áp dụng thuật toán **Run-Span Boundary Matcher**:
     1. Ghép nối text của toàn bộ các run trong paragraph để tạo chuỗi toàn văn `full_text` và lưu vết chỉ số index ký tự tương ứng của từng run `(run_start_char, run_end_char)`.
     2. Dùng regex tìm vị trí xuất hiện của cụm từ cần thay thế: `(match_start, match_end)`.
@@ -36,7 +36,7 @@
   - `<v>`: Giá trị đã tính toán trước đó (cached value, ví dụ: `15000000`).
 - **Hậu quả nếu chỉ sửa ô dữ liệu:**
   - Khi dùng `openpyxl` cập nhật ô đơn giá `C2 = 180000`, ô thành tiền `D2` vẫn giữ nguyên `<v>15000000</v>`. Khi xem trên trình xem trước (Quick Preview / Google Drive Preview), số liệu tổng hợp không tự động nhảy cho đến khi mở bằng ứng dụng đầy đủ và bấm Save.
-- **Giải pháp Triệt để của Mini-Hermes:**
+- **Giải pháp Triệt để của Agent Runtime:**
   1. Luôn load workbook bằng `openpyxl.load_workbook(file_path, data_only=False)` để bảo vệ 100% chuỗi công thức `<f>` không bị chuyển hóa thành số chết.
   2. Kích hoạt cờ bắt buộc tính toán lại của OpenXML ngay khi mở file:
      ```python

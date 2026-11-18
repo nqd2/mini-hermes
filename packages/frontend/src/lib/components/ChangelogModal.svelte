@@ -3,9 +3,9 @@
 
 	import { getContext } from 'svelte';
 
-	import { WEBUI_NAME, config, settings } from '$lib/stores';
+	import { WEAI_NAME, config, settings } from '$lib/stores';
 
-	import { WEBUI_VERSION } from '$lib/constants';
+	import { WEAI_VERSION } from '$lib/constants';
 	import { getChangelog } from '$lib/apis';
 
 	import Modal from './common/Modal.svelte';
@@ -83,7 +83,7 @@
 </script>
 
 <Modal
-	ariaLabel={`${$i18n.t("What's New in")} ${$WEBUI_NAME}`}
+	ariaLabel={`${$i18n.t("What's New in")} ${$WEAI_NAME}`}
 	bind:show
 	size="lg"
 	className="bg-white dark:bg-gray-900 rounded-3xl overflow-hidden"
@@ -96,12 +96,12 @@
 			<div class="min-w-0">
 				<h2 class="m-0 truncate text-base font-normal">
 					{$i18n.t("What's New in")}
-					{$WEBUI_NAME}
+					{$WEAI_NAME}
 				</h2>
 				<div class="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
 					<span>{$i18n.t('Release Notes')}</span>
 					<span class="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-700"></span>
-					<span>v{WEBUI_VERSION}</span>
+					<span>v{WEAI_VERSION}</span>
 				</div>
 			</div>
 

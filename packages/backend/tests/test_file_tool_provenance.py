@@ -1,16 +1,16 @@
 from types import SimpleNamespace
 
-from open_webui.mini_hermes.provenance import content_version
-from open_webui.tools import document_resources
-from open_webui.tools.builtin import (
+from weai.documents.provenance import content_version
+from weai.tools import document_resources
+from weai.tools.builtin import (
     _filter_resource_scope,
     _grep_chat_file_models,
     grep_chat_files,
     list_chat_files,
     query_chat_files,
 )
-from open_webui.tools.document_resources import _format_chat_file_sources
-from open_webui.utils.json_codec import JSONCodec
+from weai.tools.document_resources import _format_chat_file_sources
+from weai.utils.json_codec import JSONCodec
 
 
 def test_chat_file_tools_keep_legacy_builtin_imports():

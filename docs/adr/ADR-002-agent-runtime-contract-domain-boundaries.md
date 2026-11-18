@@ -8,7 +8,7 @@
 
 | Service | Owns | Does not own |
 |---|---|---|
-| Auth Service / Open WebUI | Identity authentication and the authenticated principal; UI, RBAC, chat, model management | Document revision decisions |
+| Auth Service / WeAI | Identity authentication and the authenticated principal; UI, RBAC, chat, model management | Document revision decisions |
 | AgentRuntime | Conversation/run orchestration, one engine binding per conversation, run binding, agent approval pause/resume, checkpoints, durable run events, cancellation and recovery | Direct writes to document database or object storage; document approval or commit authority |
 | Document API | `read`, `inspect`, `search`, `propose_edit`, `export`; request validation and user-facing document endpoints | Revision commit authority; a commit endpoint must delegate to Revision Service |
 | Revision Service | Patch validation, diff preview, approval authorization, revision preconditions, atomic publication, rollback | Agent planning or model-provided authorization state |
@@ -20,9 +20,9 @@ Identity is authenticated by Auth Service. Revision Service receives that princi
 
 ## Persistence and interface refinement
 
-Persistence may be replaced across all product domains, including Open WebUI identity, RBAC, chat and configuration, while the domain authorities above remain unchanged. PostgreSQL with SQLAlchemy async is the new baseline. Fresh local bootstrap does not import legacy chat history, backfill old ORM rows, or resume old checkpoints. User-facing imports use the new format and cannot restore approvals or privileged execution state.
+Persistence may be replaced across all product domains, including WeAI identity, RBAC, chat and configuration, while the domain authorities above remain unchanged. PostgreSQL with SQLAlchemy async is the new baseline. Fresh local bootstrap does not import legacy chat history, backfill old ORM rows, or resume old checkpoints. User-facing imports use the new format and cannot restore approvals or privileged execution state.
 
-Insert/flush parent records before event/checkpoint/outbox children, keeping each domain publication in one database transaction. Use real PostgreSQL FK/concurrency tests rather than treating SQLite-only results as production proof. Public UI contracts remain supported; additional runtime status/snapshot/command semantics and schema design are specified in the [use-case and test specification](../design/mini-hermes-use-cases-design-and-tests.md). New fields/states there are target behavior, not claims that the current checkout already implements them.
+Insert/flush parent records before event/checkpoint/outbox children, keeping each domain publication in one database transaction. Use real PostgreSQL FK/concurrency tests rather than treating SQLite-only results as production proof. Public UI contracts remain supported; additional runtime status/snapshot/command semantics and schema design are specified in the [use-case and test specification](../design/agent-runtime-use-cases-design-and-tests.md). New fields/states there are target behavior, not claims that the current checkout already implements them.
 
 ## Document approval
 

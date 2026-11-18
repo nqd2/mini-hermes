@@ -5,12 +5,12 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import FastAPI, Request
-from open_webui.agent_runtime.gateway import ProviderGateway
-from open_webui.utils.dev_wire_log import (
+from weai.agent_runtime.gateway import ProviderGateway
+from weai.utils.dev_wire_log import (
     DevJsonWireMiddleware,
     log_llm_json_response,
 )
-from open_webui.utils.session_pool import stream_wrapper
+from weai.utils.session_pool import stream_wrapper
 from starlette.responses import StreamingResponse
 
 
@@ -40,8 +40,8 @@ class _DummyAiohttpResponse:
 @pytest.mark.asyncio
 async def test_dev_json_wire_middleware_logs_fe_be_and_redacts_secrets(monkeypatch, caplog, tmp_path):
     wire_file = tmp_path / 'wire.jsonl'
-    monkeypatch.setenv('MH_DEV_JSON_WIRE_LOG', '1')
-    monkeypatch.setenv('MH_DEV_JSON_WIRE_LOG_FILE', str(wire_file))
+    monkeypatch.setenv('AGENT_RUNTIME_DEV_JSON_WIRE_LOG', '1')
+    monkeypatch.setenv('AGENT_RUNTIME_DEV_JSON_WIRE_LOG_FILE', str(wire_file))
 
     app = FastAPI()
     app.add_middleware(DevJsonWireMiddleware)
@@ -59,7 +59,7 @@ async def test_dev_json_wire_middleware_logs_fe_be_and_redacts_secrets(monkeypat
 
         return StreamingResponse(gen(), media_type='text/event-stream')
 
-    caplog.set_level(logging.INFO, logger='open_webui.utils.dev_wire_log')
+    caplog.set_level(logging.INFO, logger='weai.utils.dev_wire_log')
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url='http://testserver') as client:
         r1 = await client.post('/api/v1/auths/signin', json={'email': 'a@b.com', 'password': 'my-password'})
@@ -82,7 +82,7 @@ async def test_dev_json_wire_middleware_logs_fe_be_and_redacts_secrets(monkeypat
 
 @pytest.mark.asyncio
 async def test_dev_json_wire_middleware_noop_when_disabled(monkeypatch, caplog):
-    monkeypatch.delenv('MH_DEV_JSON_WIRE_LOG', raising=False)
+    monkeypatch.delenv('AGENT_RUNTIME_DEV_JSON_WIRE_LOG', raising=False)
     app = FastAPI()
     app.add_middleware(DevJsonWireMiddleware)
 
@@ -90,7 +90,7 @@ async def test_dev_json_wire_middleware_noop_when_disabled(monkeypatch, caplog):
     async def endpoint(request: Request):
         return await request.json()
 
-    caplog.set_level(logging.INFO, logger='open_webui.utils.dev_wire_log')
+    caplog.set_level(logging.INFO, logger='weai.utils.dev_wire_log')
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url='http://testserver') as client:
         r = await client.post('/api/test', json={'ok': True})
@@ -101,8 +101,8 @@ async def test_dev_json_wire_middleware_noop_when_disabled(monkeypatch, caplog):
 
 @pytest.mark.asyncio
 async def test_provider_gateway_and_stream_wrapper_log_llm_json_and_sse(monkeypatch, caplog):
-    monkeypatch.setenv('MH_DEV_JSON_WIRE_LOG', '1')
-    caplog.set_level(logging.INFO, logger='open_webui.utils.dev_wire_log')
+    monkeypatch.setenv('AGENT_RUNTIME_DEV_JSON_WIRE_LOG', '1')
+    caplog.set_level(logging.INFO, logger='weai.utils.dev_wire_log')
 
     gateway = ProviderGateway()
     prepared = gateway.prepare(

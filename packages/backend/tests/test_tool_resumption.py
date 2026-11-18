@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
-from open_webui.utils import middleware
-from open_webui.utils.chat_runtime import tool_resumption
+from weai.utils import middleware
+from weai.utils.chat_runtime import tool_resumption
 
 
 def _message(status='pending'):

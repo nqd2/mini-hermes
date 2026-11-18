@@ -1,9 +1,9 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export const getMemories = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/memories/`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -31,7 +31,7 @@ export const getMemories = async (token: string) => {
 export const addNewMemory = async (token: string, content: string, type = 'user', path = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/add`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/memories/add`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -71,7 +71,7 @@ export const updateMemoryById = async (
 	let error = null;
 	const body = { content, ...(type ? { type } : {}), ...(path !== undefined ? { path } : {}) };
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/${id}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/memories/${id}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -100,7 +100,7 @@ export const updateMemoryById = async (
 export const queryMemory = async (token: string, content: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/query`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/memories/query`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -131,7 +131,7 @@ export const queryMemory = async (token: string, content: string) => {
 export const reindexMemoryVectors = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/reindex`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/memories/reindex`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -159,7 +159,7 @@ export const reindexMemoryVectors = async (token: string) => {
 export const deleteMemoryById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/memories/${id}`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -191,7 +191,7 @@ export const deleteMemoryById = async (token: string, id: string) => {
 export const deleteMemoriesByUserId = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/delete/user`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/memories/delete/user`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',

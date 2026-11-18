@@ -11,7 +11,7 @@
 		terminalServers,
 		user
 	} from '$lib/stores';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { getFolders } from '$lib/apis/folders';
 	import { searchKnowledgeBases, searchKnowledgeFiles } from '$lib/apis/knowledge';
 	import { searchFiles, filesystemFile } from '$lib/apis/terminal';
@@ -342,7 +342,7 @@
 			>
 				<div class="flex min-w-0 items-center gap-2">
 					<img
-						src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
+						src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
 						alt={resolveLocalizedModelName(model, $i18n.language) ?? model.id}
 						class="size-4 shrink-0 rounded-full object-cover"
 						on:error={(e) => {

@@ -1,9 +1,9 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export const getAdminDetails = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/details`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/details`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -30,7 +30,7 @@ export const getAdminDetails = async (token: string) => {
 export const getAdminConfig = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -57,7 +57,7 @@ export const getAdminConfig = async (token: string) => {
 export const updateAdminConfig = async (token: string, body: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -85,7 +85,7 @@ export const updateAdminConfig = async (token: string, body: object) => {
 export const getSessionUser = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ export const getSessionUser = async (token: string) => {
 export const ldapUserSignIn = async (user: string, password: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/ldap`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/ldap`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -145,7 +145,7 @@ export const ldapUserSignIn = async (user: string, password: string) => {
 export const getLdapConfig = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config/ldap`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config/ldap`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ export const getLdapConfig = async (token: string = '') => {
 export const updateLdapConfig = async (token: string = '', enable_ldap: boolean) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config/ldap`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config/ldap`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -202,7 +202,7 @@ export const updateLdapConfig = async (token: string = '', enable_ldap: boolean)
 export const getLdapServer = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config/ldap/server`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config/ldap/server`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -229,7 +229,7 @@ export const getLdapServer = async (token: string = '') => {
 export const updateLdapServer = async (token: string = '', body: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config/ldap/server`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config/ldap/server`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -257,7 +257,7 @@ export const updateLdapServer = async (token: string = '', body: object) => {
 export const getOAuthConfig = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config/oauth`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config/oauth`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -284,7 +284,7 @@ export const getOAuthConfig = async (token: string) => {
 export const updateOAuthConfig = async (token: string, body: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/admin/config/oauth`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/admin/config/oauth`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -312,7 +312,7 @@ export const updateOAuthConfig = async (token: string, body: object) => {
 export const userSignIn = async (email: string, password: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/signin`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/signin`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -349,7 +349,7 @@ export const userSignUp = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/signup`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/signup`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -382,7 +382,7 @@ export const userSignUp = async (
 export const userSignOut = async () => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/signout`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/signout`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -447,7 +447,7 @@ export const addUser = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/add`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/add`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -481,7 +481,7 @@ export const addUser = async (
 export const updateUserProfile = async (token: string, profile: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/update/profile`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/update/profile`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -512,7 +512,7 @@ export const updateUserProfile = async (token: string, profile: object) => {
 };
 
 export const updateUserTimezone = async (token: string, timezone: string) => {
-	await fetch(`${WEBUI_API_BASE_URL}/auths/update/timezone`, {
+	await fetch(`${WEAI_API_BASE_URL}/auths/update/timezone`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -527,7 +527,7 @@ export const updateUserTimezone = async (token: string, timezone: string) => {
 export const updateUserPassword = async (token: string, password: string, newPassword: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/update/password`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/update/password`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -558,7 +558,7 @@ export const updateUserPassword = async (token: string, password: string, newPas
 export const createAPIKey = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/api_key`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/api_key`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -583,7 +583,7 @@ export const createAPIKey = async (token: string) => {
 export const getAPIKey = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/api_key`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/api_key`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -608,7 +608,7 @@ export const getAPIKey = async (token: string) => {
 export const deleteAPIKey = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/api_key`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/auths/api_key`, {
 		method: 'DELETE',
 		headers: {
 			'Content-Type': 'application/json',
@@ -634,7 +634,7 @@ export const deleteOAuthSession = async (token: string, provider: string) => {
 	let error = null;
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/auths/oauth/sessions/${encodeURIComponent(provider)}`,
+		`${WEAI_API_BASE_URL}/auths/oauth/sessions/${encodeURIComponent(provider)}`,
 		{
 			method: 'DELETE',
 			headers: {

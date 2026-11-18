@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from open_webui.tools.time_resources import calculate_timestamp, get_current_timestamp
+from weai.tools.time_resources import calculate_timestamp, get_current_timestamp
 
 
 @pytest.mark.asyncio

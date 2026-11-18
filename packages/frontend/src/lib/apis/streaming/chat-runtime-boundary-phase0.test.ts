@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WEBUI_BASE_URL } from '$lib/constants';
+import { WEAI_BASE_URL } from '$lib/constants';
 import { generateOpenAIChatCompletion } from '$lib/apis/openai';
 import { getTaskIdsByChatId, resumeTemporaryChat } from '$lib/apis';
 
@@ -12,7 +12,7 @@ describe('existing chat start and reconnect consumer boundary', () => {
 		vi.stubGlobal('fetch', fetch);
 		const payload = { model: 'model-1', messages: [{ role: 'user', content: 'Read workbook' }] };
 		expect(await generateOpenAIChatCompletion('token', payload)).toEqual(response);
-		expect(fetch).toHaveBeenCalledWith(`${WEBUI_BASE_URL}/api/chat/completions`, {
+		expect(fetch).toHaveBeenCalledWith(`${WEAI_BASE_URL}/api/chat/completions`, {
 			method: 'POST',
 			headers: { Authorization: 'Bearer token', 'Content-Type': 'application/json' },
 			credentials: 'include',
@@ -25,7 +25,7 @@ describe('existing chat start and reconnect consumer boundary', () => {
 		const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => response });
 		vi.stubGlobal('fetch', fetch);
 		expect(await getTaskIdsByChatId('token', 'chat/a')).toEqual(response);
-		expect(fetch).toHaveBeenCalledWith(`${WEBUI_BASE_URL}/api/tasks/chat/chat%2Fa`, {
+		expect(fetch).toHaveBeenCalledWith(`${WEAI_BASE_URL}/api/tasks/chat/chat%2Fa`, {
 			signal: undefined,
 			method: 'GET',
 			headers: {
@@ -39,7 +39,7 @@ describe('existing chat start and reconnect consumer boundary', () => {
 		const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => response });
 		vi.stubGlobal('fetch', fetch);
 		expect(await resumeTemporaryChat('token', 'chat/a', 'socket-new')).toEqual(response);
-		expect(fetch).toHaveBeenCalledWith(`${WEBUI_BASE_URL}/api/tasks/chat/chat%2Fa/resume`, {
+		expect(fetch).toHaveBeenCalledWith(`${WEAI_BASE_URL}/api/tasks/chat/chat%2Fa/resume`, {
 			method: 'POST',
 			headers: { Authorization: 'Bearer token', 'Content-Type': 'application/json' },
 			body: JSON.stringify({ session_id: 'socket-new' })

@@ -8,13 +8,13 @@
 ## 1. MỤC TIÊU & TỔ CHỨC CẤU TRÚC ĐA TENANT
 
 ### 1.1. Triết lý Thiết kế
-Outline Wiki đóng vai trò là **Bộ Não Thứ Hai (Second Brain)** của Mini-Hermes:
+Outline Wiki đóng vai trò là **Bộ Não Thứ Hai (Second Brain)** của Agent Runtime:
 - Mọi tài liệu người dùng tải lên, mọi bản thảo AI soạn thảo, và mọi tài liệu đã được phê duyệt đều được lưu trữ trực tiếp trên Outline.
 - **Tổ chức ngầm đa tenant:** Mỗi khách hàng/tổ chức được cấp một phân vùng thư mục riêng biệt dưới tiền tố `business/{tenant_id}/`. Không bao giờ để dữ liệu của các tenant lẫn lộn nhau.
 
 ### 1.2. Cấu trúc Cây Thư mục Chuẩn (Hierarchical Directory Tree)
 ```text
-Collection: Mini-Hermes Business (Root Collection ID: ef113de4-0a4b-4300-be0e-20f65b8d9ac0)
+Collection: Agent Runtime Business (Root Collection ID: ef113de4-0a4b-4300-be0e-20f65b8d9ac0)
 │
 └── 📁 business/
      │
@@ -41,7 +41,7 @@ Collection: Mini-Hermes Business (Root Collection ID: ef113de4-0a4b-4300-be0e-20
 Hệ thống giao tiếp với Outline thông qua REST API (sử dụng Header `Authorization: Bearer {OUTLINE_API_KEY}`):
 
 ### 2.1. Quản lý Thư mục & Tài liệu:
-1. **`POST /api/collections.list`:** Lấy danh sách collection, tìm ID của collection chính `Mini-Hermes Business`.
+1. **`POST /api/collections.list`:** Lấy danh sách collection, tìm ID của collection chính `Agent Runtime Business`.
 2. **`POST /api/documents.search`:** Tìm kiếm tài liệu theo từ khóa trong phân vùng của tenant:
    - Payload:
      ```json

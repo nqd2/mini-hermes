@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 import pytest
 from starlette.responses import JSONResponse
 
-from open_webui.routers.retrieval import SearchForm
-from open_webui.utils import middleware
+from weai.routers.retrieval import SearchForm
+from weai.utils import middleware
 
 
 @pytest.mark.asyncio

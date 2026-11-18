@@ -37,7 +37,7 @@ def test_stock_selector_reproduces_unhandled_self_pipe_reset():
 
 @pytest.mark.parametrize('failure', ['reset', 'eof'])
 def test_self_pipe_recovery_preserves_cross_thread_wakeup(failure, caplog):
-    from open_webui.utils.windows_asyncio import RecoveringSelectorEventLoop
+    from weai.utils.windows_asyncio import RecoveringSelectorEventLoop
 
     loop = RecoveringSelectorEventLoop()
     thread = None
@@ -79,7 +79,7 @@ def test_self_pipe_recovery_preserves_cross_thread_wakeup(failure, caplog):
 
 
 def test_unrelated_socket_errors_are_not_swallowed():
-    from open_webui.utils.windows_asyncio import RecoveringSelectorEventLoop
+    from weai.utils.windows_asyncio import RecoveringSelectorEventLoop
 
     class BrokenSocket(ResetSocket):
         def recv(self, size):
@@ -96,7 +96,7 @@ def test_unrelated_socket_errors_are_not_swallowed():
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows policy integration')
 def test_installed_policy_used_by_asyncio_run():
-    from open_webui.utils.windows_asyncio import (
+    from weai.utils.windows_asyncio import (
         RecoveringSelectorEventLoop,
         install_windows_selector_policy,
     )
@@ -114,7 +114,7 @@ def test_installed_policy_used_by_asyncio_run():
 
 
 def test_non_windows_policy_is_unchanged(monkeypatch):
-    from open_webui.utils import windows_asyncio
+    from weai.utils import windows_asyncio
 
     previous = asyncio.get_event_loop_policy()
     monkeypatch.setattr(windows_asyncio.sys, 'platform', 'linux')

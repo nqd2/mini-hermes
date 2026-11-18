@@ -13,7 +13,7 @@
 	import AccessControl from '$lib/components/workspace/common/AccessControl.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import LanguageModeSelect from '$lib/components/common/LanguageModeSelect.svelte';
 	import LocalizedField from '$lib/components/common/LocalizedField.svelte';
 
@@ -43,7 +43,7 @@
 		}
 	};
 
-	let profileImageUrl = `${WEBUI_BASE_URL}/favicon.png`;
+	let profileImageUrl = `${WEAI_BASE_URL}/favicon.png`;
 	let description = '';
 
 	let selectedModelId = '';
@@ -106,7 +106,7 @@
 
 		name = '';
 		id = '';
-		profileImageUrl = `${WEBUI_BASE_URL}/favicon.png`;
+		profileImageUrl = `${WEAI_BASE_URL}/favicon.png`;
 		description = '';
 		modelIds = [];
 		selectedModelId = '';

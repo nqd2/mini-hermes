@@ -7,7 +7,7 @@
 	import { slide } from 'svelte/transition';
 	import { page } from '$app/stores';
 
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import PencilSquare from '../icons/PencilSquare.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
@@ -105,7 +105,7 @@
 								<div class="flex shrink-0 relative">
 									{#each channelMembers.slice(0, 2) as u, index}
 										<img
-											src={`${WEBUI_API_BASE_URL}/users/${u.id}/profile/image`}
+											src={`${WEAI_API_BASE_URL}/users/${u.id}/profile/image`}
 											alt={u.name}
 											class=" size-5.5 rounded-full object-cover border border-white dark:border-gray-900 {index ===
 											1

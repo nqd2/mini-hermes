@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { safeImageUrl } from '$lib/utils/safeImageUrl';
 
 	import { settings } from '$lib/stores';
@@ -25,7 +25,7 @@
 	const i18n = getContext('i18n');
 
 	let _src = '';
-	$: _src = safeImageUrl(src.startsWith('/') ? `${WEBUI_BASE_URL}${src}` : src, allowExternal);
+	$: _src = safeImageUrl(src.startsWith('/') ? `${WEAI_BASE_URL}${src}` : src, allowExternal);
 
 	let showImagePreview = false;
 

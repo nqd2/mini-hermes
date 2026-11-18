@@ -1,12 +1,12 @@
 # ĐẶC TẢ KỸ THUẬT: INGRESS PIPELINE CHO DOCX, XLSX, PDF
 
 **Mã tài liệu:** SPEC-INGRESS-01  
-**Phạm vi:** Trích xuất, chuẩn hóa và chuyển đổi tài liệu đầu vào sang Clean Markdown trong Mini-Hermes MVP.  
+**Phạm vi:** Trích xuất, chuẩn hóa và chuyển đổi tài liệu đầu vào sang Clean Markdown trong Agent Runtime MVP.
 
 ---
 
 ## 1. MỤC TIÊU & NGUYÊN TẮC THIẾT KẾ
-Ingress Pipeline có nhiệm vụ tiếp nhận các file tài liệu doanh nghiệp thô do người dùng tải lên thông qua Open WebUI hoặc API Gateway, sau đó phân tích cú pháp để tạo ra **Clean Markdown**:
+Ingress Pipeline có nhiệm vụ tiếp nhận các file tài liệu doanh nghiệp thô do người dùng tải lên thông qua WeAI hoặc API Gateway, sau đó phân tích cú pháp để tạo ra **Clean Markdown**:
 - Không phụ thuộc vào các dịch vụ chuyển đổi ngoài tốn phí hay cồng kềnh.
 - Sử dụng trực tiếp các thư viện Python thuần (`python-docx`, `openpyxl`, `pypdf`/`pdfplumber`).
 - Đầu ra là Markdown sạch, giữ nguyên cấu trúc phân cấp (headings, tables, lists) để LLM đọc hiểu ngữ cảnh tối đa và đẩy thẳng lên Outline Wiki `01_raw_inputs`.

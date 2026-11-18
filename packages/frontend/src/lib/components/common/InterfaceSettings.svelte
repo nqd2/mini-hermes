@@ -744,7 +744,7 @@
 	<div>
 		<div class={settingRowClass}>
 			<label id="whats-new-label" class={settingLabelClass} for="whats-new-label-control">
-				{$i18n.t(`Show Mini-Hermes release notes on sign-in`)}
+				{$i18n.t(`Show WeAI release notes on sign-in`)}
 			</label>
 
 			<div class={settingControlClass}>
@@ -760,7 +760,7 @@
 			</div>
 		</div>
 		<p class={settingDescriptionClass}>
-			{$i18n.t('Show the notes once for each new Mini-Hermes version.')}
+			{$i18n.t('Show the notes once for each new WeAI version.')}
 		</p>
 	</div>
 

@@ -17,7 +17,7 @@
 	import Name from './Name.svelte';
 	import Skeleton from './Skeleton.svelte';
 	import ProfileImage from './ProfileImage.svelte';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import equal from 'fast-deep-equal';
 	import {
 		formatMessageTimestamp,

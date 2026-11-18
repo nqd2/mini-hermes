@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from open_webui.agent_runtime.gateway import ProviderGateway
-from open_webui.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
+from weai.agent_runtime.gateway import ProviderGateway
+from weai.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
 
 
 def test_provider_gateway_validates_json_after_escaping_and_serialization():

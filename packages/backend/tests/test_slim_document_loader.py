@@ -3,7 +3,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from fastapi import HTTPException
 
-from open_webui.retrieval.loaders.main import Loader
+from weai.retrieval.loaders.main import Loader
 
 
 def _config():
@@ -18,7 +18,7 @@ def _config():
 
 
 def test_slim_loader_extracts_xlsx_without_external_service(tmp_path, monkeypatch):
-    from open_webui.retrieval.loaders import main
+    from weai.retrieval.loaders import main
 
     monkeypatch.setattr(main, 'USE_SLIM', True)
     book = Workbook()
@@ -36,7 +36,7 @@ def test_slim_loader_extracts_xlsx_without_external_service(tmp_path, monkeypatc
 
 
 def test_slim_loader_reports_corrupt_xlsx_as_invalid_document(tmp_path, monkeypatch):
-    from open_webui.retrieval.loaders import main
+    from weai.retrieval.loaders import main
 
     monkeypatch.setattr(main, 'USE_SLIM', True)
     path = tmp_path / 'broken.xlsx'

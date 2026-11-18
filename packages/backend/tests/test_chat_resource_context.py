@@ -1,8 +1,8 @@
-from open_webui.utils.chat_runtime.resource_context import resolve_chat_resource_context
+from weai.utils.chat_runtime.resource_context import resolve_chat_resource_context
 
 
 def test_collects_and_deduplicates_file_references_from_request_history_and_manifest(monkeypatch):
-    monkeypatch.setenv('MH_RESOURCE_AWARE_FILES', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_AWARE_FILES', 'true')
     result = resolve_chat_resource_context(
         messages=[
             {'role': 'user', 'files': [{'id': 'history', 'name': 'history.txt'}]},
@@ -36,7 +36,7 @@ def test_collects_and_deduplicates_file_references_from_request_history_and_mani
 
 
 def test_edit_words_without_resource_scope_do_not_activate_agent_mode(monkeypatch):
-    monkeypatch.setenv('MH_RESOURCE_AWARE_FILES', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_AWARE_FILES', 'true')
     result = resolve_chat_resource_context(
         messages=[{'role': 'user', 'content': 'edit the contents'}],
         request_metadata={},
@@ -51,7 +51,7 @@ def test_edit_words_without_resource_scope_do_not_activate_agent_mode(monkeypatc
 
 
 def test_chat_manifest_file_enables_implicit_document_task_but_not_greeting(monkeypatch):
-    monkeypatch.setenv('MH_RESOURCE_AWARE_FILES', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_AWARE_FILES', 'true')
     manifest = [{'id': 'file-1', 'name': 'report.xlsx', 'type': 'file'}]
 
     edit = resolve_chat_resource_context(
@@ -75,7 +75,7 @@ def test_chat_manifest_file_enables_implicit_document_task_but_not_greeting(monk
 
 
 def test_resource_aware_flag_preserves_legacy_context_setting(monkeypatch):
-    monkeypatch.setenv('MH_RESOURCE_AWARE_FILES', 'false')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_AWARE_FILES', 'false')
     result = resolve_chat_resource_context(
         messages=[],
         request_metadata={},

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import DocumentViewerShell from '$lib/components/common/DocumentViewerShell.svelte';
 	import OfficeDocumentPreview from '$lib/components/common/OfficeDocumentPreview.svelte';
@@ -44,7 +44,7 @@
 		viewerError = '';
 		viewerTargetPage = 1;
 		try {
-			const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(document.id)}/content?revision=${revision}`, {
+			const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime/documents/${encodeURIComponent(document.id)}/content?revision=${revision}`, {
 				headers: { Authorization: `Bearer ${localStorage.token}` }
 			});
 			if (!response.ok) throw new Error('Could not load this document');
@@ -66,7 +66,7 @@
 	};
 
 	const api = async (path: string, init: RequestInit = {}) => {
-		const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes${path}`, {
+		const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime${path}`, {
 			...init,
 			headers: {
 				Authorization: `Bearer ${localStorage.token}`,

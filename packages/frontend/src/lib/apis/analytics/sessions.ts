@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type SessionScope = {
 	startDate: number | null;
@@ -101,7 +101,7 @@ async function request<T>(
 	if (scope.groupId) query.set('group_id', scope.groupId);
 	for (const [key, value] of Object.entries(params))
 		if (value !== '') query.set(key, String(value));
-	const response = await fetch(`${WEBUI_API_BASE_URL}/analytics/sessions${path}?${query}`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/analytics/sessions${path}?${query}`, {
 		headers: { authorization: `Bearer ${token}` },
 		signal
 	});

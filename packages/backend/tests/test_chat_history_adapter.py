@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils.chat_runtime.history import load_messages_from_db
+from weai.utils.chat_runtime.history import load_messages_from_db
 
 
 @pytest.mark.asyncio
@@ -45,7 +45,7 @@ async def test_loads_branch_history_and_replays_unedited_skill_expansion(monkeyp
         },
     }
     get_messages = AsyncMock(return_value=messages_map)
-    monkeypatch.setattr('open_webui.utils.chat_runtime.history.Chats.get_messages_map_by_chat_id', get_messages)
+    monkeypatch.setattr('weai.utils.chat_runtime.history.Chats.get_messages_map_by_chat_id', get_messages)
 
     result = await load_messages_from_db('chat-1', 'user-2')
 
@@ -73,7 +73,7 @@ async def test_does_not_replay_skill_expansion_after_user_edits(monkeypatch):
         }
     }
     monkeypatch.setattr(
-        'open_webui.utils.chat_runtime.history.Chats.get_messages_map_by_chat_id',
+        'weai.utils.chat_runtime.history.Chats.get_messages_map_by_chat_id',
         AsyncMock(return_value=messages_map),
     )
 
@@ -86,7 +86,7 @@ async def test_does_not_replay_skill_expansion_after_user_edits(monkeypatch):
 @pytest.mark.parametrize('messages_map', [{}, {'user-1': {'id': 'user-1', 'role': 'user'}}])
 async def test_returns_none_when_chat_history_or_requested_message_is_missing(monkeypatch, messages_map):
     monkeypatch.setattr(
-        'open_webui.utils.chat_runtime.history.Chats.get_messages_map_by_chat_id',
+        'weai.utils.chat_runtime.history.Chats.get_messages_map_by_chat_id',
         AsyncMock(return_value=messages_map),
     )
 
@@ -96,8 +96,8 @@ async def test_returns_none_when_chat_history_or_requested_message_is_missing(mo
 
 
 def test_middleware_keeps_legacy_history_adapter_imports():
-    from open_webui.utils import middleware
-    from open_webui.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS
+    from weai.utils import middleware
+    from weai.utils.chat_runtime.history import MESSAGE_REPLAY_KEYS
 
     assert middleware.load_messages_from_db is load_messages_from_db
     assert middleware.MESSAGE_REPLAY_KEYS == MESSAGE_REPLAY_KEYS

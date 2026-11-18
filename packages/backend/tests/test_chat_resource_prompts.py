@@ -1,4 +1,4 @@
-from open_webui.utils.chat_runtime.resource_prompts import build_resource_instructions
+from weai.utils.chat_runtime.resource_prompts import build_resource_instructions
 
 
 def test_ambiguous_scope_takes_precedence_and_blocks_document_actions():

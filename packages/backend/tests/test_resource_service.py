@@ -5,11 +5,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes import resource_service
-from open_webui.mini_hermes.chunks import replace_document_chunks
-from open_webui.mini_hermes.execution.contracts import ResourceIndexPending
-from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, ResourceIndexJob, Revision
-from open_webui.mini_hermes.resource_indexing import process_resource_index_job
+from weai.documents import resource_service
+from weai.documents.chunks import replace_document_chunks
+from weai.agent_runtime.execution.contracts import ResourceIndexPending
+from weai.documents.models import ChatResource, Document, DocumentChunk, Folder, ResourceIndexJob, Revision
+from weai.documents.resource_indexing import process_resource_index_job
 
 
 @pytest.mark.asyncio

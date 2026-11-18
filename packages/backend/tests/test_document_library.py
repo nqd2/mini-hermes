@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.library import (
+from weai.documents.library import (
     document_in_chat_scope,
     ensure_personal_folder,
     has_document_access,
@@ -16,9 +16,9 @@ from open_webui.mini_hermes.library import (
     move_document,
     set_chat_document_access,
 )
-from open_webui.mini_hermes.models import ChatResource, Document, DocumentChunk, Folder, ResourceIndexJob, Revision
-from open_webui.mini_hermes.service import create_document
-from open_webui.models.access_grants import AccessGrant, AccessGrants
+from weai.documents.models import ChatResource, Document, DocumentChunk, Folder, ResourceIndexJob, Revision
+from weai.documents.service import create_document
+from weai.models.access_grants import AccessGrant, AccessGrants
 
 
 def valid_docx(text='Office content'):
@@ -121,7 +121,7 @@ async def test_folder_read_grant_inherits_but_does_not_grant_write():
                             current_revision=1, folder_id=folder.id)
         db.add_all([folder, document])
         await db.commit()
-        await AccessGrants.grant_access('mh_folder', folder.id, 'user', 'bob', 'read', db=db)
+        await AccessGrants.grant_access('ar_folder', folder.id, 'user', 'bob', 'read', db=db)
         assert await has_document_access(db, document, 'bob', 'read', user_group_ids=set())
         assert not await has_document_access(db, document, 'bob', 'write', user_group_ids=set())
         assert [item.id for item in await list_personal_documents(db, 'bob')] == ['doc-1']
@@ -130,8 +130,8 @@ async def test_folder_read_grant_inherits_but_does_not_grant_write():
 
 @pytest.mark.asyncio
 async def test_description_failure_keeps_uploaded_revision_and_is_retryable(monkeypatch):
-    from open_webui.mini_hermes import worker
-    from open_webui.mini_hermes.models import now
+    from weai.documents import worker
+    from weai.documents.models import now
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -161,8 +161,8 @@ async def test_description_failure_keeps_uploaded_revision_and_is_retryable(monk
         )
         await db.commit()
 
-    monkeypatch.setenv('MH_RESOURCE_TASK_MODEL', '')
-    monkeypatch.setenv('MH_SMALL_TASK_MODEL', '')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_TASK_MODEL', '')
+    monkeypatch.setenv('AGENT_RUNTIME_SMALL_TASK_MODEL', '')
     monkeypatch.setattr(worker, 'AsyncSessionLocal', sessions)
     monkeypatch.setattr(worker, 'ObjectStore', lambda: Store())
     await worker.process_description('doc-1')
@@ -171,7 +171,7 @@ async def test_description_failure_keeps_uploaded_revision_and_is_retryable(monk
         document = await db.get(Document, 'doc-1')
         revision = await db.get(Revision, 'rev-1')
         assert document.description_status == 'failed'
-        assert 'MH_SMALL_TASK_MODEL' in document.description_error
+        assert 'AGENT_RUNTIME_SMALL_TASK_MODEL' in document.description_error
         assert revision.object_key == 'source'
     await engine.dispose()
 
@@ -203,9 +203,9 @@ async def test_chat_document_access_is_scoped_and_revocable():
 
 @pytest.mark.asyncio
 async def test_agent_list_adopts_chat_attachment_once_and_returns_it(monkeypatch, tmp_path):
-    from open_webui.mini_hermes import tools
-    from open_webui.models.files import Files
-    from open_webui.storage.provider import Storage
+    from weai.agent_runtime import tools
+    from weai.models.files import Files
+    from weai.storage.provider import Storage
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:

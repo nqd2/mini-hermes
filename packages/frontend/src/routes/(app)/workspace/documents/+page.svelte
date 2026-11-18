@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { WEBUI_API_BASE_URL } from "$lib/constants";
+  import { WEAI_API_BASE_URL } from "$lib/constants";
   import { user } from "$lib/stores";
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
@@ -44,7 +44,7 @@
   let timer: ReturnType<typeof setInterval>;
 
   async function api(path: string, init: RequestInit = {}) {
-    const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes${path}`, {
+    const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${localStorage.token}`,
@@ -217,7 +217,7 @@
     const filename = selected.filename;
     try {
       const response = await fetch(
-        `${WEBUI_API_BASE_URL}/mini-hermes/documents/${selected.id}/content`,
+        `${WEAI_API_BASE_URL}/agent-runtime/documents/${selected.id}/content`,
         {
           headers: { Authorization: `Bearer ${localStorage.token}` },
         },
@@ -239,7 +239,7 @@
     const filename = selected.filename;
     try {
       const response = await fetch(
-        `${WEBUI_API_BASE_URL}/mini-hermes/previews/${previewId}/content`,
+        `${WEAI_API_BASE_URL}/agent-runtime/previews/${previewId}/content`,
         {
           headers: { Authorization: `Bearer ${localStorage.token}` },
         },

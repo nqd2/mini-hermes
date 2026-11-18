@@ -1,5 +1,5 @@
-from open_webui.utils.chat_runtime.stream_state import update_assistant_message_from_stream
-from open_webui.utils.chat_runtime.tool_results import _is_tool_result_error, build_terminal_file_tool_result
+from weai.utils.chat_runtime.stream_state import update_assistant_message_from_stream
+from weai.utils.chat_runtime.tool_results import _is_tool_result_error, build_terminal_file_tool_result
 
 
 def test_stream_accumulates_content_and_completion_without_changing_wire_shape():

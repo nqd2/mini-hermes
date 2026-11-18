@@ -18,8 +18,8 @@
 		updateUserTimezone
 	} from '$lib/apis/auths';
 
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
-	import { WEBUI_NAME, config, user, socket } from '$lib/stores';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
+	import { WEAI_NAME, config, user, socket } from '$lib/stores';
 
 	import { generateInitialsImage, canvasPixelTest, getUserTimezone } from '$lib/utils';
 
@@ -202,7 +202,7 @@
 				!localStorage.token &&
 				!document.cookie.split('; ').some((c) => c.startsWith('token='))
 			) {
-				window.location.href = `${WEBUI_BASE_URL}/oauth/${providers[0]}/login`;
+				window.location.href = `${WEAI_BASE_URL}/oauth/${providers[0]}/login`;
 				return;
 			}
 		}
@@ -219,7 +219,7 @@
 
 <svelte:head>
 	<title>
-		{`${$WEBUI_NAME}`}
+		{`${$WEAI_NAME}`}
 	</title>
 </svelte:head>
 
@@ -263,7 +263,7 @@
 							class="flex items-center justify-center gap-3 text-xl sm:text-2xl text-center font-normal dark:text-gray-200"
 						>
 							<div>
-								{$i18n.t('Signing in to {{WEBUI_NAME}}', { WEBUI_NAME: $WEBUI_NAME })}
+								{$i18n.t('Signing in to {{WEAI_NAME}}', { WEAI_NAME: $WEAI_NAME })}
 							</div>
 
 							<div>
@@ -287,18 +287,18 @@
 								<div class="mb-1">
 									<div class=" text-2xl font-normal">
 										{#if $config?.onboarding ?? false}
-											{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
+											{$i18n.t(`Get started with {{WEAI_NAME}}`, { WEAI_NAME: $WEAI_NAME })}
 
 										{:else if mode === 'signin'}
-											{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
+											{$i18n.t(`Sign in to {{WEAI_NAME}}`, { WEAI_NAME: $WEAI_NAME })}
 										{:else}
-											{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
+											{$i18n.t(`Sign up to {{WEAI_NAME}}`, { WEAI_NAME: $WEAI_NAME })}
 										{/if}
 									</div>
 
 									{#if $config?.onboarding ?? false}
 										<div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
-											ⓘ {$WEBUI_NAME}
+											ⓘ {$WEAI_NAME}
 											{$i18n.t(
 												'does not make any external connections, and your data stays securely on your locally hosted server.'
 											)}
@@ -453,7 +453,7 @@
 										<button
 											class="flex justify-center items-center bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-[0.8125rem] leading-5 py-2.5"
 											on:click={() => {
-												window.location.href = `${WEBUI_BASE_URL}/oauth/google/login`;
+												window.location.href = `${WEAI_BASE_URL}/oauth/google/login`;
 											}}
 										>
 											<svg
@@ -499,7 +499,7 @@
 						<img
 							id="logo"
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
+							src="{WEAI_BASE_URL}/static/favicon.png"
 							class=" w-6 rounded-full"
 							alt=""
 						/>

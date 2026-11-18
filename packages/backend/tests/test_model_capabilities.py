@@ -1,4 +1,4 @@
-from open_webui.mini_hermes.model_capabilities import resolve_model_capabilities
+from weai.model_routing.model_capabilities import resolve_model_capabilities
 
 
 def test_gpt_54_alias_and_snapshot_enable_document_tools():
@@ -29,7 +29,7 @@ def test_explicit_model_capabilities_override_provider_profile():
 
 def test_environment_registry_supports_provider_specific_context_limits(monkeypatch):
     monkeypatch.setenv(
-        'MH_MODEL_CAPABILITIES_JSON',
+        'AGENT_RUNTIME_MODEL_CAPABILITIES_JSON',
         '{"api.1min.ai/custom-model":{"tool_calling":true,"parallel_tool_calls":false,'
         '"context_window_tokens":64000,"max_output_tokens":8000}}',
     )

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-import open_webui.agent_runtime as runtime
+import weai.agent_runtime as runtime
 
 
 async def make_repository(tmp_path):
@@ -418,7 +418,7 @@ async def test_tool_update_acquires_turn_before_invocation(tmp_path, action):
 
         def observe(_conn, _cursor, statement, _parameters, _context, _executemany):
             sql = ' '.join(statement.lower().split())
-            if sql.startswith('select') and ('from mh_agent_turn ' in sql or 'from mh_agent_tool_invocation ' in sql):
+            if sql.startswith('select') and ('from ar_agent_turn ' in sql or 'from ar_agent_tool_invocation ' in sql):
                 statements.append(sql)
 
         event.listen(engine.sync_engine, 'before_cursor_execute', observe)
@@ -433,8 +433,8 @@ async def test_tool_update_acquires_turn_before_invocation(tmp_path, action):
                 )
         finally:
             event.remove(engine.sync_engine, 'before_cursor_execute', observe)
-        assert 'from mh_agent_turn ' in statements[0]
-        assert 'from mh_agent_tool_invocation ' in statements[1]
+        assert 'from ar_agent_turn ' in statements[0]
+        assert 'from ar_agent_tool_invocation ' in statements[1]
     finally:
         await engine.dispose()
 

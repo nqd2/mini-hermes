@@ -1,7 +1,7 @@
 
 param(
-    [string]$ContainerName = 'mini-hermes-seaweedfs',
-    [string]$Bucket = 'mini-hermes'
+    [string]$ContainerName = 'weai-seaweedfs',
+    [string]$Bucket = 'agent-runtime'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 # ============================================================
 
 $image = 'chrislusf/seaweedfs:4.52'
-$volume = 'mini-hermes-seaweedfs-data'
+$volume = 'weai-seaweedfs-data'
 
 # Local development credentials
 $adminUser = 'admin'

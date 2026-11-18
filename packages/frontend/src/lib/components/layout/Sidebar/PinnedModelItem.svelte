@@ -3,7 +3,7 @@
 
 	const i18n = getContext('i18n');
 
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import { resolveLocalizedModelName } from '$lib/utils/localizedContent';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -39,7 +39,7 @@
 		>
 			<div class="self-center shrink-0">
 				<img
-					src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
+					src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
 					class=" size-4 rounded-full"
 					alt="logo"
 					on:error={(e) => {

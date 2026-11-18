@@ -7,7 +7,7 @@
 	import { getGravatarUrl } from '$lib/apis/utils';
 	import { canvasPixelTest, generateInitialsImage } from '$lib/utils';
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 
 	export let profileImageUrl;
 	export let user = null;
@@ -136,7 +136,7 @@
 					class="text-[0.6875rem] text-gray-500 transition-colors duration-100 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
 					type="button"
 					on:click={async () => {
-						profileImageUrl = `${WEBUI_BASE_URL}/user.png`;
+						profileImageUrl = `${WEAI_BASE_URL}/user.png`;
 					}}>{$i18n.t('Remove')}</button
 				>
 				<span class="text-[0.6875rem] text-gray-300 dark:text-gray-700">·</span>
@@ -210,7 +210,7 @@
 				class=" text-xs text-center text-gray-500 rounded-lg py-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all"
 				type="button"
 				on:click={async () => {
-					profileImageUrl = `${WEBUI_BASE_URL}/user.png`;
+					profileImageUrl = `${WEAI_BASE_URL}/user.png`;
 				}}>{$i18n.t('Remove')}</button
 			>
 

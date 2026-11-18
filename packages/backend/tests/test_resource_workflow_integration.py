@@ -6,16 +6,16 @@ from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
-from open_webui.mini_hermes.model_capabilities import ModelCapabilities
-from open_webui.mini_hermes.models import Document, DocumentChunk, Folder, ResourceIndexJob, Revision
-from open_webui.mini_hermes.provider_guard import validate_chat_payload
-from open_webui.mini_hermes.resource_indexing import process_resource_index_job
-from open_webui.mini_hermes.resource_service import search_chat_files
-from open_webui.mini_hermes.service import create_document
-from open_webui.utils.chat_runtime.citations import get_citation_source_from_tool_result
-from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
-from open_webui.utils.json_codec import JSONCodec
+from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
+from weai.model_routing.model_capabilities import ModelCapabilities
+from weai.documents.models import Document, DocumentChunk, Folder, ResourceIndexJob, Revision
+from weai.model_routing.provider_guard import validate_chat_payload
+from weai.documents.resource_indexing import process_resource_index_job
+from weai.documents.resource_service import search_chat_files
+from weai.documents.service import create_document
+from weai.utils.chat_runtime.citations import get_citation_source_from_tool_result
+from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
+from weai.utils.json_codec import JSONCodec
 
 
 @pytest.mark.asyncio
@@ -77,9 +77,9 @@ async def test_upload_to_bounded_answer_preserves_evidence_and_provider_budget(m
         assert user_id == 'alice'
         return doc if file_id == 'upload-1' else None
 
-    monkeypatch.setattr('open_webui.mini_hermes.resource_service.get_async_db', open_db)
-    monkeypatch.setattr('open_webui.mini_hermes.resource_service.ObjectStore', lambda: store)
-    monkeypatch.setattr('open_webui.mini_hermes.resource_service.register_chat_upload', register_upload)
+    monkeypatch.setattr('weai.documents.resource_service.get_async_db', open_db)
+    monkeypatch.setattr('weai.documents.resource_service.ObjectStore', lambda: store)
+    monkeypatch.setattr('weai.documents.resource_service.register_chat_upload', register_upload)
 
     prompt = 'Which program is related to Computer Science?'
     metadata = {

@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from open_webui.tools import builtin, channel_resources
-from open_webui.utils.json_codec import JSONCodec
+from weai.tools import builtin, channel_resources
+from weai.utils.json_codec import JSONCodec
 
 CHANNEL_TOOL_NAMES = (
     'search_channels',

@@ -2,7 +2,7 @@
 	import { getContext } from 'svelte';
 
 	import { models } from '$lib/stores';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
@@ -104,7 +104,7 @@
 				>
 					<div class="flex text-black dark:text-gray-100 line-clamp-1">
 						<img
-							src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(model.id)}`}
+							src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(model.id)}`}
 							alt={model?.name ?? model.id}
 							class="rounded-full size-5 items-center mr-2"
 							loading="lazy"

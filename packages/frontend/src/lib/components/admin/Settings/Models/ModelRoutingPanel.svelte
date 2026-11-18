@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { getRouting, saveRouting, type Capability, type PoolCandidate, type RoutingSettings } from '$lib/apis/mini-hermes/tiers';
+	import { getRouting, saveRouting, type Capability, type PoolCandidate, type RoutingSettings } from '$lib/apis/model-routing/tiers';
 
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 	const capabilities: Capability[] = ['text', 'image', 'tools', 'structured_output', 'responses'];

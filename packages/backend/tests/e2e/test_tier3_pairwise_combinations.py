@@ -57,24 +57,24 @@ from pypdf import PdfReader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from open_webui.agent_runtime import (
+from weai.agent_runtime.models import (
     AgentArtifact,
     AgentCheckpoint,
     AgentEvent,
-    AgentRepository,
     AgentSession,
     AgentToolInvocation,
     AgentTurn,
 )
-from open_webui.agent_runtime.contracts import ConversationEngineBinding, RunBinding
-from open_webui.agent_runtime.repository import StaleRunError, utcnow
-from open_webui.agent_runtime.request_budget import (
+from weai.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.contracts import ConversationEngineBinding, RunBinding
+from weai.agent_runtime.repository import StaleRunError, utcnow
+from weai.agent_runtime.request_budget import (
     RequestBudgetExceeded,
     RequestBudgetLimits,
     RequestBudgetManager,
 )
-from open_webui.mini_hermes import edits, parsers, revision_service
-from open_webui.mini_hermes.models import (
+from weai.documents import edits, parsers, revision_service
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -85,14 +85,14 @@ from open_webui.mini_hermes.models import (
     SyncJob,
     now,
 )
-from open_webui.mini_hermes.resource_aware import bounded_tool_output
-from open_webui.mini_hermes.revision_integrity import compute_patch_hash
-from open_webui.mini_hermes.revision_service import (
+from weai.documents.resource_aware import bounded_tool_output
+from weai.documents.revision_integrity import compute_patch_hash
+from weai.documents.revision_service import (
     _approval_expires_at,
     commit_preview,
     prepare_rollback_preview,
 )
-from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
 
 
 # ---------------------------------------------------------------------------
@@ -529,8 +529,8 @@ async def test_tc_t3_pw_10_runtime_worker_split_brain_lease_expiry(db_sessionmak
 
 def test_tc_t3_pw_11_gateway_preparation_limit_enforcement():
     """TC-T3-PW-11: Prompt preparation body exceeding 95,000 characters is rejected pre-send."""
-    from open_webui.agent_runtime.context import ContextManager
-    from open_webui.mini_hermes.provider_errors import ProviderPayloadTooLarge
+    from weai.agent_runtime.context import ContextManager
+    from weai.model_routing.provider_errors import ProviderPayloadTooLarge
 
     limits = RequestBudgetLimits(max_preparation_chars=95000, max_json_chars=100000)
     assert limits.preparation_limit_chars == 95000
@@ -765,7 +765,7 @@ async def test_tc_t3_pw_18_greenfield_storage_namespace_isolation(memory_store):
 
     assert await memory_store.exists(v2_key)
     # Legacy V1 key does not collide or share content
-    legacy_key = f"open-webui/documents/{v2_doc_id}/raw.xlsx"
+    legacy_key = f"weai/documents/{v2_doc_id}/raw.xlsx"
     assert not await memory_store.exists(legacy_key)
     assert (await memory_store.get(v2_key)) == payload
 
@@ -805,7 +805,7 @@ async def test_tc_t3_pw_19_rbac_revocation_mid_approval(memory_store, db_session
     approval = {"base_revision": 1, "base_sha256": "a" * 64, "artifact_sha256": "b" * 64, "patch_hash": "c" * 64}
 
     # Simulate permission revocation: has_document_access returns False for user-revoked
-    monkeypatch.setattr("open_webui.mini_hermes.library.has_document_access", AsyncMock(return_value=False))
+    monkeypatch.setattr("weai.documents.library.has_document_access", AsyncMock(return_value=False))
 
     # user-revoked is not owner and not admin, and grant is revoked: commit denied
     with pytest.raises(HTTPException) as exc_info:
@@ -826,13 +826,13 @@ async def test_tc_t3_pw_20_coverage_direct_read_fallback_semantics(
     fixtures_dir: Path, memory_store, db_session: AsyncSession
 ):
     """TC-T3-PW-20: Ingest large document with INDEX_COMPLETE=False; direct read succeeds reporting granular coverage."""
-    from open_webui.mini_hermes.chunks import (
+    from weai.documents.chunks import (
         document_range_evidence,
         extract_structured_text,
         read_document_range,
     )
-    from open_webui.mini_hermes.models import ResourceIndexJob
-    from open_webui.mini_hermes.resource_indexing import enqueue_resource_index_job, process_resource_index_job
+    from weai.documents.models import ResourceIndexJob
+    from weai.documents.resource_indexing import enqueue_resource_index_job, process_resource_index_job
 
     content = (fixtures_dir / "docx-f01-structured.docx").read_bytes()
     doc_id = "doc-pw-20"
@@ -986,7 +986,7 @@ async def test_tc_t3_pw_22_output_budget_summary_artifact_conversion(db_session:
         "status": "completed",
         "excerpt": summary_text[:1500] + "\n... [Summary offloaded to durable artifact]",
         "artifact_id": artifact_id,
-        "artifact_url": f"/api/v1/mini-hermes/artifacts/{artifact_id}",
+        "artifact_url": f"/api/v1/agent-runtime/artifacts/{artifact_id}",
     }
     serialized_wire = json.dumps(wire_response)
     assert len(serialized_wire) <= 5952
@@ -1001,16 +1001,16 @@ async def test_tc_t3_pw_22_output_budget_summary_artifact_conversion(db_session:
 def test_tc_t3_pw_23_persistence_dev_db_reset_protection():
     """TC-T3-PW-23: Safe dev reset validation checks supported dialects and rejects unsafe drivers."""
     from sqlalchemy.engine import make_url
-    from open_webui.internal.db import _make_async_url
+    from weai.internal.db import _make_async_url
 
     # 1. Supported dialect validation: SQLite and PostgreSQL are allowed
     dev_url = "sqlite:///test.db"
     assert make_url(dev_url).get_backend_name() in ("sqlite", "postgresql", "postgres")
 
-    prod_pg_url = "postgresql://app_user:secret@prod-db-cluster.aws.internal:5432/production_mini_hermes"
+    prod_pg_url = "postgresql://app_user:secret@prod-db-cluster.aws.internal:5432/production_agent_runtime"
     assert make_url(prod_pg_url).get_backend_name() in ("sqlite", "postgresql", "postgres")
 
-    unsupported_url = "mysql+pymysql://root:pass@localhost:3306/mini_hermes"
+    unsupported_url = "mysql+pymysql://root:pass@localhost:3306/agent_runtime"
     assert make_url(unsupported_url).get_backend_name() not in ("sqlite", "postgresql", "postgres")
 
     # 2. Async URL converter validates drivers and rejects unsupported sqlcipher async
@@ -1031,10 +1031,10 @@ def test_tc_t3_pw_23_persistence_dev_db_reset_protection():
 
 def test_tc_t3_pw_24_provider_gateway_zero_ollama_filter():
     """TC-T3-PW-24: Platform configuration and gateway enforce zero Ollama across config and capabilities."""
-    from open_webui import config
-    from open_webui.mini_hermes.model_capabilities import resolve_model_capabilities
-    from open_webui.mini_hermes.provider_guard import apply_capability_constraints
-    from open_webui.mini_hermes.provider_errors import ProviderCapabilityUnsupported
+    from weai import config
+    from weai.model_routing.model_capabilities import resolve_model_capabilities
+    from weai.model_routing.provider_guard import apply_capability_constraints
+    from weai.model_routing.provider_errors import ProviderCapabilityUnsupported
 
     # 1. Application-wide config has no Ollama product keys.
     assert not any(key.startswith(('ollama.', 'rag.ollama.')) for key in config.DEFAULT_CONFIG)
@@ -1113,8 +1113,8 @@ async def test_tc_t3_pw_25_agent_approval_challenge_expiration(db_sessionmaker):
 
 def test_tc_t3_pw_26_xlsx_formula_guard_mixed_proposal(fixtures_dir: Path):
     """TC-T3-PW-26: Operation normalization and XLSX execution validate operations and preserve formula metadata."""
-    from open_webui.mini_hermes.edits import apply_operations, normalize_operations
-    from open_webui.mini_hermes.parsers import extract_sections
+    from weai.documents.edits import apply_operations, normalize_operations
+    from weai.documents.parsers import extract_sections
 
     content = (fixtures_dir / "xlsx-f01-f03-hidden-missing-cache.xlsx").read_bytes()
 
@@ -1158,8 +1158,8 @@ def test_tc_t3_pw_26_xlsx_formula_guard_mixed_proposal(fixtures_dir: Path):
 
 def test_tc_t3_pw_27_pdf_ocr_partial_page_fallback(fixtures_dir: Path):
     """TC-T3-PW-27: PDF with Page 1 selectable text and Page 2 scan; extracts Page 1 and flags OCR needed."""
-    from open_webui.mini_hermes.chunks import build_chunk_rows
-    from open_webui.mini_hermes.parsers import extract_sections
+    from weai.documents.chunks import build_chunk_rows
+    from weai.documents.parsers import extract_sections
 
     content = (fixtures_dir / "pdf-f01-text-and-image.pdf").read_bytes()
     sections = extract_sections(content, "pdf-f01-text-and-image.pdf")
@@ -1301,7 +1301,7 @@ async def test_tc_t3_pw_30_multiformat_export_xlsx_to_csv(
     fixtures_dir: Path, memory_store, db_session: AsyncSession, async_client
 ):
     """TC-T3-PW-30: Ingest XLSX, test content export endpoint and task creation via async_client, and parse CSV structure."""
-    from open_webui.mini_hermes.parsers import extract_sections
+    from weai.documents.parsers import extract_sections
 
     content = (fixtures_dir / "xlsx-f05-synthetic.xlsx").read_bytes()
     doc_id = "doc-pw-30"
@@ -1327,22 +1327,22 @@ async def test_tc_t3_pw_30_multiformat_export_xlsx_to_csv(
     await db_session.commit()
 
     # Pre-index document chunks so resource tasks can proceed
-    from open_webui.mini_hermes.chunks import replace_document_chunks
+    from weai.documents.chunks import replace_document_chunks
     await replace_document_chunks(db_session, doc_id, 1, doc.filename, content)
     await db_session.commit()
 
     # 1. Real content export endpoint via async_client returns verified bytes
-    content_resp = await async_client.get(f"/api/v1/mini-hermes/documents/{doc_id}/content")
+    content_resp = await async_client.get(f"/api/v1/agent-runtime/documents/{doc_id}/content")
     assert content_resp.status_code == 200
     assert content_resp.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     assert content_resp.content == content
 
     # 2. Resource task initiation via async_client
-    task_resp = await async_client.post(f"/api/v1/mini-hermes/documents/{doc_id}/tasks", json={"kind": "summary"})
+    task_resp = await async_client.post(f"/api/v1/agent-runtime/documents/{doc_id}/tasks", json={"kind": "summary"})
     assert task_resp.status_code == 200
     task_id = task_resp.json()["task_id"]
 
-    status_resp = await async_client.get(f"/api/v1/mini-hermes/tasks/{task_id}")
+    status_resp = await async_client.get(f"/api/v1/agent-runtime/tasks/{task_id}")
     assert status_resp.status_code == 200
     assert status_resp.json()["document_id"] == doc_id
     assert status_resp.json()["kind"] == "summary"

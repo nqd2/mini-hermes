@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext, onMount, onDestroy, tick } from 'svelte';
 	import dayjs from 'dayjs';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import ProfilePreview from '$lib/components/channel/Messages/Message/ProfilePreview.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -333,7 +333,7 @@
 												className="gap-1.75"
 											>
 												<img
-													src={`${WEBUI_API_BASE_URL}/users/${session.user_id}/profile/image`}
+													src={`${WEAI_API_BASE_URL}/users/${session.user_id}/profile/image`}
 													alt=""
 													class="size-4 rounded-full object-cover shrink-0"
 													loading="lazy"

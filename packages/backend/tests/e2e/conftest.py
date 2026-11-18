@@ -1,4 +1,4 @@
-"""Centralized test configuration and fixtures for Mini-Hermes V2 4-Tier E2E Test Suite.
+"""Centralized test configuration and fixtures for Agent Runtime V2 4-Tier E2E Test Suite.
 
 Provides:
 - Windows event loop policy configuration
@@ -31,17 +31,18 @@ from sqlalchemy.pool import StaticPool
 
 # Ensure default test environment configuration before any application imports
 os.environ.setdefault("DATABASE_URL", "sqlite:///test.db")
-os.environ.setdefault("WEBUI_SECRET_KEY", "test-secret-key-32-chars-long!!")
-os.environ.setdefault("MH_TOKEN_ENCRYPTION_KEY", "test-encryption-key-32-chars!!")
+os.environ.setdefault("WEAI_SECRET_KEY", "test-secret-key-32-chars-long!!")
+os.environ.setdefault("AGENT_RUNTIME_TOKEN_ENCRYPTION_KEY", "test-encryption-key-32-chars!!")
 os.environ.setdefault("ENABLE_DB_MIGRATIONS", "false")
-os.environ.setdefault("MH_SKIP_STARTUP_VALIDATION", "true")
+os.environ.setdefault("AGENT_RUNTIME_SKIP_STARTUP_VALIDATION", "true")
 os.environ.setdefault("DATABASE_ENABLE_SESSION_SHARING", "true")
 
-from open_webui.agent_runtime import AgentEvent, AgentRepository, AgentSession, AgentToolInvocation, AgentTurn
-from open_webui.agent_runtime.models import Base as AgentBase
-from open_webui.internal.db import Base
-from open_webui.mini_hermes import revision_service, routes
-from open_webui.mini_hermes.models import (
+from weai.agent_runtime.models import AgentEvent, AgentSession, AgentToolInvocation, AgentTurn
+from weai.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.models import Base as AgentBase
+from weai.internal.db import Base
+from weai.documents import revision_service, routes
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -53,12 +54,12 @@ from open_webui.mini_hermes.models import (
     RevisionOutbox,
     SyncJob,
 )
-from open_webui.mini_hermes.revision_integrity import compute_patch_hash
-import open_webui.models.access_grants
-import open_webui.models.chats
-import open_webui.models.files
-import open_webui.models.groups
-import open_webui.models.users
+from weai.documents.revision_integrity import compute_patch_hash
+import weai.models.access_grants
+import weai.models.chats
+import weai.models.files
+import weai.models.groups
+import weai.models.users
 
 # Resolve fixtures directory
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "v2"
@@ -150,7 +151,7 @@ async def db_sessionmaker(db_engine: AsyncEngine) -> async_sessionmaker[AsyncSes
 
 @pytest.fixture(autouse=True)
 def bind_global_session(db_sessionmaker, monkeypatch):
-    monkeypatch.setattr("open_webui.internal.db.AsyncSessionLocal", db_sessionmaker)
+    monkeypatch.setattr("weai.internal.db.AsyncSessionLocal", db_sessionmaker)
 
 
 @pytest_asyncio.fixture
@@ -177,9 +178,9 @@ def mock_revoked_user():
 
 @pytest.fixture
 def app(db_sessionmaker: async_sessionmaker[AsyncSession], memory_store: MemoryObjectStore, mock_standard_user, monkeypatch):
-    """Build a FastAPI test app with Mini-Hermes router mounted and dependencies overridden."""
+    """Build a FastAPI test app with Agent Runtime router mounted and dependencies overridden."""
     test_app = FastAPI()
-    test_app.include_router(routes.router, prefix="/api/v1/mini-hermes")
+    test_app.include_router(routes.router, prefix="/api/v1/agent-runtime")
 
     # Dependency overrides
     test_app.dependency_overrides[routes.get_verified_user] = lambda: mock_standard_user

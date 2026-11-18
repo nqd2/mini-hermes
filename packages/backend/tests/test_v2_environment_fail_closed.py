@@ -11,8 +11,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.environment import (
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.environment import (
     EnvironmentMismatchError,
     LegacyV1TablesDetectedError,
     MissingEnvironmentMarkerError,
@@ -21,7 +21,7 @@ from open_webui.mini_hermes.v2.environment import (
     validate_async_startup_or_exit,
     validate_sync_startup_or_exit,
 )
-from open_webui.mini_hermes.v2.storage import (
+from weai.persistence.v2.storage import (
     StorageMarkerMissingError,
     StorageNamespaceViolationError,
     V2ObjectStore,
@@ -38,17 +38,17 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def disposable_pg_schema():
     """Fixture providing a disposable schema for testing."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
-    schema_name = f"mh_test_env_{uuid4().hex}"
+    schema_name = f"ar_test_env_{uuid4().hex}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
 
@@ -103,11 +103,11 @@ async def test_startup_validation_fails_on_legacy_v1_tables(disposable_pg_schema
 
 @pytest.mark.asyncio
 async def test_startup_validation_fails_on_missing_environment_marker(disposable_pg_schema):
-    """Validation must fail closed if mh_environment_markers is absent or empty."""
+    """Validation must fail closed if ar_environment_markers is absent or empty."""
     schema_url, _ = disposable_pg_schema
 
     # Empty schema without bootstrap
-    with pytest.raises(MissingEnvironmentMarkerError, match="Table 'mh_environment_markers' is missing"):
+    with pytest.raises(MissingEnvironmentMarkerError, match="Table 'ar_environment_markers' is missing"):
         await check_async_database_environment(schema_url, expected_environment_id="development")
 
     # Now bootstrap, then wipe the marker
@@ -117,7 +117,7 @@ async def test_startup_validation_fails_on_missing_environment_marker(disposable
     engine = create_async_engine(schema_url)
     try:
         async with engine.begin() as conn:
-            await conn.execute(text("DELETE FROM mh_environment_markers;"))
+            await conn.execute(text("DELETE FROM ar_environment_markers;"))
     finally:
         await engine.dispose()
 
@@ -160,7 +160,7 @@ def test_storage_namespace_isolation_and_marker(tmp_path):
     store = V2ObjectStore(base_dir=tmp_path, prefix="v2/")
 
     # Put immutable blob
-    test_bytes = b"Hello, Mini-Hermes V2!"
+    test_bytes = b"Hello, Agent Runtime V2!"
     key, sha256 = store.put_immutable(test_bytes)
     assert key.startswith("v2/blobs/")
     assert store.get_bytes(key) == test_bytes

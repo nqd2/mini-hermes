@@ -25,8 +25,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.canonical.spreadsheet import CanonicalSpreadsheetModel
-from open_webui.mini_hermes.v2.indexing import (
+from weai.persistence.v2.canonical.spreadsheet import CanonicalSpreadsheetModel
+from weai.persistence.v2.indexing import (
     IndexBuildNotFoundError,
     IndexingError,
     IndexLifecycleManager,
@@ -37,7 +37,7 @@ from open_webui.mini_hermes.v2.indexing import (
     V2_XLSX_PARSER_VERSION,
     compute_index_manifest_hash,
 )
-from open_webui.mini_hermes.v2.ingestion import (
+from weai.persistence.v2.ingestion import (
     ChecksumMismatchError,
     CorruptFileError,
     EncryptedFileUnsupportedError,
@@ -49,22 +49,22 @@ from open_webui.mini_hermes.v2.ingestion import (
     UnsupportedFormatError,
     ZipBombDetectedError,
 )
-from open_webui.mini_hermes.v2.models import (
+from weai.persistence.v2.models import (
     FormatType,
     IndexBuildState,
-    MhActiveIndex,
-    MhDocument,
-    MhDocumentRevision,
-    MhIndexBuild,
+    WeAIActiveIndex,
+    WeAIDocument,
+    WeAIDocumentRevision,
+    WeAIIndexBuild,
 )
-from open_webui.mini_hermes.v2.models.base import V2Base
-from open_webui.mini_hermes.v2.parsers.pdf import (
+from weai.persistence.v2.models.base import V2Base
+from weai.persistence.v2.parsers.pdf import (
     CanonicalPdfModel,
     FormatEditUnsupportedError,
     PageLayerType,
     PdfParser,
 )
-from open_webui.mini_hermes.v2.storage import V2ObjectStore
+from weai.persistence.v2.storage import V2ObjectStore
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "v2"
 
@@ -102,7 +102,7 @@ def test_pdf_propose_edit_all_mutation_vectors_raise_422():
         {"operations": [{"op": "replace_text", "target": "foo", "replacement": "bar"}]},
         {"operations": [{"op": "delete_page", "page": 1}]},
         {"operations": [{"op": "insert_text", "text": "malicious injection"}]},
-        {"sql_injection": "'; DROP TABLE mh_documents; --"},
+        {"sql_injection": "'; DROP TABLE ar_documents; --"},
         {"document_id": "00000000-0000-0000-0000-000000000000", "preview": True},
     ]
 
@@ -498,7 +498,7 @@ def test_encrypted_file_rejection():
 
 @pytest.mark.asyncio
 async def test_active_index_pointer_cas_concurrency_race(sqlite_v2_session_factory):
-    """Stress-test compare-and-set (CAS) concurrency on MhActiveIndex.generation.
+    """Stress-test compare-and-set (CAS) concurrency on WeAIActiveIndex.generation.
 
     Scenario:
     1. Activate Build 1 at generation 1.
@@ -535,9 +535,9 @@ async def test_active_index_pointer_cas_concurrency_race(sqlite_v2_session_facto
 
     # Verify old build b1 was retired AND competing build b2b was also retired to RETIRED
     async with sqlite_v2_session_factory() as session:
-        b1_db = await session.get(MhIndexBuild, b1.id)
+        b1_db = await session.get(WeAIIndexBuild, b1.id)
         assert b1_db.build_state == IndexBuildState.RETIRED.value
-        b2b_db = await session.get(MhIndexBuild, b2b.id)
+        b2b_db = await session.get(WeAIIndexBuild, b2b.id)
         assert b2b_db.build_state == IndexBuildState.RETIRED.value
 
     # Defense Vector A: Worker B attempting to activate retired build b2b is rejected with HTTP 422

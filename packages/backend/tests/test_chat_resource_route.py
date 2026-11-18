@@ -6,10 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
-from open_webui.mini_hermes.provider_guard import validate_chat_payload
-from open_webui.utils.chat_runtime.resource_execution import ResourceAnswerGate
-from open_webui.utils.json_codec import JSONCodec
+from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
+from weai.model_routing.provider_guard import validate_chat_payload
+from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate
+from weai.utils.json_codec import JSONCodec
 
 
 def _build_model(model_id: str) -> dict:
@@ -32,7 +32,7 @@ def _install_model_configuration(monkeypatch, main, model_id: str, model: dict) 
             'openai.api_base_urls': ['https://api.1min.ai/openai/v1'],
         }
         if key == 'rag.template':
-            from open_webui.config import DEFAULT_RAG_TEMPLATE
+            from weai.config import DEFAULT_RAG_TEMPLATE
 
             return DEFAULT_RAG_TEMPLATE
         return values.get(key)
@@ -146,8 +146,8 @@ def _build_request(app) -> Request:
 @pytest.mark.asyncio
 async def test_provider_http_error_marks_runtime_metadata_before_return(monkeypatch):
     from starlette.responses import JSONResponse
-    from open_webui.agent_runtime.runtime import AgentRuntime
-    main = importlib.import_module('open_webui.main')
+    from weai.agent_runtime.runtime import AgentRuntime
+    main = importlib.import_module('weai.main')
     model = _build_model('model')
     _install_model_configuration(monkeypatch, main, 'model', model)
     captured = {}
@@ -178,9 +178,9 @@ async def test_provider_http_error_marks_runtime_metadata_before_return(monkeypa
 
 @pytest.mark.asyncio
 async def test_chat_route_runs_bounded_resource_evidence_before_provider(monkeypatch):
-    main = importlib.import_module('open_webui.main')
-    middleware = importlib.import_module('open_webui.utils.middleware')
-    resource_service = importlib.import_module('open_webui.mini_hermes.resource_service')
+    main = importlib.import_module('weai.main')
+    middleware = importlib.import_module('weai.utils.middleware')
+    resource_service = importlib.import_module('weai.documents.resource_service')
 
     prompt = 'Which program is related to Computer Science?'
     attachment = {'type': 'file', 'id': 'upload-1', 'name': 'programs.xlsx'}
@@ -214,9 +214,9 @@ async def test_chat_route_runs_bounded_resource_evidence_before_provider(monkeyp
 
 
 def test_chat_completion_http_route_binds_user_body_and_resource_files(monkeypatch):
-    main = importlib.import_module('open_webui.main')
-    middleware = importlib.import_module('open_webui.utils.middleware')
-    resource_service = importlib.import_module('open_webui.mini_hermes.resource_service')
+    main = importlib.import_module('weai.main')
+    middleware = importlib.import_module('weai.utils.middleware')
+    resource_service = importlib.import_module('weai.documents.resource_service')
 
     prompt = 'Which program is related to Computer Science?'
     attachment = {'type': 'file', 'id': 'upload-1', 'name': 'programs.xlsx'}

@@ -5,7 +5,7 @@ from openpyxl import Workbook
 
 
 def test_workbook_survey_keeps_record_counts_distinct_from_unique_codes():
-    from open_webui.mini_hermes.document_analysis import survey_document
+    from weai.documents.document_analysis import survey_document
 
     workbook = Workbook()
     sheet = workbook.active
@@ -32,7 +32,7 @@ def test_workbook_survey_keeps_record_counts_distinct_from_unique_codes():
 
 def test_word_survey_preserves_table_order():
     from docx import Document
-    from open_webui.mini_hermes.document_analysis import survey_document
+    from weai.documents.document_analysis import survey_document
 
     document = Document()
     document.add_heading('First', level=1)
@@ -48,7 +48,7 @@ def test_word_survey_preserves_table_order():
 def test_pdf_marks_image_only_pages_for_ocr():
     from pathlib import Path
     from PIL import Image
-    from open_webui.mini_hermes.document_analysis import survey_document
+    from weai.documents.document_analysis import survey_document
 
     stream = BytesIO()
     Image.new('RGB', (32, 32), 'white').save(stream, format='PDF')
@@ -63,7 +63,7 @@ def test_slide_survey_preserves_tables_and_identifies_embedded_images():
     from PIL import Image
     from pptx import Presentation
     from pptx.util import Inches
-    from open_webui.mini_hermes.document_analysis import survey_document
+    from weai.documents.document_analysis import survey_document
 
     deck = Presentation()
     slide = deck.slides.add_slide(deck.slide_layouts[6])
@@ -82,8 +82,8 @@ def test_slide_survey_preserves_tables_and_identifies_embedded_images():
 
 
 def test_chat_summary_intent_does_not_capture_selected_pages():
-    from open_webui.mini_hermes.agent_mode import document_agent_mode
-    from open_webui.mini_hermes.document_analysis import wants_document_summary
+    from weai.agent_runtime.agent_mode import document_agent_mode
+    from weai.documents.document_analysis import wants_document_summary
 
     assert wants_document_summary('tóm tắt file đi')
     assert wants_document_summary('Summarize M.xlsx in English')
@@ -98,7 +98,7 @@ def test_declared_excel_table_counts_records_and_blank_values_without_a_program_
     from openpyxl.drawing.image import Image as ExcelImage
     from openpyxl.worksheet.table import Table
     from PIL import Image
-    from open_webui.mini_hermes.document_analysis import survey_document
+    from weai.documents.document_analysis import survey_document
 
     workbook = Workbook()
     sheet = workbook.active
@@ -122,7 +122,7 @@ def test_declared_excel_table_counts_records_and_blank_values_without_a_program_
 def test_word_keeps_text_boxes_as_separate_evidence():
     from docx import Document
     from docx.oxml import parse_xml
-    from open_webui.mini_hermes.document_analysis import survey_document
+    from weai.documents.document_analysis import survey_document
 
     document = Document()
     paragraph = document.add_paragraph('Ordinary text')
@@ -141,8 +141,8 @@ def test_word_keeps_text_boxes_as_separate_evidence():
 
 @pytest.mark.asyncio
 async def test_analysis_worker_rejects_citations_outside_the_current_batch():
-    from open_webui.mini_hermes.document_analysis import Survey
-    from open_webui.mini_hermes.document_analysis_tasks import summarize_analysis_batch
+    from weai.documents.document_analysis import Survey
+    from weai.documents.document_analysis_tasks import summarize_analysis_batch
 
     survey = Survey()
     survey.add('paragraph', 'block/1', 'Known text')

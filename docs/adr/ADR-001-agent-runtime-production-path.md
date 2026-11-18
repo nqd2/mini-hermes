@@ -1,4 +1,4 @@
-# ADR-001: Mini-Hermes production agent runtime path
+# ADR-001: Agent Runtime production agent runtime path
 
 **Status:** Accepted
 
@@ -6,17 +6,17 @@
 
 ## Decision
 
-Mini-Hermes keeps its current AgentRuntime as the only production execution path. DeerFlow is a conditional replacement candidate and is not a default migration. Open WebUI remains the product UI and owns authentication, RBAC, chat, and model management. Track the rolling 30-day user count; revisit licensing or branding only if real usage creates a need.
+Agent Runtime keeps its current AgentRuntime as the only production execution path. DeerFlow is a conditional replacement candidate and is not a default migration. WeAI remains the product UI and owns authentication, RBAC, chat, and model management. Track the rolling 30-day user count; revisit licensing or branding only if real usage creates a need.
 
 Production-grade reliability, security, recovery, observability, and data-integrity requirements remain in scope. A 99.9% availability target is an internal objective, not a committed SLA.
 
 ## Fresh persistence baseline and provider scope
 
-The latest approved product specification replaces persistence across both Mini-Hermes and Open WebUI using PostgreSQL and SQLAlchemy async. The local development database may be reset during the separately scoped implementation. No legacy schema/data backfill, chat-history import, or checkpoint conversion is required. Keep the capabilities selected in the [production scope cleanup](../plans/production-scope-cleanup.md), current execution engine, authorization boundaries, notices, and retained UI contracts. This local reset authorization does not apply to production data or traffic.
+The latest approved product specification replaces persistence across both Agent Runtime and WeAI using PostgreSQL and SQLAlchemy async. The local development database may be reset during the separately scoped implementation. No legacy schema/data backfill, chat-history import, or checkpoint conversion is required. Keep the capabilities selected in the [production scope cleanup](../plans/production-scope-cleanup.md), current execution engine, authorization boundaries, notices, and retained UI contracts. This local reset authorization does not apply to production data or traffic.
 
 Ollama is excluded from the target, including provider/model selection, discovery, health/about probes, and embedding configuration. Image generation for Office documents, embeddings, and web search require their own configured providers and permissions; audio is outside the current product scope. OpenAI compatibility alone does not prove those capabilities.
 
-Detailed target use cases, new persistence, planned tests, and evidence-classified audit findings are in the [Mini-Hermes specification](../design/mini-hermes-use-cases-design-and-tests.md). Presence of that specification does not establish implementation or staging gate completion.
+Detailed target use cases, new persistence, planned tests, and evidence-classified audit findings are in the [Agent Runtime specification](../design/agent-runtime-use-cases-design-and-tests.md). Presence of that specification does not establish implementation or staging gate completion.
 
 ## Request budget
 
@@ -49,5 +49,5 @@ For either route, the upper bound of the 95% CI for cost/run regression must be 
 ## Evidence classification
 
 - **Verified in checkout:** the current AgentRuntime, document/revision services, and request preparation budgeting have implementations. Presence of code or tests does not establish production readiness.
-- **Fixed assumptions:** 10–20 users per rolling 30 days; Open WebUI keeps its stated responsibilities; request caps are 95,000 preparation and 100,000 serialized JSON characters; current AgentRuntime remains the production path.
+- **Fixed assumptions:** 10–20 users per rolling 30 days; WeAI keeps its stated responsibilities; request caps are 95,000 preparation and 100,000 serialized JSON characters; current AgentRuntime remains the production path.
 - **Must be established by tests and staging:** publication crash recovery, current authorization at commit, durable outbox replay, event-gap recovery, side-effect idempotency, all hard gates, and performance thresholds measured from baseline.

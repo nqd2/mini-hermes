@@ -5,7 +5,7 @@
 	import { getContext, onDestroy, tick } from 'svelte';
 
 	import { formatFileSize, getLineCount, safeLinkUrl } from '$lib/utils';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { settings } from '$lib/stores';
 	import { getKnowledgeById } from '$lib/apis/knowledge';
 	import { getFileById, getFileContentById } from '$lib/apis/files';
@@ -148,7 +148,7 @@
 		(item?.name && item.name.toLowerCase().endsWith('.pptx'));
 	$: fileContentUrl = item?.url?.startsWith('http')
 		? item.url
-		: `${WEBUI_API_BASE_URL}/files/${item?.id ?? item?.tempId}/content`;
+		: `${WEAI_API_BASE_URL}/files/${item?.id ?? item?.tempId}/content`;
 
 	const loadExcelContent = async () => {
 		try {
@@ -238,7 +238,7 @@
 		} else if (item?.type === 'file') {
 			loading = true;
 			for (const path of [`/source-files/${encodeURIComponent(item.id)}/document`, `/documents/${encodeURIComponent(item.id)}`]) {
-				const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes${path}`, {
+				const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime${path}`, {
 					headers: { Authorization: `Bearer ${localStorage.token}` }
 				}).catch(() => null);
 				if (response?.ok) {
@@ -249,7 +249,7 @@
 				}
 			}
 			if (resolvedDocumentId && selectedRevision && (isPDF || isExcel || isDocx || isPptx)) {
-				const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${selectedRevision}`, {
+				const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${selectedRevision}`, {
 					headers: { Authorization: `Bearer ${localStorage.token}` }
 				}).catch(() => null);
 				if (response?.ok) revisionData = await response.arrayBuffer();
@@ -287,7 +287,7 @@
 		revisionData = null;
 		viewerError = '';
 		try {
-			const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${number}`, {
+			const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime/documents/${encodeURIComponent(resolvedDocumentId)}/content?revision=${number}`, {
 				headers: { Authorization: `Bearer ${localStorage.token}` }
 			});
 			if (!response.ok) throw new Error('Could not load this revision');
@@ -351,7 +351,7 @@
 								href={item?.type === 'file'
 									? item?.url?.startsWith('http')
 										? item.url
-										: `${WEBUI_API_BASE_URL}/files/${item?.id ?? item?.tempId}/content`
+										: `${WEAI_API_BASE_URL}/files/${item?.id ?? item?.tempId}/content`
 									: item?.type === 'collection' && item?.id
 										? `/workspace/knowledge/${item.id}`
 										: safeLinkUrl(item?.url)}
@@ -522,7 +522,7 @@
 							</div>
 							<PanzoomContainer bind:this={panzoomRef}>
 								<img
-									src={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
+									src={`${WEAI_API_BASE_URL}/files/${item.id}/content`}
 									alt={item?.name ?? 'Image'}
 									class="w-full object-contain rounded-lg"
 									loading="lazy"
@@ -604,7 +604,7 @@
 					{:else if selectedTab === 'preview'}
 						{#if isAudio}
 							<audio
-								src={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
+								src={`${WEAI_API_BASE_URL}/files/${item.id}/content`}
 								class="w-full border-0 rounded-lg mb-2"
 								controls
 								playsinline
@@ -613,7 +613,7 @@
 							<OfficeDocumentPreview filename={item?.name ?? ''} data={revisionData} bind:pageCount={revisionPageCount} bind:currentPage={revisionCurrentPage} targetPage={revisionTargetPage} zoom={viewerZoom} />
 						{:else if isPDF}
 							<PDFViewer
-								url={`${WEBUI_API_BASE_URL}/files/${item.id}/content`}
+								url={`${WEAI_API_BASE_URL}/files/${item.id}/content`}
 								hideControls
 								viewerZoom={viewerZoom}
 								className="w-full h-full min-h-[40rem] border-0"

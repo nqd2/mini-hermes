@@ -13,7 +13,7 @@
 		rotateUserAPIKeyById,
 		deleteUserAPIKeyById
 	} from '$lib/apis/users';
-	import { getUserPlan, saveUserPlan, type Plan, type Tier } from '$lib/apis/mini-hermes/tiers';
+	import { getUserPlan, saveUserPlan, type Plan, type Tier } from '$lib/apis/model-routing/tiers';
 	import { copyToClipboard } from '$lib/utils';
 
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -266,7 +266,7 @@
 									{#if savedPlan && _user.role !== 'admin'}
 										<div class="flex flex-col gap-2 text-xs">
 											<label>
-												{$i18n.t('Mini-Hermes plan')}
+												{$i18n.t('WeAI plan')}
 												<select class="bg-transparent" bind:value={tier} disabled={savingPlan}>
 													<option value="free">Free</option>
 													<option value="plus">Plus</option>

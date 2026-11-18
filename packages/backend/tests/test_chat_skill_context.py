@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils.chat_runtime.skill_context import (
+from weai.utils.chat_runtime.skill_context import (
     ChatSkillContextAdapters,
     ChatSkillServices,
     prepare_chat_skill_context,
 )
-from open_webui.utils.misc import add_or_update_system_message, get_last_user_message, set_last_user_message_content
-from open_webui.utils.skills import extract_skill_ids_from_messages, strip_skill_mentions
+from weai.utils.misc import add_or_update_system_message, get_last_user_message, set_last_user_message_content
+from weai.utils.skills import extract_skill_ids_from_messages, strip_skill_mentions
 
 
 @dataclass

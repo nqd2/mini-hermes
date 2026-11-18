@@ -6,7 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from open_webui.routers import files
+from weai.routers import files
 
 
 @pytest.mark.asyncio
@@ -36,12 +36,12 @@ async def test_upload_route_keeps_multipart_contract_and_publishes_file_id(monke
         response = await client.post(
             '/api/v1/files/?process=false',
             files={'file': ('book.xlsx', b'workbook bytes', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')},
-            data={'metadata': '{"mini_hermes_chat_upload":true}'},
+            data={'metadata': '{"agent_runtime_chat_upload":true}'},
         )
     assert response.status_code == 200
     assert response.json()['id'] == 'file-1'
     assert seen['file'] == 'book.xlsx'
-    assert seen['metadata'] == '{"mini_hermes_chat_upload":true}'
+    assert seen['metadata'] == '{"agent_runtime_chat_upload":true}'
     assert seen['process'] is False
     assert seen['subject_id'] == 'file-1'
 

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils.chat_runtime.file_retrieval import chat_completion_files_handler
+from weai.utils.chat_runtime.file_retrieval import chat_completion_files_handler
 
 
 def request_with_retrieval_functions():
@@ -46,9 +46,9 @@ async def test_generates_queries_retrieves_sources_and_emits_status_events(monke
         }
     )
     emitter = AsyncMock()
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.generate_queries', generate_queries)
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.Config.get_many', config)
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.generate_queries', generate_queries)
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.Config.get_many', config)
 
     returned_body, flags = await chat_completion_files_handler(
         request_with_retrieval_functions(), body, {'__event_emitter__': emitter}, object()
@@ -77,10 +77,10 @@ async def test_full_context_skips_query_generation_and_uses_user_prompt(monkeypa
     }
     generate_queries = AsyncMock()
     get_sources = AsyncMock(return_value=[])
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.generate_queries', generate_queries)
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.generate_queries', generate_queries)
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
     monkeypatch.setattr(
-        'open_webui.utils.chat_runtime.file_retrieval.Config.get_many',
+        'weai.utils.chat_runtime.file_retrieval.Config.get_many',
         AsyncMock(return_value={'rag.full_context': False}),
     )
 
@@ -104,11 +104,11 @@ async def test_query_generation_error_falls_back_to_the_user_prompt(monkeypatch)
     get_sources = AsyncMock(return_value=[])
     emitter = AsyncMock()
     monkeypatch.setattr(
-        'open_webui.utils.chat_runtime.file_retrieval.generate_queries',
+        'weai.utils.chat_runtime.file_retrieval.generate_queries',
         AsyncMock(side_effect=RuntimeError('query model unavailable')),
     )
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.Config.get_many', AsyncMock(return_value={}))
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.Config.get_many', AsyncMock(return_value={}))
 
     _, flags = await chat_completion_files_handler(
         request_with_retrieval_functions(), body, {'__event_emitter__': emitter}, object()
@@ -130,11 +130,11 @@ async def test_malformed_query_response_is_used_as_a_fallback_query(monkeypatch)
     get_sources = AsyncMock(return_value=[])
     emitter = AsyncMock()
     monkeypatch.setattr(
-        'open_webui.utils.chat_runtime.file_retrieval.generate_queries',
+        'weai.utils.chat_runtime.file_retrieval.generate_queries',
         AsyncMock(return_value={'choices': [{'message': {'content': raw_query_response}}]}),
     )
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.Config.get_many', AsyncMock(return_value={}))
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.get_sources_from_items', get_sources)
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.Config.get_many', AsyncMock(return_value={}))
 
     await chat_completion_files_handler(
         request_with_retrieval_functions(), body, {'__event_emitter__': emitter}, object()
@@ -153,14 +153,14 @@ async def test_retrieval_failure_returns_no_sources_and_reports_zero(monkeypatch
     }
     emitter = AsyncMock()
     monkeypatch.setattr(
-        'open_webui.utils.chat_runtime.file_retrieval.generate_queries',
+        'weai.utils.chat_runtime.file_retrieval.generate_queries',
         AsyncMock(return_value={'choices': [{'message': {'content': '{"queries": ["value"]}'}}]}),
     )
     monkeypatch.setattr(
-        'open_webui.utils.chat_runtime.file_retrieval.get_sources_from_items',
+        'weai.utils.chat_runtime.file_retrieval.get_sources_from_items',
         AsyncMock(side_effect=RuntimeError('retrieval unavailable')),
     )
-    monkeypatch.setattr('open_webui.utils.chat_runtime.file_retrieval.Config.get_many', AsyncMock(return_value={}))
+    monkeypatch.setattr('weai.utils.chat_runtime.file_retrieval.Config.get_many', AsyncMock(return_value={}))
 
     _, flags = await chat_completion_files_handler(
         request_with_retrieval_functions(), body, {'__event_emitter__': emitter}, object()
@@ -175,6 +175,6 @@ async def test_retrieval_failure_returns_no_sources_and_reports_zero(monkeypatch
 
 
 def test_middleware_keeps_legacy_file_retrieval_handler_import():
-    from open_webui.utils import middleware
+    from weai.utils import middleware
 
     assert middleware.chat_completion_files_handler is chat_completion_files_handler

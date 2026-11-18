@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { WEBUI_API_BASE_URL } from '$lib/constants';
+  import { WEAI_API_BASE_URL } from '$lib/constants';
   import { portalDocumentViewer, setDocumentViewerDock } from '$lib/stores/documentViewerDock';
   import ArrowLeft from '$lib/components/icons/ArrowLeft.svelte';
   import Check from '$lib/components/icons/Check.svelte';
@@ -60,7 +60,7 @@
 
   const loadRevisions = async (id: string) => {
     try {
-      const response = await fetch(`${WEBUI_API_BASE_URL}/mini-hermes/documents/${encodeURIComponent(id)}/revisions`, {
+      const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime/documents/${encodeURIComponent(id)}/revisions`, {
         headers: { Authorization: `Bearer ${localStorage.token}` }
       });
       if (response.ok && loadedDocument === id) revisions = await response.json();

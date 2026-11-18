@@ -1,4 +1,4 @@
-import { WEBUI_BASE_URL } from '$lib/constants';
+import { WEAI_BASE_URL } from '$lib/constants';
 
 // Google Drive Picker API configuration
 let API_KEY = '';
@@ -6,7 +6,7 @@ let CLIENT_ID = '';
 
 // Function to fetch credentials from backend config
 async function getCredentials() {
-	const response = await fetch(`${WEBUI_BASE_URL}/api/config`, { credentials: 'include' });
+	const response = await fetch(`${WEAI_BASE_URL}/api/config`, { credentials: 'include' });
 	if (!response.ok) {
 		throw new Error('Failed to fetch Google Drive credentials');
 	}

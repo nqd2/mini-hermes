@@ -7,8 +7,8 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from open_webui.models.models import ModelModel
-from open_webui.routers import models
+from weai.models.models import ModelModel
+from weai.routers import models
 
 
 @pytest.fixture

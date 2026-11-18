@@ -13,20 +13,20 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.backup import dump_v2_database, restore_v2_database
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.models import (
-    MhChat,
-    MhChatMessage,
-    MhDocument,
-    MhDocumentRevision,
-    MhIdempotencyRecord,
-    MhObjectRegistry,
-    MhOutbox,
-    MhUser,
+from weai.persistence.v2.backup import dump_v2_database, restore_v2_database
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.models import (
+    WeAIChat,
+    WeAIChatMessage,
+    WeAIDocument,
+    WeAIDocumentRevision,
+    WeAIIdempotencyRecord,
+    WeAIObjectRegistry,
+    WeAIOutbox,
+    WeAIUser,
     utcnow,
 )
-from open_webui.mini_hermes.v2.verify_backup import verify_database_parity
+from weai.persistence.v2.verify_backup import verify_database_parity
 
 
 @pytest.fixture(scope="module")
@@ -39,18 +39,18 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def dual_pg_schemas():
     """Fixture providing two disposable schemas: source and target."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
-    src_schema = f"mh_test_adv_src_{uuid4().hex}"
-    tgt_schema = f"mh_test_adv_tgt_{uuid4().hex}"
+    src_schema = f"ar_test_adv_src_{uuid4().hex}"
+    tgt_schema = f"ar_test_adv_tgt_{uuid4().hex}"
 
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     src_url = url.set(query={**dict(url.query), "options": f"-csearch_path={src_schema}"})
@@ -101,7 +101,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
     src_engine = create_async_engine(src_url)
     session_factory = async_sessionmaker(src_engine, expire_on_commit=False)
 
-    large_text = "Dữ liệu tiếng Việt có dấu: " + ("Tôi yêu Mini-Hermes V2! 🚀 " * 2000)
+    large_text = "Dữ liệu tiếng Việt có dấu: " + ("Tôi yêu Agent Runtime V2! 🚀 " * 2000)
     assert len(large_text) > 50000
 
     extreme_json = {
@@ -139,7 +139,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
         async with session_factory() as session:
             async with session.begin():
                 # 1. Extreme User
-                user = MhUser(
+                user = WeAIUser(
                     id=user_id,
                     email="nguyen.van.kiemthu@example.com.vn",
                     name="Nguyễn Văn Kiểm Thử (Đặc nhiệm Persist 🚀)",
@@ -155,7 +155,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
                 await session.flush()
 
                 # 2. Object Registry
-                obj_reg = MhObjectRegistry(
+                obj_reg = WeAIObjectRegistry(
                     checksum_sha256=obj_sha256,
                     canonical_object_key="v2/objects/extreme_test_object.dat",
                     byte_size=9_223_372_036_854_775_000,  # Near max 64-bit BigInteger
@@ -168,7 +168,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
                 await session.flush()
 
                 # 3. Extreme Document
-                doc = MhDocument(
+                doc = WeAIDocument(
                     id=doc_id,
                     tenant_id="tenant-vn-2026",
                     name="Báo cáo kiểm thử bảo mật & phục hồi dữ liệu 2026 🇻🇳 — 測試",
@@ -185,7 +185,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
                 await session.flush()
 
                 # 4. Extreme Revision
-                rev = MhDocumentRevision(
+                rev = WeAIDocumentRevision(
                     id=rev_id,
                     document_id=doc_id,
                     revision_no=1,
@@ -200,7 +200,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
                 session.add(rev)
 
                 # 5. Extreme Chat & Chat Message
-                chat = MhChat(
+                chat = WeAIChat(
                     id=chat_id,
                     user_id=user_id,
                     folder_id=None,
@@ -213,14 +213,14 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
                 session.add(chat)
                 await session.flush()
 
-                msg = MhChatMessage(
+                msg = WeAIChatMessage(
                     id=uuid.uuid4(),
                     chat_id=chat_id,
                     parent_id=None,
                     turn_id="turn_001_adv",
                     role="user",
                     content=large_text,
-                    model_id="mini-hermes-v2",
+                    model_id="agent-runtime-v2",
                     tool_calls_json=[extreme_json],
                     citations_json=[{"source": "doc-1", "locator": "A1:B10", "unicode": "trích dẫn tiếng Việt"}],
                     annotations_json=extreme_json,
@@ -229,7 +229,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
                 session.add(msg)
 
                 # 6. Extreme Outbox Event
-                outbox_ev = MhOutbox(
+                outbox_ev = WeAIOutbox(
                     id=uuid.uuid4(),
                     event_key=f"outbox_adv_{uuid4().hex}",
                     event_type="document.adversarial_test",
@@ -248,7 +248,7 @@ async def test_adversarial_backup_restore_extreme_data_parity(dual_pg_schemas, t
                 session.add(outbox_ev)
 
                 # 7. Idempotency Record
-                idem = MhIdempotencyRecord(
+                idem = WeAIIdempotencyRecord(
                     id=uuid.uuid4(),
                     principal_id=str(user_id),
                     operation_kind="commit_preview",

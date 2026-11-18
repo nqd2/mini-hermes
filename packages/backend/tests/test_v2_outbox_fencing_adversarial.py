@@ -13,9 +13,9 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.models import MhOutbox, utcnow
-from open_webui.mini_hermes.v2.outbox import OutboxDispatcher, insert_outbox_event
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.models import WeAIOutbox, utcnow
+from weai.persistence.v2.outbox import OutboxDispatcher, insert_outbox_event
 
 
 @pytest.fixture(scope="module")
@@ -28,17 +28,17 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def disposable_pg_schema():
     """Fixture providing a disposable schema for testing."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
-    schema_name = f"mh_test_adv_outbox_{uuid4().hex}"
+    schema_name = f"ar_test_adv_outbox_{uuid4().hex}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
 
@@ -204,7 +204,7 @@ async def test_stale_worker_fencing_exhaustive_matrix(disposable_pg_schema):
 
         # Verify database still has generation 2 and worker_id 'worker-B'
         async with session_factory() as session:
-            ev = (await session.scalars(select(MhOutbox).where(MhOutbox.id == ev_id))).one()
+            ev = (await session.scalars(select(WeAIOutbox).where(WeAIOutbox.id == ev_id))).one()
             assert ev.lease_generation == 2
             assert ev.lease_worker_id == "worker-B"
             assert ev.last_error is None  # Worker A's record_failure was fenced out!
@@ -244,7 +244,7 @@ async def test_poison_pill_max_attempts_isolation(disposable_pg_schema):
         async with session_factory() as session:
             async with session.begin():
                 # Insert event with delivery_attempts == 10 (max_attempts)
-                ev = MhOutbox(
+                ev = WeAIOutbox(
                     id=uuid.uuid4(),
                     event_key="evt_poison_pill",
                     event_type="test.poison",

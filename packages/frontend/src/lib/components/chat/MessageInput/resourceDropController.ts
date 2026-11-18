@@ -58,7 +58,7 @@ export const createResourceDropController = <ModelValue>(
     const types = event.dataTransfer?.types ?? [];
     dependencies.setDragging(
       types.includes('Files') ||
-        types.includes('application/x-open-webui-drag'),
+        types.includes('application/x-weai-drag'),
     );
   };
 

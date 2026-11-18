@@ -8,19 +8,20 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.chunks import build_chunk_rows, extract_structured_text
-from open_webui.mini_hermes.agent_execution import initialize_task_state
-from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
-from open_webui.mini_hermes.models import Document, DocumentChunk, Folder, Revision
-from open_webui.utils.chat_runtime.resource_execution import prepare_resource_tool_result
-from open_webui.utils.json_codec import JSONCodec
+from weai.documents.chunks import build_chunk_rows, extract_structured_text
+from weai.agent_runtime.agent_execution import initialize_task_state
+from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
+from weai.documents.models import Document, DocumentChunk, Folder, Revision
+from weai.utils.chat_runtime.resource_execution import prepare_resource_tool_result
+from weai.utils.json_codec import JSONCodec
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'v2'
 
 
 @pytest_asyncio.fixture(params=['xlsx-f05-synthetic.xlsx', 'xlsx-f05-exact-57765.xlsx'], ids=['large', 'exact-57765'])
 async def indexed_workbook(monkeypatch, request):
-    from open_webui.mini_hermes import resource_service, tools
+    from weai.documents import resource_service
+    from weai.agent_runtime import tools
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
@@ -109,7 +110,7 @@ async def test_excel_v1_4000_character_pages_reconstruct_rendered_fixture(indexe
 
 @pytest.mark.asyncio
 async def test_excel_v1_citation_matches_the_page_supplied_to_model(indexed_workbook):
-    from open_webui.utils.chat_runtime.citations import get_citation_source_from_tool_result
+    from weai.utils.chat_runtime.citations import get_citation_source_from_tool_result
 
     tools, document, _ = indexed_workbook
     result = await tools.read_editable_document(document.id, offset=4100, limit=4000, __user__={'id': 'owner'})

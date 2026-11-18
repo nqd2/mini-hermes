@@ -4,12 +4,12 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.chunks import (
+from weai.documents.chunks import (
     build_chunk_rows, document_range_evidence, extract_structured_text, read_document_range, replace_document_chunks,
     search_document_chunks,
 )
-from open_webui.mini_hermes.models import DocumentChunk
-from open_webui.mini_hermes.library import SUPPORTED_RESOURCE_SUFFIXES
+from weai.documents.models import DocumentChunk
+from weai.documents.library import SUPPORTED_RESOURCE_SUFFIXES
 
 
 def test_spreadsheet_chunks_keep_sheet_row_and_cell_coordinates():

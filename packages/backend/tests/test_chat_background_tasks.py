@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.constants import TASKS
-from open_webui.utils import middleware
-from open_webui.utils.chat_runtime import background_tasks
+from weai.constants import TASKS
+from weai.utils import middleware
+from weai.utils.chat_runtime import background_tasks
 
 
 @pytest.mark.asyncio

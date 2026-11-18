@@ -54,7 +54,7 @@
 	const OFFICE_EXTS = new Set(['docx', 'xlsx', 'xls', 'pptx']);
 
 	$: fileId =
-		item?.source === 'open_webui'
+		item?.source === 'weai'
 			? (String(item.path ?? '').match(/^\/api\/v1\/files\/([^/]+)\/content$/)?.[1] ?? '')
 			: '';
 	// Content URLs have no extension; use the filename to select the preview.

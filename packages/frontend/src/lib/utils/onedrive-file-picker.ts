@@ -1,6 +1,6 @@
 import type { PopupRequest, PublicClientApplication } from '@azure/msal-browser';
 import { v4 as uuidv4 } from 'uuid';
-import { WEBUI_BASE_URL } from '$lib/constants';
+import { WEAI_BASE_URL } from '$lib/constants';
 
 class OneDriveConfig {
 	private static instance: OneDriveConfig;
@@ -33,7 +33,7 @@ class OneDriveConfig {
 	}
 
 	private async getCredentials(): Promise<void> {
-		const response = await fetch(`${WEBUI_BASE_URL}/api/config`, {
+		const response = await fetch(`${WEAI_BASE_URL}/api/config`, {
 			headers: {
 				'Content-Type': 'application/json'
 			},

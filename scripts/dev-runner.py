@@ -68,11 +68,11 @@ def show_output(name: str, process: subprocess.Popen[str]) -> None:
 def start(name: str, command: list[str], cwd: Path) -> None:
     child_env = os.environ.copy()
     if cwd == BACKEND:
-        token = dotenv_values(BACKEND / '.env').get('MH_SANDBOX_TOKEN')
+        token = dotenv_values(BACKEND / '.env').get('AGENT_RUNTIME_SANDBOX_TOKEN')
         if not token or token.startswith('replace-'):
-            raise RuntimeError('Set MH_SANDBOX_TOKEN in packages/backend/.env before starting the dev stack')
-        child_env['MH_SANDBOX_TOKEN'] = token
-        child_env.setdefault('MH_DEV_JSON_WIRE_LOG', '1')
+            raise RuntimeError('Set AGENT_RUNTIME_SANDBOX_TOKEN in packages/backend/.env before starting the dev stack')
+        child_env['AGENT_RUNTIME_SANDBOX_TOKEN'] = token
+        child_env.setdefault('AGENT_RUNTIME_DEV_JSON_WIRE_LOG', '1')
         child_env.setdefault('PYTHONIOENCODING', 'utf-8')
     process = subprocess.Popen(
         command,
@@ -117,9 +117,9 @@ def watch_backend() -> None:
     def relevant(_change: object, path: str) -> bool:
         changed = Path(path)
         return (changed.suffix == '.py' or changed == BACKEND / '.env'
-                or (BACKEND / 'open_webui' / 'mini_hermes' / 'skills') in changed.parents)
+                or (BACKEND / 'weai' / 'agent_runtime' / 'skills') in changed.parents)
 
-    for changes in watch(BACKEND / 'open_webui', BACKEND / '.env', watch_filter=relevant,
+    for changes in watch(BACKEND / 'weai', BACKEND / '.env', watch_filter=relevant,
                          stop_event=STOP, raise_interrupt=False):
         if STOP.is_set():
             return
@@ -133,13 +133,13 @@ def watch_backend() -> None:
             if process:
                 stop_process(process, tree=False)
         if not STOP.is_set():
-            start('sandbox', [PYTHON, '-m', 'open_webui.mini_hermes.sandbox_service'], BACKEND)
-            start('backend', [PYTHON, '-m', 'uvicorn', 'open_webui.main:app',
+            start('sandbox', [PYTHON, '-m', 'weai.agent_runtime.sandbox_service'], BACKEND)
+            start('backend', [PYTHON, '-m', 'uvicorn', 'weai.main:app',
                               '--host', '127.0.0.1', '--port', '8080', '--loop', 'none'], BACKEND)
             wait_for_backend()
-            start('connector', [PYTHON, '-m', 'uvicorn', 'open_webui.mini_hermes.drive:app',
+            start('connector', [PYTHON, '-m', 'uvicorn', 'weai.documents.drive:app',
                                 '--host', '127.0.0.1', '--port', '8090', '--loop', 'none'], BACKEND)
-            start('worker', [PYTHON, '-m', 'open_webui.mini_hermes.worker'], BACKEND)
+            start('worker', [PYTHON, '-m', 'weai.documents.worker'], BACKEND)
 
 
 def main() -> int:
@@ -155,16 +155,16 @@ def main() -> int:
 
     try:
         prepare_data_dir()
-        start('sandbox', [PYTHON, '-m', 'open_webui.mini_hermes.sandbox_service'], BACKEND)
-        start('backend', [PYTHON, '-m', 'uvicorn', 'open_webui.main:app',
+        start('sandbox', [PYTHON, '-m', 'weai.agent_runtime.sandbox_service'], BACKEND)
+        start('backend', [PYTHON, '-m', 'uvicorn', 'weai.main:app',
                           '--host', '127.0.0.1', '--port', '8080', '--loop', 'none'], BACKEND)
         wait_for_backend()
         if STOP.is_set():
             print('\nStopping dev stack...', flush=True)
             return 0
-        start('connector', [PYTHON, '-m', 'uvicorn', 'open_webui.mini_hermes.drive:app',
+        start('connector', [PYTHON, '-m', 'uvicorn', 'weai.documents.drive:app',
                             '--host', '127.0.0.1', '--port', '8090', '--loop', 'none'], BACKEND)
-        start('worker', [PYTHON, '-m', 'open_webui.mini_hermes.worker'], BACKEND)
+        start('worker', [PYTHON, '-m', 'weai.documents.worker'], BACKEND)
         start('frontend', [str(VITE), 'dev', '--host', '127.0.0.1'], FRONTEND)
         threading.Thread(target=watch_backend, daemon=True).start()
         print('Dev stack running. Press Ctrl+C to stop app processes.', flush=True)

@@ -1,4 +1,4 @@
-"""Selected Open WebUI terminal-gateway wire contracts, with the upstream mocked."""
+"""Selected WeAI terminal-gateway wire contracts, with the upstream mocked."""
 
 import json
 from types import SimpleNamespace
@@ -7,7 +7,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from open_webui.routers import terminals
+from weai.routers import terminals
 
 
 @pytest.mark.asyncio

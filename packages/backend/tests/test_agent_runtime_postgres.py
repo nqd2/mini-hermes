@@ -1,6 +1,6 @@
 """AgentRuntime characterization on an explicitly disposable PostgreSQL database.
 
-Each test creates and drops a randomly named schema in MH_TEST_POSTGRES_URL.
+Each test creates and drops a randomly named schema in AGENT_RUNTIME_TEST_POSTGRES_URL.
 Never point the environment variable at development or production data.
 """
 
@@ -18,12 +18,12 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.agent_runtime.models import (
+from weai.agent_runtime.models import (
     AgentArtifact, AgentCheckpoint, AgentEvent, AgentFileContent, AgentSession,
     AgentToolInvocation, AgentTurn, Base,
 )
-from open_webui.agent_runtime.repository import AgentRepository
-from open_webui.agent_runtime.runtime import AgentRuntime
+from weai.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.runtime import AgentRuntime
 
 
 @pytest.fixture(scope='module')
@@ -35,15 +35,15 @@ def event_loop_policy():
 
 @pytest_asyncio.fixture
 async def pg_repository():
-    database_url = os.getenv('MH_TEST_POSTGRES_URL')
+    database_url = os.getenv('AGENT_RUNTIME_TEST_POSTGRES_URL')
     if not database_url:
-        pytest.skip('Set MH_TEST_POSTGRES_URL to a disposable PostgreSQL database')
+        pytest.skip('Set AGENT_RUNTIME_TEST_POSTGRES_URL to a disposable PostgreSQL database')
     url = make_url(database_url)
     if url.get_backend_name() not in {'postgresql', 'postgres'}:
-        pytest.fail('MH_TEST_POSTGRES_URL must use PostgreSQL')
+        pytest.fail('AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL')
     if url.drivername == 'postgresql':
         url = url.set(drivername='postgresql+psycopg')
-    schema = f'mh_test_{uuid4().hex}'
+    schema = f'ar_test_{uuid4().hex}'
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     test_engine = None
     created = False
@@ -337,16 +337,16 @@ import sys
 import time
 from pathlib import Path
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from open_webui.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.repository import AgentRepository
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 async def start():
-    engine = create_async_engine(os.environ['MH_PHASE0_CHILD_TEST_DB'])
+    engine = create_async_engine(os.environ['AGENT_RUNTIME_PHASE0_CHILD_TEST_DB'])
     repository = AgentRepository(async_sessionmaker(engine, expire_on_commit=False))
-    run_id = os.environ['MH_PHASE0_CHILD_RUN']
-    safe = os.environ['MH_PHASE0_CHILD_SAFE'] == '1'
+    run_id = os.environ['AGENT_RUNTIME_PHASE0_CHILD_RUN']
+    safe = os.environ['AGENT_RUNTIME_PHASE0_CHILD_SAFE'] == '1'
     await repository.claim_turn_by_id(run_id, 'worker-killed', lease_seconds=1)
     await repository.save_checkpoint(run_id, {'completed_steps': ['step-1']})
     _, acquired = await repository.begin_tool_call(
@@ -355,17 +355,17 @@ async def start():
     )
     if not acquired:
         raise RuntimeError('child did not acquire tool invocation')
-    Path(os.environ['MH_PHASE0_CHILD_READY']).write_text('ready', encoding='utf-8')
+    Path(os.environ['AGENT_RUNTIME_PHASE0_CHILD_READY']).write_text('ready', encoding='utf-8')
     await asyncio.Event().wait()
 
 asyncio.run(start())
 '''
     child_env = os.environ.copy()
     child_env.update({
-        'MH_PHASE0_CHILD_TEST_DB': sessions.kw['bind'].url.render_as_string(hide_password=False),
-        'MH_PHASE0_CHILD_RUN': run.id,
-        'MH_PHASE0_CHILD_SAFE': '1' if retry_safe else '0',
-        'MH_PHASE0_CHILD_READY': str(ready),
+        'AGENT_RUNTIME_PHASE0_CHILD_TEST_DB': sessions.kw['bind'].url.render_as_string(hide_password=False),
+        'AGENT_RUNTIME_PHASE0_CHILD_RUN': run.id,
+        'AGENT_RUNTIME_PHASE0_CHILD_SAFE': '1' if retry_safe else '0',
+        'AGENT_RUNTIME_PHASE0_CHILD_READY': str(ready),
     })
     child = subprocess.Popen([sys.executable, '-c', child_code], env=child_env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -586,7 +586,7 @@ async def test_tool_updates_do_not_hold_invocation_lock_while_waiting_for_turn(p
     engine = sessions.kw['bind'].sync_engine
 
     def observe(_conn, _cursor, statement, _parameters, _context, _executemany):
-        if 'FROM mh_agent_turn' in statement and 'FOR UPDATE' in statement:
+        if 'FROM ar_agent_turn' in statement and 'FOR UPDATE' in statement:
             blocked_on_turn.set()
 
     async def update():

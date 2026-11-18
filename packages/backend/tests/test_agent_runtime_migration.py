@@ -8,7 +8,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session
 
-from open_webui.agent_runtime.models import AgentSession, Base
+from weai.agent_runtime.models import AgentSession, Base
 
 
 def test_downgrade_refuses_to_drop_durable_runtime_data():
@@ -19,7 +19,7 @@ def test_downgrade_refuses_to_drop_durable_runtime_data():
         session.commit()
 
     migration = importlib.import_module(
-        'open_webui.migrations.versions.bf4c1d7a935e_add_agent_runtime_state'
+        'weai.migrations.versions.bf4c1d7a935e_add_agent_runtime_state'
     )
     with engine.begin() as connection:
         context = MigrationContext.configure(connection)
@@ -33,7 +33,7 @@ def test_downgrade_refuses_to_drop_durable_runtime_data():
 def test_empty_runtime_schema_upgrades_downgrades_and_reupgrades():
     engine = create_engine('sqlite://')
     migration = importlib.import_module(
-        'open_webui.migrations.versions.bf4c1d7a935e_add_agent_runtime_state'
+        'weai.migrations.versions.bf4c1d7a935e_add_agent_runtime_state'
     )
     runtime_tables = {
         'agent_session', 'agent_turn', 'agent_event', 'agent_checkpoint',
@@ -62,10 +62,10 @@ def test_empty_runtime_schema_upgrades_downgrades_and_reupgrades():
 def test_runtime_and_revision_refinement_migration_backfills_bindings_and_creates_publication_tables():
     engine = create_engine('sqlite://')
     base_migration = importlib.import_module(
-        'open_webui.migrations.versions.bf4c1d7a935e_add_agent_runtime_state'
+        'weai.migrations.versions.bf4c1d7a935e_add_agent_runtime_state'
     )
     refinement = importlib.import_module(
-        'open_webui.migrations.versions.c7d2e8a9146b_agent_binding_and_revision_publication'
+        'weai.migrations.versions.c7d2e8a9146b_agent_binding_and_revision_publication'
     )
 
     with engine.begin() as connection:
@@ -73,15 +73,15 @@ def test_runtime_and_revision_refinement_migration_backfills_bindings_and_create
         with Operations.context(context):
             base_migration.upgrade()
         connection.exec_driver_sql(
-            'CREATE TABLE mh_document (id VARCHAR(36) PRIMARY KEY, current_revision INTEGER NOT NULL)'
+            'CREATE TABLE ar_document (id VARCHAR(36) PRIMARY KEY, current_revision INTEGER NOT NULL)'
         )
         connection.exec_driver_sql(
-            'CREATE TABLE mh_revision (id VARCHAR(36) PRIMARY KEY, document_id VARCHAR(36) NOT NULL, '
+            'CREATE TABLE ar_revision (id VARCHAR(36) PRIMARY KEY, document_id VARCHAR(36) NOT NULL, '
             'number INTEGER NOT NULL, object_key VARCHAR(1024) NOT NULL, sha256 VARCHAR(64) NOT NULL, '
             'size INTEGER NOT NULL, preview_id VARCHAR(36), operations TEXT, created_at DATETIME NOT NULL)'
         )
         connection.exec_driver_sql(
-            'CREATE TABLE mh_preview (id VARCHAR(36) PRIMARY KEY, document_id VARCHAR(36) NOT NULL, '
+            'CREATE TABLE ar_preview (id VARCHAR(36) PRIMARY KEY, document_id VARCHAR(36) NOT NULL, '
             'owner_id VARCHAR(255) NOT NULL, base_revision INTEGER NOT NULL, drive_version VARCHAR(255), '
             'operations TEXT NOT NULL, status VARCHAR(24) NOT NULL, preview_key VARCHAR(1024), diff TEXT, '
             'error TEXT, lease_until DATETIME, created_at DATETIME NOT NULL)'
@@ -100,9 +100,9 @@ def test_runtime_and_revision_refinement_migration_backfills_bindings_and_create
             refinement.upgrade()
 
         inspector = inspect(connection)
-        assert {'mh_revision_approval', 'mh_revision_outbox'}.issubset(set(inspector.get_table_names()))
-        assert {'patch_hash'}.issubset({column['name'] for column in inspector.get_columns('mh_preview')})
-        assert {'idempotency_key'}.issubset({column['name'] for column in inspector.get_columns('mh_revision')})
+        assert {'ar_revision_approval', 'ar_revision_outbox'}.issubset(set(inspector.get_table_names()))
+        assert {'patch_hash'}.issubset({column['name'] for column in inspector.get_columns('ar_preview')})
+        assert {'idempotency_key'}.issubset({column['name'] for column in inspector.get_columns('ar_revision')})
         row = connection.exec_driver_sql(
             'SELECT engine_type, engine_version FROM agent_session WHERE id = ?', ('session-1',)
         ).one()
@@ -110,7 +110,7 @@ def test_runtime_and_revision_refinement_migration_backfills_bindings_and_create
             'SELECT engine_run_id, engine_thread_id, tool_contract_version, skill_snapshot_version '
             'FROM agent_turn WHERE id = ?', ('turn-1',)
         ).one()
-        assert tuple(row) == ('mini-hermes.agent_runtime', 'v1')
+        assert tuple(row) == ('weai.agent_runtime', 'v1')
         assert tuple(turn) == ('legacy:turn-1', 'legacy:session-1', 'legacy-unpinned', 'legacy-unpinned')
 
         # Empty-schema downgrade/re-upgrade is safe; populated state is covered by the refusal test above.
@@ -119,12 +119,12 @@ def test_runtime_and_revision_refinement_migration_backfills_bindings_and_create
         context = MigrationContext.configure(connection)
         with Operations.context(context):
             refinement.downgrade()
-        assert {'mh_revision_approval', 'mh_revision_outbox'}.isdisjoint(set(inspect(connection).get_table_names()))
-        assert 'patch_hash' not in {column['name'] for column in inspect(connection).get_columns('mh_preview')}
+        assert {'ar_revision_approval', 'ar_revision_outbox'}.isdisjoint(set(inspect(connection).get_table_names()))
+        assert 'patch_hash' not in {column['name'] for column in inspect(connection).get_columns('ar_preview')}
 
         context = MigrationContext.configure(connection)
         with Operations.context(context):
             refinement.upgrade()
-        assert {'mh_revision_approval', 'mh_revision_outbox'}.issubset(set(inspect(connection).get_table_names()))
+        assert {'ar_revision_approval', 'ar_revision_outbox'}.issubset(set(inspect(connection).get_table_names()))
 
     engine.dispose()

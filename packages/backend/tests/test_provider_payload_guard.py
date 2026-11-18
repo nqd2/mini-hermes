@@ -2,14 +2,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from open_webui.mini_hermes.provider_guard import (
+from weai.model_routing.provider_guard import (
     ProviderCapabilityUnsupported,
     ProviderPayloadTooLarge,
     apply_capability_constraints,
     validate_chat_payload,
     validate_provider_payload,
 )
-from open_webui.utils.json_codec import JSONCodec
+from weai.utils.json_codec import JSONCodec
 
 BASE_URL = 'https://api.1min.ai/openai/v1'
 
@@ -156,7 +156,7 @@ def test_global_request_byte_budget_is_independent_of_character_budget(monkeypat
 async def test_anthropic_passthrough_validates_the_serialized_body_before_send(monkeypatch):
     from importlib import import_module
 
-    main = import_module('open_webui.main')
+    main = import_module('weai.main')
 
     payload = {
         'model': 'claude-test',
@@ -198,7 +198,7 @@ async def test_anthropic_passthrough_validates_the_serialized_body_before_send(m
     monkeypatch.setattr(main, 'get_session', get_session)
     monkeypatch.setattr(main, 'cleanup_response', cleanup_response)
     monkeypatch.setattr(
-        'open_webui.mini_hermes.provider_guard.validate_provider_payload',
+        'weai.model_routing.provider_guard.validate_provider_payload',
         validate,
     )
 

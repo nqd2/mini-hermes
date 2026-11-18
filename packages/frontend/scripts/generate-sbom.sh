@@ -80,7 +80,7 @@ generate() {
     dim "Scanning resolved manifests with Syft..."
     syft scan "dir:$WORK_DIR" \
         --output "cyclonedx-json=$OUTPUT" \
-        --source-name open-webui \
+        --source-name weai \
         --source-version "$VERSION" \
         --quiet
 

@@ -7,9 +7,9 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.agent_runtime.artifacts import AgentArtifactStore
-from open_webui.agent_runtime.models import Base
-from open_webui.agent_runtime.repository import AgentRepository
+from weai.agent_runtime.artifacts import AgentArtifactStore
+from weai.agent_runtime.models import Base
+from weai.agent_runtime.repository import AgentRepository
 
 
 class LocalObjectStore:

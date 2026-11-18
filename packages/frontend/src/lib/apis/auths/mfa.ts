@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type MfaChallenge = {
 	next_step: 'enroll' | 'verify' | 'recover';
@@ -19,7 +19,7 @@ export const mfaRequest = async (
 	body?: Record<string, unknown>,
 	token?: string
 ) => {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/auths/mfa/${path}`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/auths/mfa/${path}`, {
 		method: path === 'status' ? 'GET' : 'POST',
 		credentials: 'same-origin',
 		cache: 'no-store',

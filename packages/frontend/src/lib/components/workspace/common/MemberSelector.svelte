@@ -7,7 +7,7 @@
 
 	import { user as _user } from '$lib/stores';
 	import { getUserInfoById, searchUsers } from '$lib/apis/users';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
@@ -299,7 +299,7 @@
 												<ProfilePreview {user} side="right" align="center" sideOffset={6}>
 													<img
 														class="rounded-2xl w-6 h-6 object-cover flex-shrink-0"
-														src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
+														src={`${WEAI_API_BASE_URL}/users/${user.id}/profile/image`}
 														alt=""
 													/>
 												</ProfilePreview>

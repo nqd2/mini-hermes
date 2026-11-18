@@ -1,12 +1,12 @@
 import pytest
 
-from open_webui.mini_hermes.model_capabilities import ModelCapabilities
+from weai.model_routing.model_capabilities import ModelCapabilities
 
 
 @pytest.mark.parametrize('admitted', [False, True])
 def test_continuation_budget_is_fresh_only_once_per_admitted_run(admitted):
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
-    from open_webui.mini_hermes.execution.contracts import ExecutionBudget
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.contracts import ExecutionBudget
 
     metadata = {'resource_history_files': [{'type': 'file', 'id': 'file-1'}],
                 'continuation_id': 'continue-1'}
@@ -23,7 +23,7 @@ def test_continuation_budget_is_fresh_only_once_per_admitted_run(admitted):
         pipeline.resolve(metadata, 'summarize this file', ModelCapabilities(), pending_task_ids=[])
         assert state['budget']['model_calls'] == 1
         state['budget']['deadline'] = 0
-        from open_webui.mini_hermes.agent_execution import task_checkpoint
+        from weai.agent_runtime.agent_execution import task_checkpoint
         metadata['agent_task_state'] = task_checkpoint(state)
         pipeline.resolve(metadata, 'summarize this file', ModelCapabilities(), pending_task_ids=[])
         assert pipeline.consume_model_call(metadata) is False
@@ -34,7 +34,7 @@ def test_continuation_budget_is_fresh_only_once_per_admitted_run(admitted):
 
 @pytest.mark.asyncio
 async def test_new_file_request_resolves_state_before_read_and_answer():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     calls = []
 
@@ -61,7 +61,7 @@ async def test_new_file_request_resolves_state_before_read_and_answer():
 
 @pytest.mark.asyncio
 async def test_backend_search_satisfies_a_search_request_without_a_second_tool_call():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def search(*args, **kwargs):
         return [
@@ -81,7 +81,7 @@ async def test_backend_search_satisfies_a_search_request_without_a_second_tool_c
 
 @pytest.mark.asyncio
 async def test_greeting_does_not_read_files_and_does_not_gate_normal_answer():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def forbidden(*args, **kwargs):
         pytest.fail('Greeting must not read files')
@@ -95,7 +95,7 @@ async def test_greeting_does_not_read_files_and_does_not_gate_normal_answer():
 
 @pytest.mark.asyncio
 async def test_read_failure_is_explicit_and_cannot_release_unverified_answer():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def search(*args, **kwargs):
         raise PermissionError('access revoked')
@@ -110,8 +110,8 @@ async def test_read_failure_is_explicit_and_cannot_release_unverified_answer():
 
 @pytest.mark.asyncio
 async def test_indexing_pending_is_reported_as_pending_instead_of_missing_file():
-    from open_webui.mini_hermes.execution.contracts import ResourceIndexPending
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.contracts import ResourceIndexPending
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def search(*args, **kwargs):
         raise ResourceIndexPending(['index-job-1'])
@@ -128,7 +128,7 @@ async def test_indexing_pending_is_reported_as_pending_instead_of_missing_file()
 
 @pytest.mark.asyncio
 async def test_partial_read_cannot_complete_whole_document_summary():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def search(*args, **kwargs):
         return [
@@ -148,7 +148,7 @@ async def test_partial_read_cannot_complete_whole_document_summary():
 
 @pytest.mark.asyncio
 async def test_full_coverage_of_one_file_does_not_complete_a_multi_file_summary():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def search(*args, **kwargs):
         return [
@@ -187,7 +187,7 @@ async def test_full_coverage_of_one_file_does_not_complete_a_multi_file_summary(
 
 
 def test_resume_invalidates_coverage_when_the_resource_revision_changes():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     state = {
         'goal': 'Summarize this file',
@@ -227,8 +227,8 @@ def test_resume_invalidates_coverage_when_the_resource_revision_changes():
 
 
 def test_blocked_checkpoint_cannot_release_an_answer_with_old_revision_evidence():
-    from open_webui.mini_hermes.agent_execution import record_tool_result
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.agent_execution import record_tool_result
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     state = {
         'goal': 'What is in this file?',
@@ -276,7 +276,7 @@ def test_blocked_checkpoint_cannot_release_an_answer_with_old_revision_evidence(
 
 
 def test_follow_up_reference_keeps_task_scope_and_greeting_does_not():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     metadata = {'resource_history_files': [{'type': 'file', 'id': 'file-1'}]}
     pipeline = ResourceRequestPipeline()
@@ -296,7 +296,7 @@ def test_follow_up_reference_keeps_task_scope_and_greeting_does_not():
 
 @pytest.mark.asyncio
 async def test_greeting_does_not_resume_a_pending_background_resource_task():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def forbidden(*_args, **_kwargs):
         pytest.fail('A greeting must not read resources, even when a background task is pending')
@@ -323,7 +323,7 @@ async def test_greeting_does_not_resume_a_pending_background_resource_task():
 
 
 def test_toolless_resource_discovery_uses_bounded_metadata_without_reading_content():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     metadata = {
         'resource_history_files': [
@@ -340,8 +340,8 @@ def test_toolless_resource_discovery_uses_bounded_metadata_without_reading_conte
 
 
 def test_resuming_a_full_summary_preserves_coverage_requirement():
-    from open_webui.mini_hermes.agent_execution import initialize_task_state, record_tool_result
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.agent_execution import initialize_task_state, record_tool_result
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     state = initialize_task_state('Summarize this file')
     state['requires_complete_coverage'] = True
@@ -367,8 +367,8 @@ def test_resuming_a_full_summary_preserves_coverage_requirement():
 
 
 def test_resume_with_a_revoked_resource_scope_cannot_reuse_old_evidence():
-    from open_webui.mini_hermes.agent_execution import initialize_task_state, record_tool_result
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.agent_execution import initialize_task_state, record_tool_result
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     state = initialize_task_state('What is in this file?')
     state['resource_scope_ids'] = ['file-1']
@@ -393,7 +393,7 @@ def test_resume_with_a_revoked_resource_scope_cannot_reuse_old_evidence():
 
 
 def test_pending_checkpoint_without_tool_steps_keeps_its_goal_and_resource_scope():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     state = {
         'goal': 'Find the tuition amount in the second file',
@@ -420,8 +420,8 @@ def test_pending_checkpoint_without_tool_steps_keeps_its_goal_and_resource_scope
 
 
 def test_display_requirement_is_not_satisfied_by_resource_existence():
-    from open_webui.mini_hermes.agent_execution import record_tool_result
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.agent_execution import record_tool_result
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     metadata = {
         'resource_aware_files': True,
@@ -435,7 +435,7 @@ def test_display_requirement_is_not_satisfied_by_resource_existence():
 
 @pytest.mark.asyncio
 async def test_ambiguous_singular_reference_does_not_read_arbitrary_file():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     async def forbidden(*args, **kwargs):
         pytest.fail('Ambiguous scope must be clarified before reading')

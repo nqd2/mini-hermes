@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from open_webui.mini_hermes.v2.canonical.presentation import (
+from weai.persistence.v2.canonical.presentation import (
     CanonicalPresentationModel,
     CanonicalShape,
 )
-from open_webui.mini_hermes.v2.models.enums import ShapeType
-from open_webui.mini_hermes.v2.parsers.pptx import PptxFormatError, PptxParser
+from weai.persistence.v2.models.enums import ShapeType
+from weai.persistence.v2.parsers.pptx import PptxFormatError, PptxParser
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "v2"
 

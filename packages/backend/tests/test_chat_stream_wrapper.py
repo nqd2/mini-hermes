@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from starlette.responses import StreamingResponse
 
-from open_webui.utils.chat_runtime.stream_wrapper import StreamWrapperAdapters, wrap_chat_completion_stream
-from open_webui.utils.json_codec import JSONCodec
+from weai.utils.chat_runtime.stream_wrapper import StreamWrapperAdapters, wrap_chat_completion_stream
+from weai.utils.json_codec import JSONCodec
 
 
 def _adapters(**overrides):

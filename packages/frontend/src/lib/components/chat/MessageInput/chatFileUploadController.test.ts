@@ -171,7 +171,7 @@ describe("createChatFileUploadController", () => {
     expect(harness.dependencies.uploadToServer).toHaveBeenCalledWith(
       "token",
       expect.objectContaining({ name: "programs.xlsx" }),
-      { mini_hermes_chat_upload: true },
+      { agent_runtime_chat_upload: true },
       true,
     );
   });

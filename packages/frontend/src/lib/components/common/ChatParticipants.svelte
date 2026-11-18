@@ -2,7 +2,7 @@
 	import { getContext } from 'svelte';
 	import { Popover } from 'bits-ui';
 	import type { ChatParticipant } from '$lib/apis/folders';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import ProfilePreview from '$lib/components/channel/Messages/Message/ProfilePreview.svelte';
 
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
@@ -35,14 +35,14 @@
 
 {#snippet avatar(person: ChatParticipant, className: string)}
 	<img
-		src="{WEBUI_API_BASE_URL}/users/{person.id}/profile/image"
+		src="{WEAI_API_BASE_URL}/users/{person.id}/profile/image"
 		alt=""
 		draggable="false"
 		class="{className} rounded-full shrink-0 object-cover"
 		onerror={(event) => {
 			const image = event.currentTarget as HTMLImageElement;
 			if (!image.src.endsWith('/static/favicon.png')) {
-				image.src = `${WEBUI_BASE_URL}/static/favicon.png`;
+				image.src = `${WEAI_BASE_URL}/static/favicon.png`;
 			}
 		}}
 	/>

@@ -1,4 +1,4 @@
-from open_webui.mini_hermes.agent_execution import (
+from weai.agent_runtime.agent_execution import (
     can_answer_task,
     initialize_task_state,
     record_tool_result,
@@ -59,7 +59,7 @@ def test_completed_hierarchical_summary_satisfies_read_and_coverage_requirements
 
 
 def test_one_document_summary_does_not_complete_a_multi_resource_scope():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     state = initialize_task_state('Summarize all attached documents')
     state['requires_complete_coverage'] = True
@@ -105,7 +105,7 @@ def test_one_document_summary_does_not_complete_a_multi_resource_scope():
 
 
 def test_index_search_completion_does_not_claim_full_document_coverage():
-    from open_webui.mini_hermes.execution.pipeline import ResourceRequestPipeline
+    from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
     state = initialize_task_state('Summarize this file')
     state['requires_complete_coverage'] = True

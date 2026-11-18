@@ -30,7 +30,7 @@
 
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import { adminFeedbackCount, config } from '$lib/stores';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Select from '$lib/components/common/Select.svelte';
@@ -454,7 +454,7 @@
 										<Tooltip content={feedback?.user?.name}>
 											<div class="shrink-0">
 												<img
-													src={`${WEBUI_API_BASE_URL}/users/${feedback.user.id}/profile/image`}
+													src={`${WEAI_API_BASE_URL}/users/${feedback.user.id}/profile/image`}
 													alt={feedback?.user?.name}
 													class="size-5 rounded-full object-cover shrink-0"
 												/>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher, getContext } from 'svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 
 	import { formatFileSize, safeLinkUrl } from '$lib/utils';
 	import { settings, showFileNavPath } from '$lib/stores';
@@ -71,7 +71,7 @@
 						if (url.startsWith('http')) {
 							window.open(`${url}/content`, '_blank').focus();
 						} else {
-							window.open(`${WEBUI_API_BASE_URL}/files/${url}/content`, '_blank').focus();
+							window.open(`${WEAI_API_BASE_URL}/files/${url}/content`, '_blank').focus();
 						}
 					} else if (safeLinkUrl(url)) {
 						window.open(`${url}`, '_blank').focus();

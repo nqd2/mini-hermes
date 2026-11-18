@@ -1,6 +1,6 @@
 [project]
-name = "open-webui"
-description = "Open WebUI"
+name = "weai"
+description = "WeAI"
 authors = [
     { name = "Timothy Jaeryang Baek", email = "tim@openwebui.com" }
 ]
@@ -165,7 +165,7 @@ all = [
 ]
 
 [project.scripts]
-open-webui = "open_webui:app"
+weai = "weai:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -179,19 +179,21 @@ dev-dependencies = []
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["open_webui"]
+packages = ["weai"]
 exclude = [
     ".dockerignore",
     ".gitignore",
-    ".webui_secret_key",
+    ".weai_secret_key",
     "dev.sh",
     "requirements.txt",
     "start.sh",
     "start_windows.bat",
-    "webui.db",
+    "weai.db",
     "chroma.sqlite3",
 ]
-force-include = { "CHANGELOG.md" = "open_webui/CHANGELOG.md" }
+[tool.hatch.build.targets.wheel.force-include]
+"CHANGELOG.md" = "weai/CHANGELOG.md"
+"../frontend/build" = "weai/frontend"
 
 [tool.codespell]
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file

@@ -3,9 +3,9 @@ set -eu
 
 ENV="${1:-dev}"
 IMAGE_TAG="${2:-latest}"
-ENV_FILE="${3:-/home/vietnh/apps/mini-hermes/envs/backend.${ENV}.env}"
+ENV_FILE="${3:-/home/vietnh/apps/weai/envs/backend.${ENV}.env}"
 
-PROJECT_NAME="mini-hermes-${ENV}"
+PROJECT_NAME="weai-${ENV}"
 APP_CONTAINER="${PROJECT_NAME}-app"
 
 echo "=== [DEPLOY] Starting deployment for environment: ${ENV} with image tag: ${IMAGE_TAG} ==="

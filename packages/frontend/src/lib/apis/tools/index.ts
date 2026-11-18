@@ -1,7 +1,7 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export const toggleToolById = async (token: string, id: string) => {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/toggle`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/toggle`, {
 		method: 'POST',
 		headers: { Accept: 'application/json', authorization: `Bearer ${token}` }
 	});
@@ -15,7 +15,7 @@ export const toggleToolById = async (token: string, id: string) => {
 export const createNewTool = async (token: string, tool: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -46,7 +46,7 @@ export const createNewTool = async (token: string, tool: object) => {
 export const loadToolByUrl = async (token: string = '', url: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/load/url`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/load/url`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -83,7 +83,7 @@ export const getTools = async (token: string = '', query: string | null = null) 
 	const searchParams = new URLSearchParams();
 	if (query) searchParams.append('query', query);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -112,7 +112,7 @@ export const getTools = async (token: string = '', query: string | null = null) 
 };
 
 export const getToolSpecs = async (token: string, id: string) => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/specs`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/specs`, {
 		headers: { Accept: 'application/json', authorization: `Bearer ${token}` }
 	});
 	if (!res.ok) {
@@ -124,7 +124,7 @@ export const getToolSpecs = async (token: string, id: string) => {
 export const getToolList = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/list`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/list`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -155,7 +155,7 @@ export const getToolList = async (token: string = '') => {
 export const exportTools = async (token: string = '') => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/export`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/export`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -186,7 +186,7 @@ export const exportTools = async (token: string = '') => {
 export const getToolById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -218,7 +218,7 @@ export const getToolById = async (token: string, id: string) => {
 export const updateToolById = async (token: string, id: string, tool: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -254,7 +254,7 @@ export const updateToolById = async (token: string, id: string, tool: object) =>
 export const updateToolAccessGrants = async (token: string, id: string, accessGrants: any[]) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/access/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/access/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -283,7 +283,7 @@ export const updateToolAccessGrants = async (token: string, id: string, accessGr
 export const deleteToolById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/delete`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -315,7 +315,7 @@ export const deleteToolById = async (token: string, id: string) => {
 export const getToolValvesById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/valves`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/valves`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -347,7 +347,7 @@ export const getToolValvesById = async (token: string, id: string) => {
 export const getToolValvesSpecById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/spec`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/valves/spec`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -379,7 +379,7 @@ export const getToolValvesSpecById = async (token: string, id: string) => {
 export const updateToolValvesById = async (token: string, id: string, valves: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/valves/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -414,7 +414,7 @@ export const updateToolValvesById = async (token: string, id: string, valves: ob
 export const getUserValvesById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/user`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/valves/user`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -446,7 +446,7 @@ export const getUserValvesById = async (token: string, id: string) => {
 export const getUserValvesSpecById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/user/spec`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/valves/user/spec`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -478,7 +478,7 @@ export const getUserValvesSpecById = async (token: string, id: string) => {
 export const updateUserValvesById = async (token: string, id: string, valves: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/tools/id/${id}/valves/user/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/tools/id/${id}/valves/user/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -532,7 +532,7 @@ export const getToolHistory = async (
 	page = 1
 ): Promise<ToolHistoryEntry[]> => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history?page=${page}`,
+		`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history?page=${page}`,
 		{
 			method: 'GET',
 			headers: { authorization: `Bearer ${token}` }
@@ -548,7 +548,7 @@ export const getToolHistoryEntry = async (
 	versionId: string
 ): Promise<ToolHistoryEntry & { snapshot: ToolSnapshot }> => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`,
+		`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`,
 		{
 			method: 'GET',
 			headers: { authorization: `Bearer ${token}` }
@@ -565,7 +565,7 @@ export const getToolHistoryDiff = async (
 	toId: string
 ) => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/diff?${new URLSearchParams({ from_id: fromId, to_id: toId })}`,
+		`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/diff?${new URLSearchParams({ from_id: fromId, to_id: toId })}`,
 		{
 			method: 'GET',
 			headers: { authorization: `Bearer ${token}` }
@@ -577,7 +577,7 @@ export const getToolHistoryDiff = async (
 
 export const deleteToolHistoryVersion = async (token: string, id: string, versionId: string) => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`,
+		`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/history/${encodeURIComponent(versionId)}`,
 		{
 			method: 'DELETE',
 			headers: { authorization: `Bearer ${token}` }
@@ -589,7 +589,7 @@ export const deleteToolHistoryVersion = async (token: string, id: string, versio
 
 export const setProductionToolVersion = async (token: string, id: string, versionId: string) => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/update/version`,
+		`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(id)}/update/version`,
 		{
 			method: 'POST',
 			headers: { authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

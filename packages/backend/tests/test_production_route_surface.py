@@ -1,4 +1,4 @@
-"""The Office Agent surface excludes retired Open WebUI products."""
+"""The Office Agent surface excludes retired WeAI products."""
 
 from fastapi.routing import APIRoute
 from types import SimpleNamespace
@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from open_webui.main import app
-from open_webui import main
-from open_webui.config import DEFAULT_CONFIG
-from open_webui.models.chats import Chats
-from open_webui.utils.inbox import source_models
+from weai.main import app
+from weai import main
+from weai.config import DEFAULT_CONFIG
+from weai.models.chats import Chats
+from weai.utils.inbox import source_models
 
 
 def test_retired_product_apis_are_not_mounted():
@@ -39,10 +39,11 @@ def test_office_agent_apis_remain_mounted():
         '/api/v1/auths',
         '/api/v1/chats',
         '/api/v1/models',
-        '/api/v1/mini-hermes',
+        '/api/v1/agent-runtime',
         '/api/v1/skills',
         '/api/v1/tools',
     )
+    assert not any(path.startswith('/api/v1/mini-hermes/') for path in paths)
     for prefix in required_prefixes:
         assert any(path.startswith(prefix + '/') for path in paths), prefix
 
@@ -137,7 +138,7 @@ async def test_client_config_does_not_advertise_retired_products(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_client_config_does_not_expose_open_webui_license_data(monkeypatch):
+async def test_client_config_does_not_expose_weai_license_data(monkeypatch):
     monkeypatch.setattr(main, 'decode_token', lambda _: {'id': 'user-1'})
     monkeypatch.setattr(main, 'is_valid_token', AsyncMock(return_value=True))
     monkeypatch.setattr(main.Users, 'get_user_by_id', AsyncMock(return_value=SimpleNamespace(id='user-1', role='admin')))

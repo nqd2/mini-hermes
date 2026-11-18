@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 type KnowledgeMeta = {
 	max_file_count: number | null;
@@ -12,7 +12,7 @@ export const validateKnowledgeUpload = async (
 	removedFileIds: string[] = [],
 	fileSize?: number
 ) => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/files/validate`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/files/validate`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -33,7 +33,7 @@ export const createNewKnowledge = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -67,7 +67,7 @@ export const createNewKnowledge = async (
 export const getExternalKnowledgeConnections = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/connections`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/connections`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -95,7 +95,7 @@ export const getExternalKnowledgeConnections = async (token: string) => {
 export const createExternalKnowledgeConnection = async (token: string, connection: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/connections`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/connections`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -128,7 +128,7 @@ export const updateExternalKnowledgeConnection = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/connections/${id}`, {
 		method: 'PATCH',
 		headers: {
 			Accept: 'application/json',
@@ -157,7 +157,7 @@ export const updateExternalKnowledgeConnection = async (
 export const deleteExternalKnowledgeConnection = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/connections/${id}`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -185,7 +185,7 @@ export const deleteExternalKnowledgeConnection = async (token: string, id: strin
 export const testExternalKnowledgeConnection = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}/test`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/connections/${id}/test`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -218,7 +218,7 @@ export const testExternalKnowledgeRetrieval = async (
 	let error = null;
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/knowledge/external/connections/${id}/retrieve-test`,
+		`${WEAI_API_BASE_URL}/knowledge/external/connections/${id}/retrieve-test`,
 		{
 			method: 'POST',
 			headers: {
@@ -249,7 +249,7 @@ export const testExternalKnowledgeRetrieval = async (
 export const testExternalKnowledgeSource = async (token: string, payload: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/source/test`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/source/test`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -278,7 +278,7 @@ export const testExternalKnowledgeSource = async (token: string, payload: object
 export const createExternalKnowledgeSource = async (token: string, payload: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/source/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/source/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -307,7 +307,7 @@ export const createExternalKnowledgeSource = async (token: string, payload: obje
 export const updateExternalKnowledgeSource = async (token: string, id: string, payload: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/source/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/source/${id}`, {
 		method: 'PATCH',
 		headers: {
 			Accept: 'application/json',
@@ -336,7 +336,7 @@ export const updateExternalKnowledgeSource = async (token: string, id: string, p
 export const createExternalKnowledge = async (token: string, payload: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/external/knowledge/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/external/knowledge/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -368,7 +368,7 @@ export const getKnowledgeBases = async (token: string = '', page: number | null 
 	const searchParams = new URLSearchParams();
 	if (page) searchParams.append('page', page.toString());
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -416,7 +416,7 @@ export const searchKnowledgeBases = async (
 	if (orderBy) searchParams.append('order_by', orderBy);
 	if (direction) searchParams.append('direction', direction);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/search?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/search?${searchParams.toString()}`, {
 		method: 'GET',
 		signal,
 		headers: {
@@ -466,7 +466,7 @@ export const searchKnowledgeFiles = async (
 	if (includeContent) searchParams.append('include_content', 'true');
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/knowledge/search/files?${searchParams.toString()}`,
+		`${WEAI_API_BASE_URL}/knowledge/search/files?${searchParams.toString()}`,
 		{
 			method: 'GET',
 			headers: {
@@ -500,7 +500,7 @@ export const searchKnowledgeFiles = async (
 export const getKnowledgeById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -555,7 +555,7 @@ export const searchKnowledgeFilesById = async (
 	if (includeContent) searchParams.append('include_content', 'true');
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/knowledge/${id}/files?${searchParams.toString()}`,
+		`${WEAI_API_BASE_URL}/knowledge/${id}/files?${searchParams.toString()}`,
 		{
 			method: 'GET',
 			headers: {
@@ -589,7 +589,7 @@ export const searchKnowledgeFilesById = async (
 export const getPendingKnowledgeFiles = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/files/pending`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/files/pending`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -615,7 +615,7 @@ export const getPendingKnowledgeFiles = async (token: string, id: string) => {
 };
 
 export const streamPendingKnowledgeFiles = async (token: string, id: string) => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/files/pending?stream=true`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/files/pending?stream=true`, {
 		method: 'GET',
 		headers: {
 			Accept: 'text/event-stream',
@@ -640,7 +640,7 @@ type KnowledgeUpdateForm = {
 export const updateKnowledgeById = async (token: string, id: string, form: KnowledgeUpdateForm) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -682,7 +682,7 @@ export const updateKnowledgeAccessGrants = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/access/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/access/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -719,7 +719,7 @@ export const addFileToKnowledgeById = async (
 	const body: Record<string, string> = { file_id: fileId };
 	if (directoryId) body.directory_id = directoryId;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/file/add`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/file/add`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -752,7 +752,7 @@ export const addFileToKnowledgeById = async (
 export const updateFileFromKnowledgeById = async (token: string, id: string, fileId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/file/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/file/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -787,7 +787,7 @@ export const updateFileFromKnowledgeById = async (token: string, id: string, fil
 export const removeFileFromKnowledgeById = async (token: string, id: string, fileId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/file/remove`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/file/remove`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -822,7 +822,7 @@ export const removeFileFromKnowledgeById = async (token: string, id: string, fil
 export const resetKnowledgeById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/reset`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/reset`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -858,7 +858,7 @@ export const syncKnowledgeDiff = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/sync/diff`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/sync/diff`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -895,7 +895,7 @@ export const syncKnowledgeCleanup = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/sync/cleanup`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/sync/cleanup`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -927,7 +927,7 @@ export const syncKnowledgeCleanup = async (
 export const deleteKnowledgeById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/delete`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -959,7 +959,7 @@ export const deleteKnowledgeById = async (token: string, id: string) => {
 export const reindexKnowledgeFiles = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/reindex`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/reindex`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -987,7 +987,7 @@ export const reindexKnowledgeFiles = async (token: string) => {
 export const reindexKnowledgeMetadata = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/metadata/reindex`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/metadata/reindex`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -1015,7 +1015,7 @@ export const reindexKnowledgeMetadata = async (token: string) => {
 export const exportKnowledgeById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/export`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/export`, {
 		method: 'GET',
 		headers: {
 			authorization: `Bearer ${token}`
@@ -1051,7 +1051,7 @@ export const createKnowledgeDirectory = async (
 	const body: Record<string, string | null> = { name };
 	if (parentId) body.parent_id = parentId;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/dirs/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/dirs/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -1085,7 +1085,7 @@ export const updateKnowledgeDirectory = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/dirs/${dirId}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/dirs/${dirId}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -1123,7 +1123,7 @@ export const deleteKnowledgeDirectory = async (
 	searchParams.append('move_files', moveFiles.toString());
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/knowledge/${id}/dirs/${dirId}/delete?${searchParams.toString()}`,
+		`${WEAI_API_BASE_URL}/knowledge/${id}/dirs/${dirId}/delete?${searchParams.toString()}`,
 		{
 			method: 'DELETE',
 			headers: {
@@ -1157,7 +1157,7 @@ export const moveFileInKnowledge = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/knowledge/${id}/file/move`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/knowledge/${id}/file/move`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',

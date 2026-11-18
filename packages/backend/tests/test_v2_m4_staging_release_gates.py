@@ -32,23 +32,23 @@ from pptx.util import Inches
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.models import (
-    MhAccessGrant,
-    MhDocument,
-    MhDocumentRevision,
-    MhObjectRegistry,
-    MhOutbox,
-    MhUser,
+from weai.persistence.v2.models import (
+    WeAIAccessGrant,
+    WeAIDocument,
+    WeAIDocumentRevision,
+    WeAIObjectRegistry,
+    WeAIOutbox,
+    WeAIUser,
     PublicationState,
     V2Base,
 )
-from open_webui.mini_hermes.v2.routes import (
+from weai.persistence.v2.routes import (
     get_current_principal,
     get_v2_db,
     get_v2_store,
     router as v2_router,
 )
-from open_webui.mini_hermes.v2.storage import V2ObjectStore
+from weai.persistence.v2.storage import V2ObjectStore
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +123,7 @@ async def create_staging_app(tmp_path: Path):
 
     app = FastAPI()
     app.state.now_fn = clock
-    app.include_router(v2_router, prefix="/api/v1/mini-hermes")
+    app.include_router(v2_router, prefix="/api/v1/agent-runtime")
 
     async def _override_db():
         async with session_factory() as session:
@@ -158,15 +158,15 @@ async def _seed_doc(
     mime_type: str,
     raw_bytes: bytes,
     now: datetime,
-) -> MhDocument:
+) -> WeAIDocument:
     async with session_factory() as session:
         doc_id = uuid.uuid4()
         rev_id = uuid.uuid4()
         scoped_key, sha256 = store.put_immutable(raw_bytes)
-        obj_reg = await session.get(MhObjectRegistry, sha256)
+        obj_reg = await session.get(WeAIObjectRegistry, sha256)
         if obj_reg is None:
             session.add(
-                MhObjectRegistry(
+                WeAIObjectRegistry(
                     checksum_sha256=sha256,
                     canonical_object_key=scoped_key,
                     byte_size=len(raw_bytes),
@@ -178,7 +178,7 @@ async def _seed_doc(
                     created_at=now,
                 )
             )
-        doc = MhDocument(
+        doc = WeAIDocument(
             id=doc_id,
             tenant_id="default",
             name=name,
@@ -192,7 +192,7 @@ async def _seed_doc(
             created_at=now,
             updated_at=now,
         )
-        rev = MhDocumentRevision(
+        rev = WeAIDocumentRevision(
             id=rev_id,
             document_id=doc_id,
             revision_no=1,
@@ -260,7 +260,7 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
         async with session_factory() as session:
             session.add_all(
                 [
-                    MhUser(
+                    WeAIUser(
                         id=owner_uuid,
                         email="owner@example.com",
                         name="Owner",
@@ -268,7 +268,7 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
                         password_hash="hashed",
                         is_active=True,
                     ),
-                    MhUser(
+                    WeAIUser(
                         id=collab_uuid,
                         email="collab@example.com",
                         name="Collaborator",
@@ -276,7 +276,7 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
                         password_hash="hashed",
                         is_active=True,
                     ),
-                    MhUser(
+                    WeAIUser(
                         id=intruder_uuid,
                         email="intruder@example.com",
                         name="Intruder",
@@ -301,13 +301,13 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
 
         # 1. Intruder is denied read, preview creation, and revision listing (HTTP 403)
         res_unauth_read = await client.get(
-            f"/api/v1/mini-hermes/documents/{doc.id}/content",
+            f"/api/v1/agent-runtime/documents/{doc.id}/content",
             headers={"X-User-Id": intruder_id},
         )
         assert res_unauth_read.status_code == 403
 
         res_unauth_prev = await client.post(
-            f"/api/v1/mini-hermes/documents/{doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{doc.id}/previews",
             headers={"X-User-Id": intruder_id},
             json={
                 "operations": [
@@ -319,7 +319,7 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
 
         # 2. Grant collaborator 'edit' permission; collaborator creates preview at T0
         async with session_factory() as session:
-            grant = MhAccessGrant(
+            grant = WeAIAccessGrant(
                 id=uuid.uuid4(),
                 resource_type="document",
                 resource_id=doc.id,
@@ -332,7 +332,7 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
             await session.commit()
 
         res_collab_prev = await client.post(
-            f"/api/v1/mini-hermes/documents/{doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{doc.id}/previews",
             headers={"X-User-Id": collab_id},
             json={
                 "operations": [
@@ -347,15 +347,15 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
         # 3. Revoke collaborator's grant BEFORE commit -> commit MUST fail with HTTP 403 FORBIDDEN!
         async with session_factory() as session:
             await session.execute(
-                delete(MhAccessGrant).where(
-                    MhAccessGrant.resource_id == doc.id,
-                    MhAccessGrant.grantee_id == collab_uuid,
+                delete(WeAIAccessGrant).where(
+                    WeAIAccessGrant.resource_id == doc.id,
+                    WeAIAccessGrant.grantee_id == collab_uuid,
                 )
             )
             await session.commit()
 
         res_revoked_commit = await client.post(
-            f"/api/v1/mini-hermes/previews/{preview_id}/commit",
+            f"/api/v1/agent-runtime/previews/{preview_id}/commit",
             headers={"X-User-Id": collab_id},
             json={
                 "base_revision": 1,
@@ -368,7 +368,7 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
 
         # 4. Owner commits preview, then owner is deactivated -> idempotent replay MUST fail with HTTP 403!
         res_owner_commit = await client.post(
-            f"/api/v1/mini-hermes/previews/{preview_id}/commit",
+            f"/api/v1/agent-runtime/previews/{preview_id}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -380,13 +380,13 @@ async def test_gate_2_security_isolation_and_permission_revocation_before_commit
         assert res_owner_commit.json()["revision_no"] == 2
 
         async with session_factory() as session:
-            owner_row = await session.get(MhUser, owner_uuid)
+            owner_row = await session.get(WeAIUser, owner_uuid)
             assert owner_row is not None
             owner_row.is_active = False
             await session.commit()
 
         res_deactivated_replay = await client.post(
-            f"/api/v1/mini-hermes/previews/{preview_id}/commit",
+            f"/api/v1/agent-runtime/previews/{preview_id}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -419,7 +419,7 @@ async def test_gate_3_expiry_boundary_and_concurrent_edit_conflict(tmp_path: Pat
 
         # 1. Create preview A at T0; retry at T0 + 10m; attempt commit at T0 + 15m -> HTTP 409 expired
         res_p1 = await client.post(
-            f"/api/v1/mini-hermes/documents/{doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{doc.id}/previews",
             headers={"X-User-Id": owner_id},
             json={
                 "operations": [
@@ -433,7 +433,7 @@ async def test_gate_3_expiry_boundary_and_concurrent_edit_conflict(tmp_path: Pat
 
         clock.advance(minutes=10)
         res_retry = await client.post(
-            f"/api/v1/mini-hermes/previews/{p1['preview_id']}/retry",
+            f"/api/v1/agent-runtime/previews/{p1['preview_id']}/retry",
             headers={"X-User-Id": owner_id},
         )
         assert res_retry.status_code == 200
@@ -442,7 +442,7 @@ async def test_gate_3_expiry_boundary_and_concurrent_edit_conflict(tmp_path: Pat
         # Advance 5 more minutes (total 15m -> expired)
         clock.advance(minutes=5)
         res_expired = await client.post(
-            f"/api/v1/mini-hermes/previews/{p1['preview_id']}/commit",
+            f"/api/v1/agent-runtime/previews/{p1['preview_id']}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -455,7 +455,7 @@ async def test_gate_3_expiry_boundary_and_concurrent_edit_conflict(tmp_path: Pat
 
         # 2. Concurrent edit conflict: P2 and P3 both target base_revision 1
         res_p2 = await client.post(
-            f"/api/v1/mini-hermes/documents/{doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{doc.id}/previews",
             headers={"X-User-Id": owner_id},
             json={
                 "operations": [
@@ -464,7 +464,7 @@ async def test_gate_3_expiry_boundary_and_concurrent_edit_conflict(tmp_path: Pat
             },
         )
         res_p3 = await client.post(
-            f"/api/v1/mini-hermes/documents/{doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{doc.id}/previews",
             headers={"X-User-Id": owner_id},
             json={
                 "operations": [
@@ -478,7 +478,7 @@ async def test_gate_3_expiry_boundary_and_concurrent_edit_conflict(tmp_path: Pat
 
         # Commit P2 -> advances document to revision 2
         res_c2 = await client.post(
-            f"/api/v1/mini-hermes/previews/{p2['preview_id']}/commit",
+            f"/api/v1/agent-runtime/previews/{p2['preview_id']}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -491,7 +491,7 @@ async def test_gate_3_expiry_boundary_and_concurrent_edit_conflict(tmp_path: Pat
 
         # Attempting to commit P3 (whose base_revision is still 1) MUST fail with HTTP 409 REVISION_CONFLICT
         res_c3 = await client.post(
-            f"/api/v1/mini-hermes/previews/{p3['preview_id']}/commit",
+            f"/api/v1/agent-runtime/previews/{p3['preview_id']}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -560,7 +560,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
 
         # 1. PDF Read-Only Gate: HTTP 422 format_edit_unsupported
         res_pdf = await client.post(
-            f"/api/v1/mini-hermes/documents/{pdf_doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{pdf_doc.id}/previews",
             headers={"X-User-Id": owner_id},
             json={"operations": [{"op": "pdf.edit", "page": 1, "text": "mutate"}]},
         )
@@ -569,7 +569,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
 
         # 2. XLSX End-to-End Flow: Preview -> Stream Preview Content -> Commit -> Replay -> Rollback
         res_xlsx_prev = await client.post(
-            f"/api/v1/mini-hermes/documents/{xlsx_doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{xlsx_doc.id}/previews",
             headers={"X-User-Id": owner_id},
             json={
                 "operations": [
@@ -581,14 +581,14 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
         xlsx_prev = res_xlsx_prev.json()
 
         stream_prev = await client.get(
-            f"/api/v1/mini-hermes/previews/{xlsx_prev['preview_id']}/content",
+            f"/api/v1/agent-runtime/previews/{xlsx_prev['preview_id']}/content",
             headers={"X-User-Id": owner_id},
         )
         assert stream_prev.status_code == 200
         assert hashlib.sha256(stream_prev.content).hexdigest() == xlsx_prev["artifact_sha256"]
 
         res_xlsx_commit = await client.post(
-            f"/api/v1/mini-hermes/previews/{xlsx_prev['preview_id']}/commit",
+            f"/api/v1/agent-runtime/previews/{xlsx_prev['preview_id']}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -601,7 +601,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
 
         # Rollback XLSX from rev 2 -> rev 1 (creating compensating rev 3)
         res_xlsx_rb = await client.post(
-            f"/api/v1/mini-hermes/documents/{xlsx_doc.id}/rollback",
+            f"/api/v1/agent-runtime/documents/{xlsx_doc.id}/rollback",
             headers={"X-User-Id": owner_id},
             json={
                 "target_revision": 1,
@@ -614,7 +614,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
         assert res_xlsx_rb.json()["revision_no"] == 3
 
         revs_resp = await client.get(
-            f"/api/v1/mini-hermes/documents/{xlsx_doc.id}/revisions",
+            f"/api/v1/agent-runtime/documents/{xlsx_doc.id}/revisions",
             headers={"X-User-Id": owner_id},
         )
         assert revs_resp.status_code == 200
@@ -622,7 +622,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
 
         # 3. DOCX End-to-End Flow: Preview -> Commit -> Verify committed DOCX bytes
         res_docx_prev = await client.post(
-            f"/api/v1/mini-hermes/documents/{docx_doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{docx_doc.id}/previews",
             headers={"X-User-Id": owner_id},
             json={
                 "operations": [
@@ -639,7 +639,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
         docx_prev = res_docx_prev.json()
 
         res_docx_commit = await client.post(
-            f"/api/v1/mini-hermes/previews/{docx_prev['preview_id']}/commit",
+            f"/api/v1/agent-runtime/previews/{docx_prev['preview_id']}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -651,7 +651,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
         assert res_docx_commit.json()["revision_no"] == 2
 
         docx_content_resp = await client.get(
-            f"/api/v1/mini-hermes/documents/{docx_doc.id}/content?revision=2",
+            f"/api/v1/agent-runtime/documents/{docx_doc.id}/content?revision=2",
             headers={"X-User-Id": owner_id},
         )
         assert docx_content_resp.status_code == 200
@@ -660,7 +660,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
 
         # 4. PPTX End-to-End Flow: Preview -> Commit -> Verify committed PPTX bytes
         res_pptx_prev = await client.post(
-            f"/api/v1/mini-hermes/documents/{pptx_doc.id}/previews",
+            f"/api/v1/agent-runtime/documents/{pptx_doc.id}/previews",
             headers={"X-User-Id": owner_id},
             json={
                 "operations": [
@@ -678,7 +678,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
         pptx_prev = res_pptx_prev.json()
 
         res_pptx_commit = await client.post(
-            f"/api/v1/mini-hermes/previews/{pptx_prev['preview_id']}/commit",
+            f"/api/v1/agent-runtime/previews/{pptx_prev['preview_id']}/commit",
             headers={"X-User-Id": owner_id},
             json={
                 "base_revision": 1,
@@ -690,7 +690,7 @@ async def test_gate_4_multi_format_end_to_end_flows_and_zero_data_loss(tmp_path:
         assert res_pptx_commit.json()["revision_no"] == 2
 
         pptx_content_resp = await client.get(
-            f"/api/v1/mini-hermes/documents/{pptx_doc.id}/content?revision=2",
+            f"/api/v1/agent-runtime/documents/{pptx_doc.id}/content?revision=2",
             headers={"X-User-Id": owner_id},
         )
         assert pptx_content_resp.status_code == 200

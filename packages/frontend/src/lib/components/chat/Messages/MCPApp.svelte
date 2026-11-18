@@ -14,7 +14,7 @@
 <script lang="ts">
 	import { getContext, onDestroy, onMount } from 'svelte';
 	import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge';
-	import { WEBUI_API_BASE_URL, WEBUI_VERSION } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_VERSION } from '$lib/constants';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { injectCsp } from '$lib/utils/csp';
@@ -37,7 +37,7 @@
 	async function rpc(method: string, params: object, signal?: AbortSignal) {
 		if (closing) throw new Error('App closed');
 		const response = await fetch(
-			`${WEBUI_API_BASE_URL}/tools/id/${encodeURIComponent(`server:mcp:${app.server_id}`)}/mcp/app/rpc`,
+			`${WEAI_API_BASE_URL}/tools/id/${encodeURIComponent(`server:mcp:${app.server_id}`)}/mcp/app/rpc`,
 			{
 				method: 'POST',
 				headers: {
@@ -83,7 +83,7 @@
 		if (closing) return;
 		bridge = new AppBridge(
 			null,
-			{ name: 'Open WebUI', version: WEBUI_VERSION },
+			{ name: 'WeAI', version: WEAI_VERSION },
 			{
 				openLinks: {},
 				serverTools: {},

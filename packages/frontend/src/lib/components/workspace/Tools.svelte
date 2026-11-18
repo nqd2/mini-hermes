@@ -18,7 +18,7 @@
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 
 	import {
-		WEBUI_NAME,
+		WEAI_NAME,
 		config,
 		tools as _tools,
 		user,
@@ -333,7 +333,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Tools')} / {$WEBUI_NAME}
+		{$i18n.t('Tools')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 

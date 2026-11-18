@@ -9,7 +9,7 @@
 		showSidebar,
 		socket,
 		user,
-		WEBUI_NAME,
+		WEAI_NAME,
 		pinnedNotes
 	} from '$lib/stores';
 	import CommentsPanel, {
@@ -46,7 +46,7 @@
 		convertHeicToJpeg,
 		isHeicImage
 	} from '$lib/utils';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { uploadFile } from '$lib/apis/files';
 	import { generateOpenAIChatCompletion } from '$lib/apis/openai';
 
@@ -549,7 +549,7 @@ ${content}
 					}
 				]
 			},
-			`${WEBUI_BASE_URL}/api`
+			`${WEAI_BASE_URL}/api`
 		);
 		if (res) {
 			// Step 1: Safely extract the response string
@@ -1060,8 +1060,8 @@ ${content}
 <svelte:head>
 	<title>
 		{note?.title
-			? `${note?.title.length > 30 ? `${note?.title.slice(0, 30)}...` : note?.title} / ${$WEBUI_NAME}`
-			: `${$WEBUI_NAME}`}
+			? `${note?.title.length > 30 ? `${note?.title.slice(0, 30)}...` : note?.title} / ${$WEAI_NAME}`
+			: `${$WEAI_NAME}`}
 	</title>
 </svelte:head>
 

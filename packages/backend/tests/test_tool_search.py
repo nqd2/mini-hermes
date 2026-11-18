@@ -9,22 +9,22 @@ import pytest
 @pytest.mark.asyncio
 @pytest.mark.parametrize('configured', [True, False])
 async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_schemas(monkeypatch, configured):
-    config_module = types.ModuleType('open_webui.models.config')
+    config_module = types.ModuleType('weai.models.config')
     config_module.Config = type('Config', (), {})
-    monkeypatch.setitem(sys.modules, 'open_webui.models.config', config_module)
+    monkeypatch.setitem(sys.modules, 'weai.models.config', config_module)
 
-    misc_module = types.ModuleType('open_webui.utils.misc')
+    misc_module = types.ModuleType('weai.utils.misc')
     misc_module.add_or_update_system_message = lambda _text, messages, **_kwargs: messages
-    monkeypatch.setitem(sys.modules, 'open_webui.utils.misc', misc_module)
+    monkeypatch.setitem(sys.modules, 'weai.utils.misc', misc_module)
 
-    tool_utils = types.ModuleType('open_webui.utils.tools')
+    tool_utils = types.ModuleType('weai.utils.tools')
     tool_utils.get_async_tool_function_and_apply_extra_params = AsyncMock(return_value=lambda: None)
     tool_utils.get_builtin_function_introspection = lambda _function: {}
     tool_utils.get_builtin_tool_spec = lambda function: {
         'name': function.__name__, 'description': '', 'parameters': {'type': 'object'}
     }
-    monkeypatch.setitem(sys.modules, 'open_webui.utils.tools', tool_utils)
-    tool_search = import_module('open_webui.utils.tool_search')
+    monkeypatch.setitem(sys.modules, 'weai.utils.tools', tool_utils)
+    tool_search = import_module('weai.utils.tool_search')
 
     monkeypatch.setattr(
         tool_search,
@@ -32,13 +32,13 @@ async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_
         AsyncMock(return_value={'defer_threshold': 1, 'always_loaded': [], 'defer_builtin_tools': True} if configured else None),
     )
 
-    builtin_module = types.ModuleType('open_webui.tools.builtin')
+    builtin_module = types.ModuleType('weai.tools.builtin')
 
     async def search_tools(query: str):
         return []
 
     builtin_module.search_tools = search_tools
-    monkeypatch.setitem(sys.modules, 'open_webui.tools.builtin', builtin_module)
+    monkeypatch.setitem(sys.modules, 'weai.tools.builtin', builtin_module)
 
     required_tools = {'list_editable_documents', 'start_document_summary_task', 'get_document_task'}
     tools = {
@@ -64,4 +64,4 @@ async def test_document_summary_tools_stay_loaded_when_tool_search_defers_large_
     assert deferred == {'other_large_tool'}
     assert not required_tools.intersection(deferred)
     assert 'strict' not in tools['call_tool']['spec']
-    sys.modules.pop('open_webui.utils.tool_search', None)
+    sys.modules.pop('weai.utils.tool_search', None)

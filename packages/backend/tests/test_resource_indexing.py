@@ -9,7 +9,7 @@ from openpyxl import Workbook
 from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import (
+from weai.documents.models import (
     Document,
     DocumentChunk,
     Folder,
@@ -17,13 +17,13 @@ from open_webui.mini_hermes.models import (
     Revision,
     now,
 )
-from open_webui.mini_hermes.resource_indexing import (
+from weai.documents.resource_indexing import (
     MAX_INDEX_ATTEMPTS,
     enqueue_missing_resource_index_jobs,
     enqueue_resource_index_job,
     process_resource_index_job,
 )
-from open_webui.mini_hermes.service import create_document
+from weai.documents.service import create_document
 
 
 def make_docx(text: str) -> bytes:
@@ -191,7 +191,7 @@ async def test_readable_text_resource_formats_are_stored_and_queued(resource_db,
 
 @pytest.mark.asyncio
 async def test_upload_route_returns_resource_while_indexing_is_queued(resource_db, monkeypatch):
-    from open_webui.mini_hermes import routes
+    from weai.documents import routes
 
     store = MemoryStore()
     monkeypatch.setattr(routes, 'ObjectStore', lambda: store)
@@ -216,7 +216,7 @@ async def test_upload_route_returns_resource_while_indexing_is_queued(resource_d
 
 @pytest.mark.asyncio
 async def test_indexing_feature_flag_restores_synchronous_rollback(resource_db, monkeypatch):
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'false')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'false')
     async with resource_db() as db:
         document = await create_document(
             db,
@@ -258,7 +258,7 @@ async def test_index_job_is_idempotent_and_indexes_its_exact_revision(resource_d
         duplicate = await enqueue_resource_index_job(db, document.id, 1)
         assert duplicate.id == job.id
 
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
     monkeypatch.setattr(worker, 'AsyncSessionLocal', resource_db)
     assert await worker.claim_resource_index_job() == job.id
@@ -291,7 +291,7 @@ async def test_index_job_is_idempotent_and_indexes_its_exact_revision(resource_d
 
 @pytest.mark.asyncio
 async def test_expired_index_job_at_retry_ceiling_becomes_terminal(resource_db, monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
     monkeypatch.setattr(worker, 'AsyncSessionLocal', resource_db)
     document = Document(

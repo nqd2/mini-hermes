@@ -17,10 +17,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from open_webui.agent_runtime.models import AgentSession
-from open_webui.internal.db import get_async_db, get_async_db_context
-from open_webui.mini_hermes.models import Document
-from open_webui.models.users import User
+from weai.agent_runtime.models import AgentSession
+from weai.internal.db import get_async_db, get_async_db_context
+from weai.documents.models import Document
+from weai.models.users import User
 
 
 @pytest.mark.asyncio

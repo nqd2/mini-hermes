@@ -21,9 +21,9 @@ class FakeDB:
 
 @pytest.mark.asyncio
 async def test_register_chat_upload_adopts_file_and_preserves_source_identity(tmp_path, monkeypatch):
-    from open_webui.mini_hermes import resource_uploads
-    from open_webui.models import files as file_models
-    from open_webui.storage import provider
+    from weai.documents import resource_uploads
+    from weai.models import files as file_models
+    from weai.storage import provider
 
     source = tmp_path / 'uploaded.docx'
     source.write_bytes(b'office-document')
@@ -74,7 +74,7 @@ async def test_register_chat_upload_adopts_file_and_preserves_source_identity(tm
 
 @pytest.mark.asyncio
 async def test_register_chat_upload_is_idempotent_and_does_not_cross_owners():
-    from open_webui.mini_hermes.resource_uploads import register_chat_upload
+    from weai.documents.resource_uploads import register_chat_upload
 
     owned = SimpleNamespace(owner_id='alice')
     foreign = SimpleNamespace(owner_id='bob')

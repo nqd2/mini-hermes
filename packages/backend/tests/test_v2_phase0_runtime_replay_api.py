@@ -9,8 +9,8 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-main = importlib.import_module("open_webui.main")
-from open_webui.agent_runtime.runtime import AgentRuntime
+main = importlib.import_module("weai.main")
+from weai.agent_runtime.runtime import AgentRuntime
 
 
 @pytest.fixture

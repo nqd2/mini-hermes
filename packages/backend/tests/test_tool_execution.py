@@ -4,15 +4,15 @@ import pytest
 def test_chat_middleware_has_a_module_logger_for_error_paths():
     import logging
 
-    from open_webui.utils import middleware
+    from weai.utils import middleware
 
     assert isinstance(middleware.log, logging.Logger)
 
 
 @pytest.mark.asyncio
 async def test_execute_tool_call_filters_arguments_and_keeps_legacy_import():
-    from open_webui.utils import middleware
-    from open_webui.utils.chat_runtime.tool_execution import execute_tool_call
+    from weai.utils import middleware
+    from weai.utils.chat_runtime.tool_execution import execute_tool_call
 
     assert middleware.execute_tool_call is execute_tool_call
 
@@ -56,7 +56,7 @@ async def test_execute_tool_call_filters_arguments_and_keeps_legacy_import():
 
 @pytest.mark.asyncio
 async def test_independent_greeting_blocks_file_read_before_tool_execution():
-    from open_webui.utils.chat_runtime.tool_execution import execute_tool_call
+    from weai.utils.chat_runtime.tool_execution import execute_tool_call
 
     calls = []
 
@@ -93,7 +93,7 @@ async def test_independent_greeting_blocks_file_read_before_tool_execution():
 
 @pytest.mark.asyncio
 async def test_malformed_tool_arguments_return_a_tool_error_without_escaping():
-    from open_webui.utils.chat_runtime.tool_execution import execute_tool_call
+    from weai.utils.chat_runtime.tool_execution import execute_tool_call
 
     params, result, tool, tool_type, direct = await execute_tool_call(
         {},
@@ -110,7 +110,7 @@ async def test_malformed_tool_arguments_return_a_tool_error_without_escaping():
 
 
 def test_bare_upload_uuid_routes_display_file_to_the_builtin_file_tool():
-    from open_webui.utils.chat_runtime.tool_execution import _resolve_tool_target
+    from weai.utils.chat_runtime.tool_execution import _resolve_tool_target
 
     terminal = {
         'type': 'terminal',

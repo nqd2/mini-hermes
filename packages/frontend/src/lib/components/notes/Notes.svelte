@@ -20,7 +20,7 @@
 
 	import { goto } from '$app/navigation';
 	import {
-		WEBUI_NAME,
+		WEAI_NAME,
 		config,
 		user,
 		pinnedNotes,
@@ -361,7 +361,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Notes')} / {$WEBUI_NAME}
+		{$i18n.t('Notes')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 

@@ -19,7 +19,7 @@
 	} from './anchors';
 	import Markdown from '$lib/components/chat/Messages/Markdown.svelte';
 	import ProfileImage from '$lib/components/chat/Messages/ProfileImage.svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import CommentComposer from './CommentComposer.svelte';
 	import CommentReplyComposer from './CommentReplyComposer.svelte';
 	import { scrollToComment } from '$lib/utils';
@@ -394,7 +394,7 @@
 			<div class="px-3 py-2">
 				<div class="mb-2.5 flex min-w-0 items-center gap-2">
 					<ProfileImage
-						src={$user?.id ? `${WEBUI_API_BASE_URL}/users/${$user.id}/profile/image` : undefined}
+						src={$user?.id ? `${WEAI_API_BASE_URL}/users/${$user.id}/profile/image` : undefined}
 						className="-ml-1 size-6 shrink-0 rounded-full!"
 					/>
 					<span class="min-w-0 truncate text-[0.8125rem] text-gray-900 dark:text-gray-100"
@@ -452,7 +452,7 @@
 				<div class="mb-2.5 flex min-w-0 items-center gap-2">
 					<ProfileImage
 						src={comment.user?.id
-							? `${WEBUI_API_BASE_URL}/users/${comment.user.id}/profile/image`
+							? `${WEAI_API_BASE_URL}/users/${comment.user.id}/profile/image`
 							: undefined}
 						className="-ml-1 size-6 shrink-0 rounded-full!"
 					/>

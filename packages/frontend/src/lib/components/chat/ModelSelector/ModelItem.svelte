@@ -6,7 +6,7 @@
 	import { getContext, tick } from 'svelte';
 
 	import { mobile, settings, user } from '$lib/stores';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { copyToClipboard, removeFormattings, sanitizeResponseContent } from '$lib/utils';
@@ -104,7 +104,7 @@
 			<div class="flex items-center min-w-fit">
 				<Tooltip content={$user?.role === 'admin' ? (item?.value ?? '') : ''} placement="top-start">
 					<img
-						src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${item.model.id}&lang=${$i18n.language}`}
+						src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${item.model.id}&lang=${$i18n.language}`}
 						alt={$i18n.t('{{modelName}} profile image', { modelName: item.label })}
 						class="flex size-4 items-center rounded-full"
 						loading="lazy"

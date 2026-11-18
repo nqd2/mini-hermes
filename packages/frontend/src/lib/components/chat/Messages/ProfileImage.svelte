@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { safeImageUrl } from '$lib/utils/safeImageUrl';
 
 	export let className = 'size-8';
-	const FALLBACK_SRC = `${WEBUI_BASE_URL}/static/favicon.png`;
+	const FALLBACK_SRC = `${WEAI_BASE_URL}/static/favicon.png`;
 
 	export let src = FALLBACK_SRC;
 	export let allowExternal = false;

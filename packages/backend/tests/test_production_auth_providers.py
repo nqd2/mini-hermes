@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui import config
-from open_webui.routers.auths import (
+from weai import config
+from weai.routers.auths import (
     OAUTH_CONFIG_KEYS,
     OAuthConfigForm,
     get_oauth_config_values,

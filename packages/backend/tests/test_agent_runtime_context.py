@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from open_webui.agent_runtime.context import ContextManager
-from open_webui.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
-from open_webui.utils.json_codec import JSONCodec
+from weai.agent_runtime.context import ContextManager
+from weai.agent_runtime.request_budget import RequestBudgetLimits, RequestBudgetManager
+from weai.utils.json_codec import JSONCodec
 
 
 def _manager(chars: int = 1800) -> ContextManager:

@@ -9,7 +9,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from open_webui.routers import auths
+from weai.routers import auths
 
 
 @pytest.fixture
@@ -61,8 +61,8 @@ async def test_session_returns_401_detail_for_expired_token(app, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_session_route_uses_real_auth_dependency_and_rejects_automation_token(app, monkeypatch):
-    from open_webui.utils import auth as auth_utils
-    from open_webui.utils import mfa
+    from weai.utils import auth as auth_utils
+    from weai.utils import mfa
 
     app.dependency_overrides.pop(auths.get_human_user)
     app.state.redis = None
@@ -96,8 +96,8 @@ async def test_session_route_uses_real_auth_dependency_and_rejects_automation_to
 
 @pytest.mark.asyncio
 async def test_session_route_rejects_revoked_session_stamp_before_user_lookup(app, monkeypatch):
-    from open_webui.utils import auth as auth_utils
-    from open_webui.utils import mfa
+    from weai.utils import auth as auth_utils
+    from weai.utils import mfa
 
     app.dependency_overrides.pop(auths.get_human_user)
     app.state.redis = None
@@ -119,8 +119,8 @@ async def test_session_route_rejects_revoked_session_stamp_before_user_lookup(ap
 @pytest.mark.asyncio
 async def test_signout_without_redis_clears_cookie_but_does_not_revoke_bearer_token(app, monkeypatch):
     """Record the existing per-token revocation gap for the V2 auth contract."""
-    from open_webui.utils import auth as auth_utils
-    from open_webui.utils import mfa
+    from weai.utils import auth as auth_utils
+    from weai.utils import mfa
 
     app.dependency_overrides.pop(auths.get_human_user)
     app.state.redis = None

@@ -5,7 +5,7 @@
 
 	import { getGroups, getGroupById, getGroupInfoById } from '$lib/apis/groups';
 	import { getUserInfoById } from '$lib/apis/users';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import DropdownMenu from '$lib/components/common/DropdownMenu.svelte';
 	import LockClosed from '$lib/components/icons/LockClosed.svelte';
@@ -660,7 +660,7 @@
 							<ProfilePreview {user}>
 								<img
 									class="rounded-full size-5 object-cover shrink-0"
-									src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
+									src={`${WEAI_API_BASE_URL}/users/${user.id}/profile/image`}
 									alt=""
 								/>
 							</ProfilePreview>

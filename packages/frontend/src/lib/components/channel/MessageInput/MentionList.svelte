@@ -11,7 +11,7 @@
 	import Grid from '$lib/components/icons/Grid.svelte';
 	import Hashtag from '$lib/components/icons/Hashtag.svelte';
 	import Lock from '$lib/components/icons/Lock.svelte';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import { searchUsers } from '$lib/apis/users';
 	import { getChannelMembersById } from '$lib/apis/channels';
 
@@ -258,7 +258,7 @@
 								{/if}
 							{:else if item.type === 'model'}
 								<img
-									src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${item.id}&lang=${$i18n.language}`}
+									src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${item.id}&lang=${$i18n.language}`}
 									alt={item?.data?.name ?? item.id}
 									class="size-4 shrink-0 rounded-full object-cover"
 									on:error={(e) => {
@@ -267,7 +267,7 @@
 								/>
 							{:else if item.type === 'user'}
 								<img
-									src={`${WEBUI_API_BASE_URL}/users/${item.id}/profile/image`}
+									src={`${WEAI_API_BASE_URL}/users/${item.id}/profile/image`}
 									alt={item?.label ?? item.id}
 									class="size-4 shrink-0 rounded-full object-cover"
 									on:error={(e) => {

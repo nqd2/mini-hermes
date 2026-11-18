@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 
-from open_webui.utils.chat_runtime.stream_state import (
+from weai.utils.chat_runtime.stream_state import (
     combine_stream_outputs,
     get_stream_message_error_content,
     mark_stream_output_incomplete,

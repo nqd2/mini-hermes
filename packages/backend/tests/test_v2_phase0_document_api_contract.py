@@ -7,13 +7,13 @@ import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
 
-from open_webui.mini_hermes import revision_service, routes
+from weai.documents import revision_service, routes
 
 
 @pytest.fixture
 def app(monkeypatch):
     app = FastAPI()
-    app.include_router(routes.router, prefix='/api/v1/mini-hermes')
+    app.include_router(routes.router, prefix='/api/v1/agent-runtime')
     app.dependency_overrides[routes.get_verified_user] = lambda: SimpleNamespace(id='user-1', role='user')
     app.dependency_overrides[routes.get_async_session] = lambda: None
     monkeypatch.setattr(routes, 'ObjectStore', lambda: object())
@@ -35,7 +35,7 @@ async def test_commit_preserves_approval_fields_and_delegates_to_revision_servic
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
         response = await client.post(
-            '/api/v1/mini-hermes/previews/preview-1/commit',
+            '/api/v1/agent-runtime/previews/preview-1/commit',
             json=approval,
             headers={'Idempotency-Key': 'commit-1'},
         )
@@ -55,7 +55,7 @@ async def test_commit_rejects_malformed_approval_before_revision_service(app, mo
     monkeypatch.setattr(routes, 'publish_revision', publish)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
         response = await client.post(
-            '/api/v1/mini-hermes/previews/preview-1/commit',
+            '/api/v1/agent-runtime/previews/preview-1/commit',
             json={'base_revision': 1, 'base_sha256': 'invalid', 'artifact_sha256': 'b' * 64, 'patch_hash': 'c' * 64},
         )
 
@@ -72,7 +72,7 @@ async def test_preview_denies_write_without_creating_a_preview(app, monkeypatch)
     monkeypatch.setattr(routes, 'create_preview', create)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
         response = await client.post(
-            '/api/v1/mini-hermes/documents/doc-1/previews',
+            '/api/v1/agent-runtime/documents/doc-1/previews',
             json={'operations': [{'op': 'set_cell', 'sheet': 'Sheet', 'cell': 'A1', 'value': 'x'}]},
         )
 

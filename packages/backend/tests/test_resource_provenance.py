@@ -1,4 +1,4 @@
-from open_webui.mini_hermes.provenance import content_version, evidence_id
+from weai.documents.provenance import content_version, evidence_id
 
 
 def test_resource_version_and_evidence_change_when_source_changes():

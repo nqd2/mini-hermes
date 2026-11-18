@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type NotificationTarget = {
 	id: string;
@@ -51,31 +51,31 @@ const jsonRequest = async (url: string, token: string, method = 'GET', body?: ob
 };
 
 export const getNotificationEvents = async (token: string): Promise<NotificationEvent[]> => {
-	const data = await jsonRequest(`${WEBUI_API_BASE_URL}/notifications/events`, token);
+	const data = await jsonRequest(`${WEAI_API_BASE_URL}/notifications/events`, token);
 	return data?.events ?? data ?? [];
 };
 
 export const getNotificationTargets = async (
 	token: string
 ): Promise<{ targets: NotificationTarget[] }> =>
-	jsonRequest(`${WEBUI_API_BASE_URL}/notifications/targets`, token);
+	jsonRequest(`${WEAI_API_BASE_URL}/notifications/targets`, token);
 
 export const createNotificationTarget = async (
 	token: string,
 	target: Partial<NotificationTarget>
-) => jsonRequest(`${WEBUI_API_BASE_URL}/notifications/targets`, token, 'POST', target);
+) => jsonRequest(`${WEAI_API_BASE_URL}/notifications/targets`, token, 'POST', target);
 
 export const updateNotificationTarget = async (
 	token: string,
 	targetId: string,
 	target: Partial<NotificationTarget>
-) => jsonRequest(`${WEBUI_API_BASE_URL}/notifications/targets/${targetId}`, token, 'PUT', target);
+) => jsonRequest(`${WEAI_API_BASE_URL}/notifications/targets/${targetId}`, token, 'PUT', target);
 
 export const deleteNotificationTarget = async (token: string, targetId: string) =>
-	jsonRequest(`${WEBUI_API_BASE_URL}/notifications/targets/${targetId}`, token, 'DELETE');
+	jsonRequest(`${WEAI_API_BASE_URL}/notifications/targets/${targetId}`, token, 'DELETE');
 
 export const setDefaultNotificationTarget = async (token: string, targetId: string) =>
-	jsonRequest(`${WEBUI_API_BASE_URL}/notifications/targets/${targetId}/default`, token, 'PUT');
+	jsonRequest(`${WEAI_API_BASE_URL}/notifications/targets/${targetId}/default`, token, 'PUT');
 
 export const testNotificationTarget = async (token: string, targetId: string) =>
-	jsonRequest(`${WEBUI_API_BASE_URL}/notifications/targets/${targetId}/test`, token, 'POST');
+	jsonRequest(`${WEAI_API_BASE_URL}/notifications/targets/${targetId}/test`, token, 'POST');

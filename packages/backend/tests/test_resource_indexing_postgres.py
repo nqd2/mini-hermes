@@ -1,6 +1,6 @@
 """PostgreSQL integration coverage for resource index/task locking and races.
 
-Set ``MH_TEST_POSTGRES_URL`` to an isolated, disposable PostgreSQL database URL
+Set ``AGENT_RUNTIME_TEST_POSTGRES_URL`` to an isolated, disposable PostgreSQL database URL
 to enable these tests. Each test creates and drops its own random schema.
 """
 
@@ -18,7 +18,7 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.models import (
+from weai.documents.models import (
     ChatResource,
     Document,
     DocumentChunk,
@@ -35,9 +35,9 @@ from open_webui.mini_hermes.models import (
     SyncJob,
     now,
 )
-from open_webui.mini_hermes.resource_indexing import enqueue_missing_resource_index_jobs
-from open_webui.mini_hermes.revision_service import compute_patch_hash
-from open_webui.models.users import User
+from weai.documents.resource_indexing import enqueue_missing_resource_index_jobs
+from weai.documents.revision_service import compute_patch_hash
+from weai.models.users import User
 
 
 @pytest.fixture(scope='module')
@@ -50,14 +50,14 @@ def event_loop_policy():
 
 @pytest_asyncio.fixture
 async def postgres_resource_db():
-    database_url = os.getenv('MH_TEST_POSTGRES_URL')
+    database_url = os.getenv('AGENT_RUNTIME_TEST_POSTGRES_URL')
     if not database_url:
-        pytest.skip('Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests')
+        pytest.skip('Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests')
 
     url = make_url(database_url)
     if url.drivername == 'postgresql':
         url = url.set(drivername='postgresql+psycopg')
-    schema = f'mh_test_{uuid4().hex}'
+    schema = f'ar_test_{uuid4().hex}'
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     test_engine = None
     try:
@@ -114,12 +114,12 @@ async def test_chat_analysis_atomic_publication_and_scope(postgres_resource_db, 
     from io import BytesIO
     from types import SimpleNamespace
     from openpyxl import Workbook
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import document_analysis_tasks as analysis, worker
-    from open_webui.mini_hermes.document_analysis_trace import read_analysis_trace
-    from open_webui.mini_hermes.resource_tasks import request_task_cancel
-    from open_webui.models.chats import Chat
-    from open_webui.models.chat_messages import ChatMessage
+    from weai.internal import db as internal_db
+    from weai.documents import document_analysis_tasks as analysis, worker
+    from weai.documents.document_analysis_trace import read_analysis_trace
+    from weai.documents.resource_tasks import request_task_cancel
+    from weai.models.chats import Chat
+    from weai.models.chat_messages import ChatMessage
 
     sessions = postgres_resource_db
     async with sessions() as db:
@@ -234,7 +234,7 @@ async def test_chat_analysis_atomic_publication_and_scope(postgres_resource_db, 
         elif change == 'revoke':
             await db.delete(await db.get(ChatResource, 'grant'))
         elif change == 'newer_message':
-            from open_webui.models.chats import Chats
+            from weai.models.chats import Chats
 
             async with Chats.edit_message_output('analysis-chat', 'response', db=db) as message:
                 message['meta']['document_analysis']['task_id'] = 'newer-run'
@@ -340,9 +340,9 @@ async def _seed_pending_tasks(session_factory, count: int = 2) -> list[str]:
 
 @pytest.mark.asyncio
 async def test_index_worker_skips_a_locked_job(postgres_resource_db, monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(worker, 'AsyncSessionLocal', postgres_resource_db)
     first_id, second_id = await _seed_pending_jobs(postgres_resource_db)
 
@@ -369,9 +369,9 @@ async def test_index_worker_skips_a_locked_job(postgres_resource_db, monkeypatch
 
 @pytest.mark.asyncio
 async def test_parallel_index_workers_claim_distinct_jobs(postgres_resource_db, monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(worker, 'AsyncSessionLocal', postgres_resource_db)
     expected_ids = set(await _seed_pending_jobs(postgres_resource_db))
 
@@ -391,9 +391,9 @@ async def test_parallel_index_workers_claim_distinct_jobs(postgres_resource_db, 
 
 @pytest.mark.asyncio
 async def test_index_worker_reclaims_an_expired_lease(postgres_resource_db, monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(worker, 'AsyncSessionLocal', postgres_resource_db)
     (job_id,) = await _seed_pending_jobs(postgres_resource_db, count=1)
     async with postgres_resource_db() as db:
@@ -464,7 +464,7 @@ async def test_parallel_legacy_backfills_preserve_one_job_per_revision(postgres_
 
 @pytest.mark.asyncio
 async def test_resource_task_worker_skips_a_locked_task(postgres_resource_db, monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
     monkeypatch.setattr(worker, 'AsyncSessionLocal', postgres_resource_db)
     first_id, second_id = await _seed_pending_tasks(postgres_resource_db)
@@ -490,7 +490,7 @@ async def test_resource_task_worker_skips_a_locked_task(postgres_resource_db, mo
 
 @pytest.mark.asyncio
 async def test_resource_task_worker_reclaims_an_expired_lease(postgres_resource_db, monkeypatch):
-    from open_webui.mini_hermes import worker
+    from weai.documents import worker
 
     monkeypatch.setattr(worker, 'AsyncSessionLocal', postgres_resource_db)
     (task_id,) = await _seed_pending_tasks(postgres_resource_db, count=1)
@@ -512,7 +512,7 @@ async def test_resource_task_worker_reclaims_an_expired_lease(postgres_resource_
 
 @pytest.mark.asyncio
 async def test_resource_task_cancel_and_resume_commit_in_postgres(postgres_resource_db):
-    from open_webui.mini_hermes.resource_tasks import request_task_cancel, resume_summary_task
+    from weai.documents.resource_tasks import request_task_cancel, resume_summary_task
 
     document_id = 'pg-cancel-resume-document'
     task_id = 'pg-cancel-resume-task'
@@ -555,7 +555,7 @@ async def test_resource_task_cancel_and_resume_commit_in_postgres(postgres_resou
 async def test_resource_task_checkpoint_and_revision_resume_validation_in_postgres(postgres_resource_db):
     from fastapi import HTTPException
 
-    from open_webui.mini_hermes.resource_tasks import request_task_cancel, resume_summary_task
+    from weai.documents.resource_tasks import request_task_cancel, resume_summary_task
 
     document_id = 'pg-resume-checkpoint-document'
     task_id = 'pg-resume-checkpoint-task'
@@ -612,8 +612,8 @@ async def test_resource_task_checkpoint_and_revision_resume_validation_in_postgr
 async def test_resource_task_resume_rechecks_revoked_chat_acl_in_postgres(postgres_resource_db, monkeypatch):
     from fastapi import HTTPException
 
-    from open_webui.mini_hermes import tools
-    from open_webui.mini_hermes.library import set_chat_document_access
+    from weai.agent_runtime import tools
+    from weai.documents.library import set_chat_document_access
 
     document_id = 'pg-acl-resume-document'
     task_id = 'pg-acl-resume-task'
@@ -664,9 +664,9 @@ async def test_resource_task_resume_rechecks_revoked_chat_acl_in_postgres(postgr
 
 @pytest.mark.asyncio
 async def test_preview_commit_publishes_only_verified_staged_artifacts_in_postgres(postgres_resource_db, monkeypatch):
-    from open_webui.mini_hermes.service import commit_preview
+    from weai.documents.service import commit_preview
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     document_id = 'pg-staged-commit-document'
     preview_id = 'pg-staged-commit-preview'
     base = b'original artifact'
@@ -819,9 +819,9 @@ async def _seed_revision_previews(session_factory, *, count=1):
 @pytest.mark.asyncio
 async def test_concurrent_preview_commits_publish_only_one_revision_in_postgres(postgres_resource_db, monkeypatch):
     from fastapi import HTTPException
-    from open_webui.mini_hermes.revision_service import commit_preview
+    from weai.documents.revision_service import commit_preview
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     objects, previews = await _seed_revision_previews(postgres_resource_db, count=2)
 
     class MemoryStore:
@@ -856,12 +856,12 @@ async def test_permission_revocation_during_commit_blocks_publication_in_postgre
 ):
     from fastapi import HTTPException
     from sqlalchemy import delete
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.mini_hermes.revision_service import commit_preview
-    from open_webui.models.access_grants import AccessGrant
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.documents.revision_service import commit_preview
+    from weai.models.access_grants import AccessGrant
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
     # With sharing disabled the access-grant helper opens its own session; keep
     # that session in the same disposable database/schema as the publication.
@@ -874,7 +874,7 @@ async def test_permission_revocation_during_commit_blocks_publication_in_postgre
     objects, previews = await _seed_revision_previews(postgres_resource_db)
     async with postgres_resource_db() as db:
         await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
-        db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='race-doc',
+        db.add(AccessGrant(id='grant-1', resource_type='ar_document', resource_id='race-doc',
                            principal_type='user', principal_id='collaborator', permission='write', created_at=1))
         await db.commit()
 
@@ -919,18 +919,18 @@ async def test_permission_revocation_during_commit_blocks_publication_in_postgre
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('session_sharing', [True, False])
-@pytest.mark.parametrize('grant_scope', ['mh_document', 'mh_folder'])
+@pytest.mark.parametrize('grant_scope', ['ar_document', 'ar_folder'])
 async def test_permission_revoked_after_final_check_must_prevent_commit_in_postgres(
     postgres_resource_db, monkeypatch, session_sharing, grant_scope
 ):
     """A committed revocation before publication must not authorize a later commit."""
     from fastapi import HTTPException
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.mini_hermes.revision_service import commit_preview
-    from open_webui.models.access_grants import AccessGrant, AccessGrants
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.documents.revision_service import commit_preview
+    from weai.models.access_grants import AccessGrant, AccessGrants
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
 
@@ -939,10 +939,10 @@ async def test_permission_revoked_after_final_check_must_prevent_commit_in_postg
 
     monkeypatch.setattr(library, '_groups_for', no_groups)
     objects, previews = await _seed_revision_previews(postgres_resource_db)
-    grant_resource_id = 'shared-folder' if grant_scope == 'mh_folder' else 'race-doc'
+    grant_resource_id = 'shared-folder' if grant_scope == 'ar_folder' else 'race-doc'
     async with postgres_resource_db() as db:
         await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
-        if grant_scope == 'mh_folder':
+        if grant_scope == 'ar_folder':
             db.add(Folder(id='shared-folder', owner_id='owner-1', name='Shared'))
             document = await db.get(Document, 'race-doc')
             document.folder_id = 'shared-folder'
@@ -1020,14 +1020,14 @@ async def test_permission_revoked_after_final_check_must_prevent_commit_in_postg
 
 async def _seed_prototype_authorization_gate(session_factory):
     """Test-only gate: this does not install or enable any production authorization protocol."""
-    from open_webui.models.access_grants import AccessGrant
+    from weai.models.access_grants import AccessGrant
 
     objects, previews = await _seed_revision_previews(session_factory)
     async with session_factory() as db:
         await db.run_sync(lambda sync: AccessGrant.__table__.create(sync.connection(), checkfirst=True))
         await db.execute(text('CREATE TABLE phase0_auth_gate (id INTEGER PRIMARY KEY)'))
         await db.execute(text('INSERT INTO phase0_auth_gate (id) VALUES (1)'))
-        db.add(AccessGrant(id='grant-1', resource_type='mh_document', resource_id='race-doc',
+        db.add(AccessGrant(id='grant-1', resource_type='ar_document', resource_id='race-doc',
                            principal_type='user', principal_id='collaborator', permission='write', created_at=1))
         await db.commit()
     return objects, previews
@@ -1053,12 +1053,12 @@ async def test_prototype_publication_gate_serializes_revocation_after_commit(
     postgres_resource_db, monkeypatch, session_sharing
 ):
     from sqlalchemy import delete
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.mini_hermes.revision_service import commit_preview
-    from open_webui.models.access_grants import AccessGrant
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.documents.revision_service import commit_preview
+    from weai.models.access_grants import AccessGrant
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
 
@@ -1131,12 +1131,12 @@ async def test_prototype_revocation_gate_serializes_publication_after_revoke(
 ):
     from fastapi import HTTPException
     from sqlalchemy import delete
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.mini_hermes.revision_service import commit_preview
-    from open_webui.models.access_grants import AccessGrant
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.documents.revision_service import commit_preview
+    from weai.models.access_grants import AccessGrant
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
 
@@ -1201,13 +1201,13 @@ async def test_admin_demoted_during_commit_must_prevent_publication_in_postgres(
 ):
     """An authenticated role snapshot cannot outlive a committed demotion."""
     from fastapi import HTTPException
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.mini_hermes.revision_service import commit_preview
-    from open_webui.models.access_grants import AccessGrant
-    from open_webui.models.users import User, Users
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.documents.revision_service import commit_preview
+    from weai.models.access_grants import AccessGrant
+    from weai.models.users import User, Users
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
 
@@ -1291,11 +1291,11 @@ async def test_admin_demoted_during_commit_must_prevent_publication_in_postgres(
 async def test_document_move_rechecks_admin_role_after_demotion_in_postgres(postgres_resource_db, monkeypatch):
     """A route's old admin flag must not authorize a later folder move."""
     from fastapi import HTTPException
-    from open_webui.mini_hermes import library
-    from open_webui.models.access_grants import AccessGrant
-    from open_webui.models.users import User, Users
+    from weai.documents import library
+    from weai.models.access_grants import AccessGrant
+    from weai.models.users import User, Users
 
-    from open_webui.internal import db as internal_db
+    from weai.internal import db as internal_db
 
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
 
@@ -1342,7 +1342,7 @@ async def test_prototype_gate_does_not_refresh_an_existing_repeatable_read_snaps
 ):
     """A gate row lock alone cannot refresh an earlier transaction snapshot."""
     from sqlalchemy import delete, func
-    from open_webui.models.access_grants import AccessGrant
+    from weai.models.access_grants import AccessGrant
 
     await _seed_prototype_authorization_gate(postgres_resource_db)
     async with postgres_resource_db() as reader:
@@ -1367,7 +1367,7 @@ async def test_prototype_gate_first_query_waits_on_revoker_with_transaction_snap
 ):
     """Under repeatable read, a waiting first lock query can pin a stale snapshot."""
     from sqlalchemy import delete, func
-    from open_webui.models.access_grants import AccessGrant
+    from weai.models.access_grants import AccessGrant
 
     await _seed_prototype_authorization_gate(postgres_resource_db)
     reader_pid = asyncio.get_running_loop().create_future()
@@ -1400,8 +1400,8 @@ async def test_prototype_gate_first_query_waits_on_revoker_with_transaction_snap
 async def test_prototype_gate_requires_fresh_orm_role_read_in_read_committed(postgres_resource_db, monkeypatch):
     """A reused identity-map entry can outlive a committed role change."""
     from sqlalchemy import update
-    from open_webui.internal import db as internal_db
-    from open_webui.models.users import User, Users
+    from weai.internal import db as internal_db
+    from weai.models.users import User, Users
 
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', True)
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
@@ -1434,13 +1434,13 @@ async def test_owner_deactivated_during_commit_must_prevent_publication_in_postg
 ):
     """An authenticated owner cannot publish after the account is deactivated."""
     from fastapi import HTTPException
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.mini_hermes.revision_service import commit_preview
-    from open_webui.models.access_grants import AccessGrant
-    from open_webui.models.users import User, Users
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.documents.revision_service import commit_preview
+    from weai.models.access_grants import AccessGrant
+    from weai.models.users import User, Users
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
 
@@ -1523,13 +1523,13 @@ async def test_group_membership_revoked_after_check_serializes_publication_in_po
     postgres_resource_db, monkeypatch, session_sharing
 ):
     from fastapi import HTTPException
-    from open_webui.internal import db as internal_db
-    from open_webui.mini_hermes import library
-    from open_webui.mini_hermes.revision_service import commit_preview
-    from open_webui.models.access_grants import AccessGrant
-    from open_webui.models.groups import Group, GroupMember, Groups
+    from weai.internal import db as internal_db
+    from weai.documents import library
+    from weai.documents.revision_service import commit_preview
+    from weai.models.access_grants import AccessGrant
+    from weai.models.groups import Group, GroupMember, Groups
 
-    monkeypatch.setenv('MH_RESOURCE_INDEX_WORKER_ENABLED', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_RESOURCE_INDEX_WORKER_ENABLED', 'true')
     monkeypatch.setattr(internal_db, 'DATABASE_ENABLE_SESSION_SHARING', session_sharing)
     monkeypatch.setattr(internal_db, 'AsyncSessionLocal', postgres_resource_db)
     objects, previews = await _seed_revision_previews(postgres_resource_db)
@@ -1542,7 +1542,7 @@ async def test_group_membership_revoked_after_check_serializes_publication_in_po
                   created_at=1, updated_at=1),
             GroupMember(id='member-1', group_id='writers', user_id='collaborator',
                         created_at=1, updated_at=1),
-            AccessGrant(id='group-grant', resource_type='mh_document', resource_id='race-doc',
+            AccessGrant(id='group-grant', resource_type='ar_document', resource_id='race-doc',
                         principal_type='group', principal_id='writers', permission='write', created_at=1),
         ])
         await db.commit()
@@ -1604,7 +1604,7 @@ async def test_group_membership_revoked_after_check_serializes_publication_in_po
 
 @pytest.mark.asyncio
 async def test_authorization_gate_rejects_repeatable_read_snapshot(postgres_resource_db):
-    from open_webui.internal.db import lock_document_authorization
+    from weai.internal.db import lock_document_authorization
 
     async with postgres_resource_db() as db:
         await db.execute(text('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ'))

@@ -1,4 +1,4 @@
-"""Tests for Mini-Hermes V2 Checksummed Ingestion Pipeline and Resource Guards (M2.1)."""
+"""Tests for Agent Runtime V2 Checksummed Ingestion Pipeline and Resource Guards (M2.1)."""
 
 import asyncio
 import hashlib
@@ -17,8 +17,8 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
-from open_webui.mini_hermes.v2.ingestion import (
+from weai.persistence.v2.bootstrap import BootstrapConfig, bootstrap_v2_database
+from weai.persistence.v2.ingestion import (
     ChecksumMismatchError,
     CorruptFileError,
     FileSizeExceededError,
@@ -29,20 +29,20 @@ from open_webui.mini_hermes.v2.ingestion import (
     UnsupportedFormatError,
     ZipBombDetectedError,
 )
-from open_webui.mini_hermes.v2.models import (
+from weai.persistence.v2.models import (
     FormatType,
-    MhDocument,
-    MhDocumentRevision,
-    MhIngestionJob,
-    MhOutbox,
+    WeAIDocument,
+    WeAIDocumentRevision,
+    WeAIIngestionJob,
+    WeAIOutbox,
 )
-from open_webui.mini_hermes.v2.storage import V2ObjectStore
+from weai.persistence.v2.storage import V2ObjectStore
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "v2"
 
 if sys.platform == "win32":
     try:
-        from open_webui.utils.windows_asyncio import install_windows_selector_policy
+        from weai.utils.windows_asyncio import install_windows_selector_policy
 
         install_windows_selector_policy()
     except ImportError:
@@ -59,13 +59,13 @@ def event_loop_policy():
 @pytest_asyncio.fixture
 async def disposable_pg_schema():
     """Fixture providing an isolated temporary PostgreSQL schema for integration tests."""
-    db_url = os.getenv("MH_TEST_POSTGRES_URL")
+    db_url = os.getenv("AGENT_RUNTIME_TEST_POSTGRES_URL")
     if not db_url:
-        pytest.skip("Set MH_TEST_POSTGRES_URL to run PostgreSQL integration tests")
+        pytest.skip("Set AGENT_RUNTIME_TEST_POSTGRES_URL to run PostgreSQL integration tests")
 
     url = make_url(db_url)
     if url.get_backend_name() not in {"postgresql", "postgres"}:
-        pytest.fail("MH_TEST_POSTGRES_URL must use PostgreSQL")
+        pytest.fail("AGENT_RUNTIME_TEST_POSTGRES_URL must use PostgreSQL")
     if url.drivername == "postgresql":
         url = url.set(drivername="postgresql+psycopg")
 
@@ -77,7 +77,7 @@ async def disposable_pg_schema():
     except (OSError, socket.timeout):
         pytest.skip(f"PostgreSQL server at {host}:{port} is offline")
 
-    schema_name = f"mh_test_ingest_{uuid.uuid4().hex}"
+    schema_name = f"ar_test_ingest_{uuid.uuid4().hex}"
     admin_engine = create_async_engine(url, pool_pre_ping=True)
     schema_url = url.set(query={**dict(url.query), "options": f"-csearch_path={schema_name}"})
 
@@ -205,19 +205,19 @@ async def test_ingest_computes_exact_sha256_and_publishes(disposable_pg_schema):
         rev_id = uuid.UUID(result["revision_id"])
 
         async with session_factory() as session:
-            doc = await session.get(MhDocument, doc_id)
+            doc = await session.get(WeAIDocument, doc_id)
             assert doc is not None
             assert doc.current_revision_id == rev_id
             assert doc.current_revision_no == 1
             assert doc.format_type == "xlsx"
 
-            rev = await session.get(MhDocumentRevision, rev_id)
+            rev = await session.get(WeAIDocumentRevision, rev_id)
             assert rev is not None
             assert rev.checksum_sha256 == expected_hash
             assert rev.commit_status == "COMMITTED"
 
             # Check outbox event
-            stmt_outbox = select(MhOutbox).where(MhOutbox.aggregate_id == str(doc_id))
+            stmt_outbox = select(WeAIOutbox).where(WeAIOutbox.aggregate_id == str(doc_id))
             res_outbox = await session.execute(stmt_outbox)
             outbox_ev = res_outbox.scalar_one_or_none()
             assert outbox_ev is not None

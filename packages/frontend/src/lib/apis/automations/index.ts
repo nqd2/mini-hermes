@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type AutomationTerminalConfig = {
 	server_id: string;
@@ -80,7 +80,7 @@ export const getAutomationItems = async (
 		searchParams.append('folder_id', folder_id);
 	}
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/automations/list?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/automations/list?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -108,7 +108,7 @@ export const getAutomationItems = async (
 export const createAutomation = async (token: string, form: AutomationForm) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/automations/create`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/automations/create`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -137,7 +137,7 @@ export const createAutomation = async (token: string, form: AutomationForm) => {
 export const getAutomationById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/automations/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/automations/${id}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -165,7 +165,7 @@ export const getAutomationById = async (token: string, id: string) => {
 export const updateAutomationById = async (token: string, id: string, form: AutomationForm) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/automations/${id}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/automations/${id}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -194,7 +194,7 @@ export const updateAutomationById = async (token: string, id: string, form: Auto
 export const toggleAutomationById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/automations/${id}/toggle`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/automations/${id}/toggle`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -222,7 +222,7 @@ export const toggleAutomationById = async (token: string, id: string) => {
 export const runAutomationById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/automations/${id}/run`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/automations/${id}/run`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -250,7 +250,7 @@ export const runAutomationById = async (token: string, id: string) => {
 export const deleteAutomationById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/automations/${id}/delete`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/automations/${id}/delete`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -284,7 +284,7 @@ export const getAutomationRuns = async (
 	let error = null;
 
 	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/automations/${id}/runs?skip=${skip}&limit=${limit}`,
+		`${WEAI_API_BASE_URL}/automations/${id}/runs?skip=${skip}&limit=${limit}`,
 		{
 			method: 'GET',
 			headers: {

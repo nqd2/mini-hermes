@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils import middleware
-from open_webui.utils.chat_runtime import image_inputs
+from weai.utils import middleware
+from weai.utils.chat_runtime import image_inputs
 
 
 def test_get_images_from_messages_groups_latest_message_first():

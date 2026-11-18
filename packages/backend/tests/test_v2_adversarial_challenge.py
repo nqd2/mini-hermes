@@ -27,13 +27,13 @@ from docx.oxml import OxmlElement
 from docx.shared import Pt, RGBColor
 from openpyxl.workbook.properties import CalcProperties
 
-from open_webui.mini_hermes.v2.canonical.document import CanonicalDocumentModel
-from open_webui.mini_hermes.v2.canonical.spreadsheet import (
+from weai.persistence.v2.canonical.document import CanonicalDocumentModel
+from weai.persistence.v2.canonical.spreadsheet import (
     CanonicalMergedRange,
     CanonicalSpreadsheetModel,
 )
-from open_webui.mini_hermes.v2.models.enums import CachedValueState, CellDataType, SheetVisibility
-from open_webui.mini_hermes.v2.parsers.docx import (
+from weai.persistence.v2.models.enums import CachedValueState, CellDataType, SheetVisibility
+from weai.persistence.v2.parsers.docx import (
     AmbiguousMatchError,
     DocxFormatError,
     DocxParser,
@@ -41,7 +41,7 @@ from open_webui.mini_hermes.v2.parsers.docx import (
     TextNotFoundError,
     UnsupportedContentError,
 )
-from open_webui.mini_hermes.v2.parsers.xlsx import (
+from weai.persistence.v2.parsers.xlsx import (
     FormulaProtectionViolationError,
     MergedNonAnchorCellError,
     ProtectedSheetError,

@@ -6,7 +6,7 @@
 
 	import Cog6 from '$lib/components/icons/Cog6.svelte';
 	import ArenaModelModal from './ArenaModelModal.svelte';
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	export let model;
 	export let onEdit = async (_model) => true;
 
@@ -28,7 +28,7 @@
 		<div class="flex flex-col flex-1">
 			<div class="flex gap-2.5 items-center">
 				<img
-					src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model.id}`}
+					src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}`}
 					alt={resolveLocalizedResource(model, $i18n.language)}
 					class="size-8 rounded-full object-cover shrink-0"
 				/>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { OPENAI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+import { OPENAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 import {
 	chatCompletion,
 	getErrorMessage,
@@ -17,7 +17,7 @@ describe('existing OpenAI adapter transport contract', () => {
 		expect(getErrorMessage({ content })).toBe('Input budget exceeded.');
 		expect(getErrorMessage({ error: { content } })).toBe('Input budget exceeded.');
 	});
-	it('uses the Open WebUI proxy for indexed model discovery and keeps the provider error text', async () => {
+	it('uses the WeAI proxy for indexed model discovery and keeps the provider error text', async () => {
 		const fetch = vi.fn()
 			.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 'model-a' }] }) })
 			.mockResolvedValueOnce({ ok: false, json: async () => ({ error: { message: 'offline' } }) });
@@ -30,7 +30,7 @@ describe('existing OpenAI adapter transport contract', () => {
 		await expect(getOpenAIModels('session-token', 0)).rejects.toBe('OpenAI: offline');
 	});
 
-	it('sends direct model discovery to the provider with its key, outside the Open WebUI proxy', async () => {
+	it('sends direct model discovery to the provider with its key, outside the WeAI proxy', async () => {
 		const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) });
 		vi.stubGlobal('fetch', fetch);
 
@@ -63,7 +63,7 @@ describe('existing OpenAI adapter transport contract', () => {
 
 		const [response] = await chatCompletion('session-token', { model: 'model-a' });
 		expect(response).toBe(raw);
-		expect(fetch.mock.calls[0][0]).toBe(`${WEBUI_BASE_URL}/api/chat/completions`);
+		expect(fetch.mock.calls[0][0]).toBe(`${WEAI_BASE_URL}/api/chat/completions`);
 		expect(fetch.mock.calls[0][1].credentials).toBeUndefined();
 		expect(await generateOpenAIChatCompletion('session-token', { model: 'model-a' })).toEqual({
 			status: true, task_ids: ['task-1']

@@ -5,7 +5,7 @@
 	import { tick, getContext } from 'svelte';
 
 	import { models } from '$lib/stores';
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import {
 		resolveLocalizedModelDescription,
@@ -88,7 +88,7 @@
 			>
 				<div class="flex min-w-0 items-center text-black dark:text-gray-100">
 					<img
-						src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
+						src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
 						alt={resolveLocalizedModelName(model, $i18n.language) ?? model.id}
 						class="mr-2 size-4.5 rounded-full object-cover"
 						on:error={(e) => {

@@ -6,7 +6,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from open_webui.routers import chat_tasks
+from weai.routers import chat_tasks
 
 
 @pytest.mark.asyncio

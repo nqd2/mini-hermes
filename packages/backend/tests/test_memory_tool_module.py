@@ -1,7 +1,7 @@
 import pytest
 
-from open_webui.tools import builtin, memory_resources
-from open_webui.utils.json_codec import JSONCodec
+from weai.tools import builtin, memory_resources
+from weai.utils.json_codec import JSONCodec
 
 
 def _tool_user():

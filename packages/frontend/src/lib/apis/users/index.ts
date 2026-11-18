@@ -1,10 +1,10 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 import { getUserPosition } from '$lib/utils';
 
 export const getUserGroups = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/groups`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/groups`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -31,7 +31,7 @@ export const getUserGroups = async (token: string) => {
 export const getUserDefaultPermissions = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/default/permissions`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/default/permissions`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ export const getUserDefaultPermissions = async (token: string) => {
 export const updateUserDefaultPermissions = async (token: string, permissions: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/default/permissions`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/default/permissions`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -88,7 +88,7 @@ export const updateUserDefaultPermissions = async (token: string, permissions: o
 export const getUserDefaultPermissionsDefaults = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/default/permissions/defaults`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/default/permissions/defaults`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -115,7 +115,7 @@ export const getUserDefaultPermissionsDefaults = async (token: string) => {
 export const updateUserRole = async (token: string, id: string, role: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/update/role`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/update/role`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -169,7 +169,7 @@ export const getUsers = async (
 		searchParams.set('direction', direction);
 	}
 
-	res = await fetch(`${WEBUI_API_BASE_URL}/users/?${searchParams.toString()}`, {
+	res = await fetch(`${WEAI_API_BASE_URL}/users/?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -220,7 +220,7 @@ export const searchUsers = async (
 		searchParams.set('direction', direction);
 	}
 
-	res = await fetch(`${WEBUI_API_BASE_URL}/users/search?${searchParams.toString()}`, {
+	res = await fetch(`${WEAI_API_BASE_URL}/users/search?${searchParams.toString()}`, {
 		method: 'GET',
 		signal,
 		headers: {
@@ -250,7 +250,7 @@ export const getAllUsers = async (token: string) => {
 	let error = null;
 	let res = null;
 
-	res = await fetch(`${WEBUI_API_BASE_URL}/users/all`, {
+	res = await fetch(`${WEAI_API_BASE_URL}/users/all`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ export const getAllUsers = async (token: string) => {
 
 export const getUserSettings = async (token: string, raw = false) => {
 	let error = null;
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/user/settings${raw ? '?raw=true' : ''}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/user/settings${raw ? '?raw=true' : ''}`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -303,7 +303,7 @@ export const getUserSettings = async (token: string, raw = false) => {
 export const updateUserSettings = async (token: string, settings: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/user/settings/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/user/settings/update`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -333,7 +333,7 @@ export const updateUserSettings = async (token: string, settings: object) => {
 export const getUserInfoById = async (token: string, userId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/info`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/info`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -360,7 +360,7 @@ export const getUserInfoById = async (token: string, userId: string) => {
 export const updateUserStatus = async (token: string, formData: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/user/status/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/user/status/update`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -389,7 +389,7 @@ export const updateUserStatus = async (token: string, formData: object) => {
 
 export const getUserInfo = async (token: string) => {
 	let error = null;
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/user/info`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/user/info`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -416,7 +416,7 @@ export const getUserInfo = async (token: string) => {
 export const updateUserInfo = async (token: string, info: object) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/user/info/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/user/info/update`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -445,7 +445,7 @@ export const updateUserInfo = async (token: string, info: object) => {
 
 export const getUserVariables = async (token: string) => {
 	let error = null;
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/user/variables`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/user/variables`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -472,7 +472,7 @@ export const getUserVariables = async (token: string) => {
 export const updateUserVariables = async (token: string, variables: Record<string, string>) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/user/variables/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/user/variables/update`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -517,7 +517,7 @@ export const getAndUpdateUserLocation = async (token: string) => {
 export const getUserActiveStatusById = async (token: string, userId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/active`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/active`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -544,7 +544,7 @@ export const getUserActiveStatusById = async (token: string, userId: string) => 
 export const deleteUserById = async (token: string, userId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/${userId}`, {
 		method: 'DELETE',
 		headers: {
 			'Content-Type': 'application/json',
@@ -579,7 +579,7 @@ type UserUpdateForm = {
 export const updateUserById = async (token: string, userId: string, user: UserUpdateForm) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/update`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -613,7 +613,7 @@ export const updateUserById = async (token: string, userId: string, user: UserUp
 export const getUserGroupsById = async (token: string, userId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/groups`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/groups`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -640,7 +640,7 @@ export const getUserGroupsById = async (token: string, userId: string) => {
 export const getUserPreview = async (token: string, userId: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/preview`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/preview`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -724,7 +724,7 @@ export const getUserUsage = async (
 	if (options.startDate) searchParams.append('start_date', options.startDate.toString());
 	if (options.endDate) searchParams.append('end_date', options.endDate.toString());
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/users/usage?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/users/usage?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -749,7 +749,7 @@ export const getUserUsage = async (
 };
 
 export const revokeUserSessions = async (token: string, userId: string) => {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/sessions/revoke`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/sessions/revoke`, {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${token}` }
 	});
@@ -759,7 +759,7 @@ export const revokeUserSessions = async (token: string, userId: string) => {
 };
 
 export const rotateUserAPIKeyById = async (token: string, userId: string): Promise<string> => {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/api_key/rotate`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/api_key/rotate`, {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${token}` }
 	});
@@ -769,7 +769,7 @@ export const rotateUserAPIKeyById = async (token: string, userId: string): Promi
 };
 
 export const deleteUserAPIKeyById = async (token: string, userId: string) => {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/users/${userId}/api_key`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/users/${userId}/api_key`, {
 		method: 'DELETE',
 		headers: { Authorization: `Bearer ${token}` }
 	});

@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type CommentResource = {
 	resource_type: 'model' | 'knowledge' | 'prompt' | 'skill' | 'tool' | 'note' | 'chat';
@@ -52,7 +52,7 @@ export async function commentsRequest<T>(
 	body?: unknown,
 	signal?: AbortSignal
 ): Promise<T> {
-	const response = await fetch(`${WEBUI_API_BASE_URL}/comments${path}`, {
+	const response = await fetch(`${WEAI_API_BASE_URL}/comments${path}`, {
 		method,
 		signal,
 		headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.token}` },

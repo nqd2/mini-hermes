@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
-	import { getMyPlan, type Allowance } from '$lib/apis/mini-hermes/tiers';
+	import { getMyPlan, type Allowance } from '$lib/apis/model-routing/tiers';
 	import { user as sessionUser } from '$lib/stores';
 	import type { Writable } from 'svelte/store';
 

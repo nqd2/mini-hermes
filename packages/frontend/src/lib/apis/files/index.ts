@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 import { splitStream } from '$lib/utils';
 
 export const uploadFile = async (
@@ -22,7 +22,7 @@ export const uploadFile = async (
 
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/?${searchParams.toString()}`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -105,7 +105,7 @@ export const getFileProcessStatus = async (token: string, id: string) => {
 	queryParams.append('stream', 'true');
 
 	let error = null;
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${id}/process/status?${queryParams}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${id}/process/status?${queryParams}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -127,7 +127,7 @@ export const getFileProcessStatus = async (token: string, id: string) => {
 export const uploadDir = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/upload/dir`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/upload/dir`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -156,7 +156,7 @@ export const getFiles = async (token: string = '', content: boolean = false) => 
 	const searchParams = new URLSearchParams();
 	searchParams.append('content', String(content));
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/?${searchParams.toString()}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/?${searchParams.toString()}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -198,7 +198,7 @@ const searchFilesByPath = async (
 		limit: String(limit),
 		content: String(content)
 	});
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${path}?${searchParams}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${path}?${searchParams}`, {
 		headers: { Accept: 'application/json', authorization: `Bearer ${token}` }
 	});
 	if (!res.ok) {
@@ -225,7 +225,7 @@ export const searchUserFiles = (
 ) => searchFilesByPath('user/search', token, filename, skip, limit, content);
 
 const getFileCountByPath = async (path: string, token: string) => {
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${path}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${path}`, {
 		headers: { Accept: 'application/json', authorization: `Bearer ${token}` }
 	});
 	if (!res.ok) throw await res.json();
@@ -238,7 +238,7 @@ export const getUserFileCount = (token: string = '') => getFileCountByPath('user
 export const getFileById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${id}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -269,7 +269,7 @@ export const getFileById = async (token: string, id: string) => {
 export const updateFileDataContentById = async (token: string, id: string, content: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${id}/data/content/update`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${id}/data/content/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -303,7 +303,7 @@ export const updateFileDataContentById = async (token: string, id: string, conte
 export const getFileContentById = async (id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${id}/content`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${id}/content`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json'
@@ -331,7 +331,7 @@ export const getFileContentById = async (id: string) => {
 export const renameFileById = async (token: string, id: string, filename: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${id}/rename`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${id}/rename`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -360,7 +360,7 @@ export const renameFileById = async (token: string, id: string, filename: string
 export const deleteFileById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/${id}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/${id}`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -391,7 +391,7 @@ export const deleteFileById = async (token: string, id: string) => {
 export const deleteAllFiles = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/all`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/files/all`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
@@ -439,7 +439,7 @@ export const getFileBlobById = async (
 ): Promise<Blob> => {
 	const suffix = filename ? `/${encodeURIComponent(filename)}` : `?attachment=${attachment}`;
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/files/${encodeURIComponent(id)}/content${suffix}`,
+		`${WEAI_API_BASE_URL}/files/${encodeURIComponent(id)}/content${suffix}`,
 		{
 			headers: { authorization: `Bearer ${token}` },
 			signal
@@ -461,7 +461,7 @@ export const getFileIndexedText = async (
 	signal?: AbortSignal
 ): Promise<string> => {
 	const response = await fetch(
-		`${WEBUI_API_BASE_URL}/files/${encodeURIComponent(id)}/data/content`,
+		`${WEAI_API_BASE_URL}/files/${encodeURIComponent(id)}/data/content`,
 		{
 			headers: { authorization: `Bearer ${token}` },
 			signal

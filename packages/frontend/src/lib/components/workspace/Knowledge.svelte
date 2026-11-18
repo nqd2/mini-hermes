@@ -12,7 +12,7 @@
 
 	const i18n = getContext<Writable<i18nType>>('i18n');
 
-	import { WEBUI_NAME, user, workspaceActions, workspaceCounts } from '$lib/stores';
+	import { WEAI_NAME, user, workspaceActions, workspaceCounts } from '$lib/stores';
 	import {
 		deleteKnowledgeById,
 		searchKnowledgeBases,
@@ -307,7 +307,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Knowledge')} / {$WEBUI_NAME}
+		{$i18n.t('Knowledge')} / {$WEAI_NAME}
 	</title>
 </svelte:head>
 

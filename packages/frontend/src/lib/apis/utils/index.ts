@@ -1,9 +1,9 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export const getGravatarUrl = async (token: string, email: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/gravatar?email=${email}`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/utils/gravatar?email=${email}`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -30,7 +30,7 @@ export const getGravatarUrl = async (token: string, email: string) => {
 export const executeCode = async (token: string, code: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/code/execute`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/utils/code/execute`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -64,7 +64,7 @@ export const executeCode = async (token: string, code: string) => {
 export const formatPythonCode = async (token: string, code: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/code/format`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/utils/code/format`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ export const formatPythonCode = async (token: string, code: string) => {
 export const downloadDatabase = async (token: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/utils/db/download`, {
+	const res = await fetch(`${WEAI_API_BASE_URL}/utils/db/download`, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json',
@@ -115,7 +115,7 @@ export const downloadDatabase = async (token: string) => {
 			const url = window.URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = 'webui.db';
+			a.download = 'weai.db';
 			document.body.appendChild(a);
 			a.click();
 			window.URL.revokeObjectURL(url);

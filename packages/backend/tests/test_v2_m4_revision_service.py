@@ -38,24 +38,24 @@ from pptx.util import Inches
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from open_webui.mini_hermes.v2.models import (
+from weai.persistence.v2.models import (
     ApprovalStatus,
-    MhAccessGrant,
-    MhCompensatingRevision,
-    MhDocument,
-    MhDocumentApproval,
-    MhDocumentRevision,
-    MhEditPreview,
-    MhIdempotencyRecord,
-    MhObjectRegistry,
-    MhOutbox,
-    MhStagedObject,
-    MhUser,
+    WeAIAccessGrant,
+    WeAICompensatingRevision,
+    WeAIDocument,
+    WeAIDocumentApproval,
+    WeAIDocumentRevision,
+    WeAIEditPreview,
+    WeAIIdempotencyRecord,
+    WeAIObjectRegistry,
+    WeAIOutbox,
+    WeAIStagedObject,
+    WeAIUser,
     PreviewStatus,
     PublicationState,
     V2Base,
 )
-from open_webui.mini_hermes.v2.revision import (
+from weai.persistence.v2.revision import (
     ApprovalExpiredError,
     ApprovalInvalidError,
     IdempotencyConflictError,
@@ -79,12 +79,12 @@ from open_webui.mini_hermes.v2.revision import (
     validate_publication_transition,
     verify_committed_revision_bytes,
 )
-from open_webui.mini_hermes.v2.routes import (
+from weai.persistence.v2.routes import (
     get_v2_db,
     get_v2_store,
     router as v2_router,
 )
-from open_webui.mini_hermes.v2.storage import V2ObjectStore
+from weai.persistence.v2.storage import V2ObjectStore
 
 
 # ---------------------------------------------------------------------------
@@ -173,15 +173,15 @@ async def seed_document(
     mime_type: str,
     initial_bytes: bytes,
     now: datetime,
-) -> tuple[MhDocument, MhDocumentRevision]:
+) -> tuple[WeAIDocument, WeAIDocumentRevision]:
     doc_id = uuid.uuid4()
     rev_id = uuid.uuid4()
     scoped_key, sha256 = store.put_immutable(initial_bytes)
 
-    obj_reg = await session.get(MhObjectRegistry, sha256)
+    obj_reg = await session.get(WeAIObjectRegistry, sha256)
     if obj_reg is None:
         session.add(
-            MhObjectRegistry(
+            WeAIObjectRegistry(
                 checksum_sha256=sha256,
                 canonical_object_key=scoped_key,
                 byte_size=len(initial_bytes),
@@ -196,7 +196,7 @@ async def seed_document(
     else:
         obj_reg.ref_count += 1
 
-    doc = MhDocument(
+    doc = WeAIDocument(
         id=doc_id,
         tenant_id="default",
         name=name,
@@ -210,7 +210,7 @@ async def seed_document(
         created_at=now,
         updated_at=now,
     )
-    rev = MhDocumentRevision(
+    rev = WeAIDocumentRevision(
         id=rev_id,
         document_id=doc_id,
         revision_no=1,
@@ -679,8 +679,8 @@ async def test_m4_3_and_m4_4_approval_protocol_atomic_commit_and_rollback(tmp_pa
         # Verify atomic DB state: approval CONSUMED, document at rev 2, outbox event created
         approval_row = (
             await session.execute(
-                select(MhDocumentApproval).where(
-                    MhDocumentApproval.preview_id == uuid.UUID(preview_id)
+                select(WeAIDocumentApproval).where(
+                    WeAIDocumentApproval.preview_id == uuid.UUID(preview_id)
                 )
             )
         ).scalar_one()
@@ -690,7 +690,7 @@ async def test_m4_3_and_m4_4_approval_protocol_atomic_commit_and_rollback(tmp_pa
         outbox_rows = list(
             (
                 await session.execute(
-                    select(MhOutbox).where(MhOutbox.aggregate_id == str(doc.id))
+                    select(WeAIOutbox).where(WeAIOutbox.aggregate_id == str(doc.id))
                 )
             ).scalars().all()
         )
@@ -714,8 +714,8 @@ async def test_m4_3_and_m4_4_approval_protocol_atomic_commit_and_rollback(tmp_pa
 
         rev_count = (
             await session.execute(
-                select(func.count(MhDocumentRevision.id)).where(
-                    MhDocumentRevision.document_id == doc.id
+                select(func.count(WeAIDocumentRevision.id)).where(
+                    WeAIDocumentRevision.document_id == doc.id
                 )
             )
         ).scalar()
@@ -723,7 +723,7 @@ async def test_m4_3_and_m4_4_approval_protocol_atomic_commit_and_rollback(tmp_pa
 
         outbox_count = (
             await session.execute(
-                select(func.count(MhOutbox.id)).where(MhOutbox.aggregate_id == str(doc.id))
+                select(func.count(WeAIOutbox.id)).where(WeAIOutbox.aggregate_id == str(doc.id))
             )
         ).scalar()
         assert outbox_count == 1
@@ -771,8 +771,8 @@ async def test_m4_3_and_m4_4_approval_protocol_atomic_commit_and_rollback(tmp_pa
         comp_records = list(
             (
                 await session.execute(
-                    select(MhCompensatingRevision).where(
-                        MhCompensatingRevision.document_id == doc.id
+                    select(WeAICompensatingRevision).where(
+                        WeAICompensatingRevision.document_id == doc.id
                     )
                 )
             ).scalars().all()

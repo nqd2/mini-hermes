@@ -1,9 +1,9 @@
 import pytest
 from fastapi.responses import HTMLResponse
 
-from open_webui.utils.chat_runtime.tool_results import process_tool_result
-from open_webui.utils.json_codec import JSONCodec
-from open_webui.utils.mcp.apps import MCPAppResult
+from weai.utils.chat_runtime.tool_results import process_tool_result
+from weai.utils.json_codec import JSONCodec
+from weai.utils.mcp.apps import MCPAppResult
 
 
 @pytest.mark.asyncio
@@ -56,13 +56,13 @@ async def test_external_inline_html_keeps_embed_and_returns_success_context():
 
 
 def test_middleware_keeps_legacy_tool_result_import():
-    from open_webui.utils.middleware import process_tool_result as legacy_process_tool_result
+    from weai.utils.middleware import process_tool_result as legacy_process_tool_result
 
     assert legacy_process_tool_result is process_tool_result
 
 
 def test_nested_image_data_uri_is_removed_from_model_text_and_attached_as_file():
-    from open_webui.utils.chat_runtime.tool_results import extract_base64_images
+    from weai.utils.chat_runtime.tool_results import extract_base64_images
 
     image = 'data:image/png;base64,aGVsbG8='
     files = []

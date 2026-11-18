@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from open_webui.utils import middleware, tool_approval
-from open_webui.utils.chat_runtime import resource_execution
+from weai.utils import middleware, tool_approval
+from weai.utils.chat_runtime import resource_execution
 
 
 @pytest.mark.asyncio
@@ -51,7 +51,7 @@ async def test_pause_for_tool_approval_persists_queue_and_emits_active(monkeypat
     monkeypatch.setattr(tool_approval.Chats, 'upsert_message_to_chat_by_id_and_message_id', upsert)
     monkeypatch.setattr(tool_approval, 'get_event_emitter', get_emitter)
     monkeypatch.setattr(resource_execution, 'resource_task_state_metadata', lambda _metadata: {'checkpoint': 'cp-1'})
-    monkeypatch.setenv('MH_AGENT_EXECUTION_V1', 'true')
+    monkeypatch.setenv('AGENT_RUNTIME_AGENT_EXECUTION_V1', 'true')
 
     await middleware.pause_for_tool_approval('chat-1', 'assistant-1', output, {}, metadata)
 

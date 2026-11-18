@@ -5,7 +5,7 @@
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
 
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { settings } from '$lib/stores';
 	import { matchKeybinding, Shortcut } from '$lib/shortcuts';
 	import PanzoomContainer from '$lib/components/common/PanzoomContainer.svelte';
@@ -143,7 +143,7 @@
 							src.startsWith('https://')
 						) {
 							// Handle remote URLs
-							const backendOrigin = new URL(WEBUI_BASE_URL || '/', window.location.origin).origin;
+							const backendOrigin = new URL(WEAI_BASE_URL || '/', window.location.origin).origin;
 							const isBackendUrl = new URL(src, window.location.origin).origin === backendOrigin;
 
 							fetch(

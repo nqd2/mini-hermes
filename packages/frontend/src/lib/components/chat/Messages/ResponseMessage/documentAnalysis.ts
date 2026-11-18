@@ -1,4 +1,4 @@
-import { WEBUI_BASE_URL } from '$lib/constants';
+import { WEAI_BASE_URL } from '$lib/constants';
 import type { TracePage } from './documentAnalysisTrace';
 
 export type AnalysisReceipt = {
@@ -40,7 +40,7 @@ export async function readAnalysis(
 			: `evidence_offset=${evidenceOffset}&evidence_limit=10`;
 	const traceQuery = traceAfter === undefined ? '' : `&trace_after=${traceAfter}`;
 	const res = await fetch(
-		`${WEBUI_BASE_URL}/api/v1/mini-hermes/tasks/${encodeURIComponent(taskId)}?${query}${traceQuery}`,
+		`${WEAI_BASE_URL}/api/v1/agent-runtime/tasks/${encodeURIComponent(taskId)}?${query}${traceQuery}`,
 		{ headers: { Authorization: `Bearer ${localStorage.token}` }, signal }
 	);
 	if (!res.ok) throw new Error(String(res.status));
@@ -49,7 +49,7 @@ export async function readAnalysis(
 
 export async function changeAnalysis(taskId: string, action: 'cancel' | 'resume', signal: AbortSignal) {
 	const res = await fetch(
-		`${WEBUI_BASE_URL}/api/v1/mini-hermes/tasks/${encodeURIComponent(taskId)}/${action}`,
+		`${WEAI_BASE_URL}/api/v1/agent-runtime/tasks/${encodeURIComponent(taskId)}/${action}`,
 		{ method: 'POST', headers: { Authorization: `Bearer ${localStorage.token}` }, signal }
 	);
 	if (!res.ok) throw new Error(String(res.status));

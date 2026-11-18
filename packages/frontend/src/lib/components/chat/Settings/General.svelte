@@ -272,7 +272,7 @@
 						href="https://github.com/open-webui/open-webui/blob/main/docs/CONTRIBUTING.md#-translations-and-internationalization"
 						target="_blank"
 					>
-						{$i18n.t('Help us translate Open WebUI!')}
+						{$i18n.t('Help us translate Weamis!')}
 					</a>
 				</div>
 			{/if}

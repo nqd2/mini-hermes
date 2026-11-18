@@ -864,11 +864,8 @@ if ENABLE_SCIM and not SCIM_AUTH_PROVIDER:
 
 # WEBUI Identity
 
-WEBUI_NAME = os.getenv('WEBUI_NAME', 'Open WebUI')
-if WEBUI_NAME != 'Open WebUI':
-    WEBUI_NAME += ' (Open WebUI)'
-
-WEBUI_FAVICON_URL = 'https://openwebui.com/favicon.png'
+WEBUI_NAME = os.getenv('WEBUI_NAME', 'Weamis')
+WEBUI_FAVICON_URL = os.getenv('WEBUI_FAVICON_URL', '/favicon.png')
 WEBUI_BUILD_HASH = os.getenv('WEBUI_BUILD_HASH', 'dev-build')
 TRUSTED_SIGNATURE_KEY = os.getenv('TRUSTED_SIGNATURE_KEY', '')
 

@@ -1,6 +1,6 @@
 // import { version } from '../../package.json';
 
-export const APP_NAME = 'Open WebUI';
+export const APP_NAME = 'Weamis';
 
 export const WEBUI_HOSTNAME = '';
 // Empty in the backend-served build; explicit origin for a standalone dev frontend.

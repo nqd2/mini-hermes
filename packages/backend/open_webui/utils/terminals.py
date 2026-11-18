@@ -310,11 +310,11 @@ async def upload_files_to_terminal(request, user, files: list[dict], metadata: d
                 entry['terminal_path'] = result['path']
             except Exception as error:
                 log.warning('File terminal upload failed (%s)', type(error).__name__)
-                entry['terminal_error'] = 'File saved in Open WebUI, but upload to the selected terminal failed.'
+                entry['terminal_error'] = 'File saved in Weamis, but upload to the selected terminal failed.'
     except Exception as error:
         log.warning('File terminal unavailable (%s)', type(error).__name__)
         for entry in files:
-            entry['terminal_error'] = 'File saved in Open WebUI, but the selected terminal is unavailable.'
+            entry['terminal_error'] = 'File saved in Weamis, but the selected terminal is unavailable.'
 
 
 async def get_terminal_agents_md(request, user, metadata: dict, extra_params: dict | None = None) -> str | None:

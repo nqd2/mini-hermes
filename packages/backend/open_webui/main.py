@@ -324,7 +324,7 @@ https://github.com/open-webui/open-webui
     try:
         print(banner)
     except UnicodeEncodeError:
-        print(f'Open WebUI v{VERSION} - building the best AI user interface.\nhttps://github.com/open-webui/open-webui')
+        print(f'Weamis v{VERSION}')
 
 
 @asynccontextmanager
@@ -537,7 +537,7 @@ async def revision_outbox_dispatch_loop(app: FastAPI, *, interval_seconds: int =
 apply_orjson_http_json()
 
 app = FastAPI(
-    title='Open WebUI',
+    title='Weamis',
     docs_url='/docs' if ENV == 'dev' else None,
     openapi_url='/openapi.json' if ENV == 'dev' else None,
     redoc_url=None,

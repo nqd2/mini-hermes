@@ -398,7 +398,7 @@
 						{$i18n.t('What is shared:')}
 					</div>
 					<ul class="list-disc list-inside space-y-0.5 ml-1 mb-2">
-						<li>{$i18n.t('Open WebUI version')}</li>
+						<li>{$i18n.t('Weamis version')}</li>
 						<li>{$i18n.t('Model names and usage frequency')}</li>
 						<li>{$i18n.t('Message counts and response timestamps')}</li>
 						<li>{$i18n.t('Content lengths (character counts only)')}</li>

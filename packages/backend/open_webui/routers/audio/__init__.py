@@ -1148,7 +1148,7 @@ async def _transcribe_azure(request, file_path, filename, file_dir, id):
             detail = f'External: {e}'
         raise HTTPException(
             status_code=e.status if e.status else 500,
-            detail=detail if detail else 'Open WebUI: Server Connection Error',
+            detail=detail if detail else 'Weamis: Server Connection Error',
         )
 
 
@@ -1322,7 +1322,7 @@ async def _transcribe_mistral(request, file_path, filename, metadata, file_dir, 
             detail = f'External: {e}'
         raise HTTPException(
             status_code=e.status if e.status else 500,
-            detail=detail if detail else 'Open WebUI: Server Connection Error',
+            detail=detail if detail else 'Weamis: Server Connection Error',
         )
 
 

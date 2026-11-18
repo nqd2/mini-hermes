@@ -6,7 +6,7 @@ from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from weai.releases.release_manifest import ReleaseEntry, load_release
+from weai.releases.release_manifest import ReleaseEntry, latest_release_version, load_release
 from weai.utils.auth import get_verified_user
 
 log = logging.getLogger(__name__)
@@ -15,7 +15,8 @@ router = APIRouter()
 
 def configured_release() -> ReleaseEntry:
     try:
-        return load_release(os.environ.get('WEAI_RELEASE_VERSION', 'dev'))
+        version = os.environ.get('WEAI_RELEASE_VERSION') or latest_release_version()
+        return load_release(version)
     except (OSError, ValueError) as exc:
         log.error('Unable to load WeAI release notes: %s', exc)
         raise HTTPException(status_code=503, detail='WeAI release notes are unavailable') from exc

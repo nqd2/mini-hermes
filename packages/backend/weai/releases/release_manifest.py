@@ -53,5 +53,20 @@ def load_release(version: str, manifest_path: Path | None = None) -> ReleaseEntr
     return ReleaseEntry(version, date.fromisoformat(released_at), sections)
 
 
+def _version_sort_key(version: str) -> tuple[int, int, int, int, str]:
+    match = re.fullmatch(r'([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([A-Za-z0-9.-]+))?', version)
+    if not match:
+        raise ValueError(f'Invalid WeAI release version {version!r}')
+    major, minor, patch, pre = match.groups()
+    return (int(major), int(minor), int(patch), 1 if pre is None else 0, pre or '')
+
+
+def latest_release_version(manifest_path: Path | None = None) -> str:
+    manifest = json.loads((manifest_path or MANIFEST_PATH).read_text(encoding='utf-8'))
+    if not isinstance(manifest, dict) or not manifest:
+        raise ValueError('WeAI release manifest is empty')
+    return max(manifest.keys(), key=_version_sort_key)
+
+
 def validate_release_build(version: str, manifest_path: Path = MANIFEST_PATH) -> None:
     load_release(version, manifest_path)

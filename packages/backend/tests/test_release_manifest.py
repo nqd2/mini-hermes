@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'weai' / 'releases'))
-from release_manifest import load_release, validate_release_build
+from release_manifest import latest_release_version, load_release, validate_release_build
 
 
 def test_dev_has_no_notes():
@@ -43,3 +43,10 @@ def test_rejects_invalid_manifest_entry(tmp_path, override):
 def test_rejects_mismatched_release():
     with pytest.raises(ValueError, match='missing'):
         validate_release_build('99.0.0')
+
+
+def test_latest_release_version_reads_highest_semver(tmp_path):
+    manifest = tmp_path / 'releases.json'
+    entry = {'released_at': '2026-11-18', 'sections': {'Added': ['Notes']}}
+    manifest.write_text(json.dumps({'0.1.0': entry, '0.10.0': entry, '0.2.0': entry}))
+    assert latest_release_version(manifest) == '0.10.0'

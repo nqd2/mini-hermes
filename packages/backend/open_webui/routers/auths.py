@@ -470,28 +470,21 @@ async def signup_handler(
     Returns the newly created UserModel.
     Raises HTTPException on failure.
     """
-    # Insert with default role first to avoid TOCTOU race on first signup.
-    # If has_users() is checked before insert, concurrent requests during
-    # first-user registration can all see an empty table and each get admin.
-    hashed = await get_password_hash(password)
+    if await Users.has_users(db=db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
 
+    hashed = await get_password_hash(password)
     user = await Auths.insert_new_auth(
         email=email.lower(),
         password=hashed,
         name=name,
         profile_image_url=profile_image_url,
-        role=await Config.get('ui.default_user_role'),
         db=db,
+        bootstrap_only=True,
     )
     if not user:
-        raise HTTPException(500, detail=ERROR_MESSAGES.CREATE_USER_ERROR)
-
-    # Atomically check if this is the only user *after* the insert.
-    # Only the single user present at this point should become admin.
-    if await Users.get_num_users(db=db) == 1:
-        await Users.update_user_role_by_id(user.id, 'admin', db=db)
-        user = await Users.get_user_by_id(user.id, db=db)
-        await Config.upsert({'ui.enable_signup': False})
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
+    await Config.upsert({'ui.enable_signup': False})
 
     await apply_default_group_assignment(
         await Config.get('ui.default_group_id'),
@@ -522,8 +515,7 @@ async def signup(
 
     if WEBUI_AUTH:
         if has_users:
-            if not await Config.get('ui.enable_signup') or not await Config.get('ui.enable_login_form'):
-                raise HTTPException(status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
         # Don't gate the first admin on ENABLE_SIGNUP: it auto-disables and can persist stale across a DB reset.
         elif not await Config.get('ui.enable_login_form') and not ENABLE_INITIAL_ADMIN_SIGNUP:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)

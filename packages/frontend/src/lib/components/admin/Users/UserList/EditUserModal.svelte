@@ -13,6 +13,7 @@
 		rotateUserAPIKeyById,
 		deleteUserAPIKeyById
 	} from '$lib/apis/users';
+	import { getUserPlan, saveUserPlan, type Plan, type Tier } from '$lib/apis/mini-hermes/tiers';
 	import { copyToClipboard } from '$lib/utils';
 
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -45,6 +46,7 @@
 		if (selectedUser) {
 			_user = { ...selectedUser, password: '' };
 			loadUserGroups();
+			void loadPlan(selectedUser.id);
 		}
 	};
 
@@ -57,6 +59,49 @@
 	};
 
 	let userGroups: any[] | null = null;
+
+	let tier: Tier = 'free';
+	let monthlyLimit: number | undefined;
+	let savedPlan: Plan | null = null;
+	let planError = '';
+	let savingPlan = false;
+
+	async function loadPlan(userId: string) {
+		savedPlan = null;
+		planError = '';
+		try {
+			const plan = await getUserPlan(localStorage.token, userId);
+			if (!show || selectedUser.id !== userId) return;
+			savedPlan = plan;
+			tier = plan.tier;
+			monthlyLimit = plan.monthly_request_limit ?? undefined;
+		} catch {
+			if (show && selectedUser.id === userId) planError = $i18n.t('Could not load the user plan');
+		}
+	}
+
+	async function savePlan() {
+		if (!savedPlan || savingPlan) return;
+		if (tier === 'plus' && (!monthlyLimit || !Number.isInteger(monthlyLimit) || monthlyLimit > 2_147_483_647 || monthlyLimit < 1)) {
+			planError = $i18n.t('Enter a positive whole-number monthly request limit');
+			return;
+		}
+		const userId = selectedUser.id;
+		savingPlan = true;
+		planError = '';
+		try {
+			const plan = await saveUserPlan(localStorage.token, userId, {
+				tier, monthly_request_limit: tier === 'plus' ? monthlyLimit ?? null : null
+			});
+			if (show && selectedUser.id === userId) savedPlan = plan;
+			toast.success($i18n.t('User plan saved'));
+		} catch {
+			if (show && selectedUser.id === userId) planError = $i18n.t('Could not save the user plan');
+		} finally {
+			savingPlan = false;
+		}
+	}
+
 
 	const submitHandler = async () => {
 		const res = await updateUserById(localStorage.token, selectedUser.id, _user).catch((error) => {
@@ -217,6 +262,32 @@
 											</select>
 										</div>
 									</div>
+
+									{#if savedPlan && _user.role !== 'admin'}
+										<div class="flex flex-col gap-2 text-xs">
+											<label>
+												{$i18n.t('Mini-Hermes plan')}
+												<select class="bg-transparent" bind:value={tier} disabled={savingPlan}>
+													<option value="free">Free</option>
+													<option value="plus">Plus</option>
+												</select>
+											</label>
+											{#if tier === 'plus'}
+												<label>
+													{$i18n.t('Monthly LLM request limit')}
+													<input class="rounded border border-gray-300 bg-transparent px-2 py-1 dark:border-gray-700"
+														type="number" min="1" max="2147483647" bind:value={monthlyLimit} disabled={savingPlan} />
+												</label>
+											{/if}
+											<button type="button" class="self-start underline disabled:opacity-50" on:click={savePlan}
+												disabled={savingPlan || (tier === savedPlan.tier && (tier === 'free' || monthlyLimit === savedPlan.monthly_request_limit))}>
+												{$i18n.t('Save plan')}
+											</button>
+										</div>
+									{/if}
+									{#if planError}
+										<p class="text-xs text-red-600 dark:text-red-400" role="alert">{planError}</p>
+									{/if}
 
 									<div class="flex flex-col w-full">
 										<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Name')}</div>

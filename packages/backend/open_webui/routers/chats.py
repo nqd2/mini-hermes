@@ -101,6 +101,23 @@ async def chat_response_for_requester(chat, user=None, db=None):
             data['chat'].pop(key, None)
     messages = list((data['chat'].get('history', {}).get('messages') or {}).values())
     messages.extend(data['chat'].get('messages') or [])
+    if user is None or user.role != 'admin':
+        from open_webui.mini_hermes.tier_service import GROUPS
+
+        def public_model(value):
+            return value if isinstance(value, str) and value in GROUPS else 'legacy-model'
+
+        if isinstance(data['chat'].get('models'), list):
+            data['chat']['models'] = list(dict.fromkeys(public_model(value) for value in data['chat']['models']))
+        for message in messages:
+            for key in ('model', 'modelId', 'selectedModelId'):
+                if message.get(key):
+                    message[key] = public_model(message[key])
+            if isinstance(message.get('models'), list):
+                message['models'] = [public_model(value) for value in message['models']]
+            if message.get('modelName') and message.get('model') == 'legacy-model':
+                message['modelName'] = 'Legacy model'
+
     authors = {}
     for message in messages:
         if message.get('role') == 'user':

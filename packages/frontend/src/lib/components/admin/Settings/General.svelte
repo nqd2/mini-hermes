@@ -1,17 +1,15 @@
 <script lang="ts">
 	import { v4 as uuidv4 } from 'uuid';
 
-	import { getBackendConfig, getVersionUpdates } from '$lib/apis';
+	import { getBackendConfig } from '$lib/apis';
 	import { getAdminConfig, updateAdminConfig } from '$lib/apis/auths';
 	import { getBanners, setBanners } from '$lib/apis/configs';
 	import InterfaceSettings from '$lib/components/common/InterfaceSettings.svelte';
 	import LanguageModeSelect from '$lib/components/common/LanguageModeSelect.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import BuildVersion from '$lib/components/common/BuildVersion.svelte';
-	import { WEBUI_BUILD_CHANNEL, WEBUI_VERSION } from '$lib/constants';
 	import { banners as _banners, config, showChangelog } from '$lib/stores';
 	import type { Banner } from '$lib/types';
-	import { compareVersion } from '$lib/utils';
 	import { onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Textarea from '$lib/components/common/Textarea.svelte';
@@ -29,11 +27,6 @@
 
 	export let saveHandler: Function;
 
-	let updateAvailable: boolean | null = null;
-	let version = {
-		current: WEBUI_VERSION,
-		latest: ''
-	};
 
 	let adminConfig: any = null;
 	let defaultInterfaceSettings: Record<string, any> = {};
@@ -47,21 +40,6 @@
 		'w-full h-7 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors placeholder:text-gray-300 focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:placeholder:text-gray-700 dark:focus:border-blue-500';
 	const textareaClass =
 		'w-full rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 py-1.5 text-xs text-gray-700 outline-hidden transition-colors placeholder:text-gray-300 focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:placeholder:text-gray-700 dark:focus:border-blue-500';
-	const checkForVersionUpdates = async () => {
-		updateAvailable = null;
-		version = await getVersionUpdates(localStorage.token).catch((error) => {
-			return {
-				current: WEBUI_VERSION,
-				latest: null
-			};
-		});
-
-		console.info(version);
-
-		updateAvailable = compareVersion(version.latest, version.current);
-		console.info(updateAvailable);
-	};
-
 	const updateBanners = async () => {
 		_banners.set(await setBanners(localStorage.token, banners));
 	};
@@ -117,9 +95,6 @@
 
 		banners = [...$_banners];
 
-		if (WEBUI_BUILD_CHANNEL === 'main' && $config?.features?.enable_version_update_check) {
-			checkForVersionUpdates();
-		}
 	});
 </script>
 
@@ -144,25 +119,6 @@
 						<div class="mt-1 flex flex-wrap gap-x-1 text-gray-700 dark:text-gray-200">
 							<BuildVersion />
 
-							{#if WEBUI_BUILD_CHANNEL === 'main' && $config?.features?.enable_version_update_check}
-								{#if version.latest === null}
-									<span class="text-gray-500 dark:text-gray-500"
-										>{$i18n.t('Could not check for updates')}</span
-									>
-								{:else}
-									<a
-										href="https://github.com/open-webui/open-webui/releases/tag/v{version.latest}"
-										target="_blank"
-										class="text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
-									>
-										{updateAvailable === null
-											? $i18n.t('Checking for updates...')
-											: updateAvailable
-												? `(v${version.latest} ${$i18n.t('available!')})`
-												: $i18n.t('(latest)')}
-									</a>
-								{/if}
-							{/if}
 						</div>
 
 						<button
@@ -176,17 +132,6 @@
 						</button>
 					</div>
 
-					{#if WEBUI_BUILD_CHANNEL === 'main' && $config?.features?.enable_version_update_check}
-						<button
-							class="shrink-0 text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-500 dark:hover:text-white"
-							type="button"
-							on:click={() => {
-								checkForVersionUpdates();
-							}}
-						>
-							{$i18n.t('settings.admin.general.checkForUpdates.label')}
-						</button>
-					{/if}
 				</div>
 
 				<div class="text-xs">

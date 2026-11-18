@@ -379,31 +379,37 @@ class UsersTable:
         username: str | None = None,
         oauth: dict | None = None,
         db: AsyncSession | None = None,
+        *,
+        commit: bool = True,
     ) -> UserModel | None:
         try:
             profile_image_url = validate_image_url(profile_image_url)
         except ValueError:
             profile_image_url = '/user.png'
 
-        async with get_async_db_context(db) as session:
-            user = UserModel(
-                **{
-                    'id': id,
-                    'email': email,
-                    'name': name,
-                    'role': role,
-                    'profile_image_url': profile_image_url,
-                    'last_active_at': int(time.time()),
-                    'created_at': int(time.time()),
-                    'updated_at': int(time.time()),
-                    'username': username,
-                    'oauth': oauth,
-                }
-            )
-            result = User(**user.model_dump())
-            session.add(result)
-            await session.commit()
-            return user if result else None
+        timestamp = int(time.time())
+        user = UserModel(
+            id=id,
+            email=email,
+            name=name,
+            role=role,
+            profile_image_url=profile_image_url,
+            last_active_at=timestamp,
+            created_at=timestamp,
+            updated_at=timestamp,
+            username=username,
+            oauth=oauth,
+        )
+        record = User(**user.model_dump())
+        if not commit:
+            if db is None:
+                raise ValueError('An explicit session is required to insert a user without committing')
+            db.add(record)
+        else:
+            async with get_async_db_context(db) as session:
+                session.add(record)
+                await session.commit()
+        return user
 
     # database read methods
     # Read / lookup operations

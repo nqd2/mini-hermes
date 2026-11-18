@@ -14,7 +14,7 @@ from open_webui.routers import openai
 def proxy_app(monkeypatch):
     app = FastAPI()
     app.include_router(openai.router, prefix='/openai')
-    app.dependency_overrides[openai.get_verified_user] = lambda: SimpleNamespace(id='user-1', role='user')
+    app.dependency_overrides[openai.get_verified_user] = lambda: SimpleNamespace(id='admin-1', role='admin')
     app.state.OPENAI_MODELS = {}
     monkeypatch.setattr(openai, 'ENABLE_OPENAI_API_PASSTHROUGH', True)
     monkeypatch.setattr(openai, 'get_openai_connection', AsyncMock(return_value=('https://provider.invalid/v1', '', {})))

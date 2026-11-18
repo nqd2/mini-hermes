@@ -46,6 +46,7 @@
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import ManageModelsModal from './Models/ManageModelsModal.svelte';
 	import ModelDefaultsPanel from './Models/ModelDefaultsPanel.svelte';
+	import ModelRoutingPanel from './Models/ModelRoutingPanel.svelte';
 	import ModelMenu from '$lib/components/admin/Settings/Models/ModelMenu.svelte';
 	import EllipsisHorizontal from '$lib/components/icons/EllipsisHorizontal.svelte';
 	import EyeSlash from '$lib/components/icons/EyeSlash.svelte';
@@ -779,6 +780,7 @@
 />
 
 <ManageModelsModal bind:show={showManageModal} />
+<ModelRoutingPanel />
 
 {#if models !== null}
 	{#if selectedModelId === null}

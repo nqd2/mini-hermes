@@ -21,6 +21,7 @@ from open_webui.constants import ERROR_MESSAGES, TASKS
 from open_webui.models.config import Config
 from open_webui.routers.pipelines import process_pipeline_inlet_filter
 from open_webui.utils.auth import get_admin_user, get_verified_user
+from open_webui.mini_hermes.tier_service import GROUPS, tier_repository, virtual_model
 from open_webui.utils.chat import generate_chat_completion
 from open_webui.utils.payload import apply_params_to_form_data
 from open_webui.utils.task import (
@@ -80,6 +81,8 @@ def apply_task_model_params(payload: dict, models: dict, task_model_id: str, par
 
 
 async def get_task_model_generation_config(default_model_id: str, models) -> tuple[str, dict]:
+    if default_model_id in GROUPS:
+        return default_model_id, {}
     config = await Config.get_many(
         'task.model.default',
         'task.model.external',
@@ -98,6 +101,24 @@ async def get_task_model_generation_config(default_model_id: str, models) -> tup
         ),
         {key: value for key, value in params.items() if value is not None and value != ''},
     )
+
+
+async def resolve_task_models(request, form_data, user):
+    if user.role != 'admin':
+        plan = await tier_repository.get_plan(user.id)
+        selected = form_data.get('model') if getattr(request.state, 'metadata', None) else None
+        if not isinstance(selected, str) or GROUPS.get(selected) != plan.tier:
+            selected = f'mh-{plan.tier}-small'
+        return selected, {selected: virtual_model(selected)}
+
+    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
+        models = {
+            **dict(request.app.state.MODELS.items()),
+            request.state.model['id']: request.state.model,
+        }
+    else:
+        models = request.app.state.MODELS
+    return form_data.get('model'), models
 
 
 # Task Endpoints
@@ -147,15 +168,7 @@ async def generate_title(request: Request, form_data: dict, user=Depends(get_ver
             content={'detail': 'Title generation is disabled'},
         )
 
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
     if not model_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -220,15 +233,7 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
             content={'detail': 'Follow-up generation is disabled'},
         )
 
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
     if model_id not in models:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -236,7 +241,7 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
         )
 
     configured_small_model = os.getenv('MH_SMALL_TASK_MODEL', 'gpt-4.1-mini').strip()
-    if configured_small_model:
+    if user.role == 'admin' and configured_small_model:
         if configured_small_model not in models:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -296,15 +301,7 @@ async def generate_chat_tags(request: Request, form_data: dict, user=Depends(get
             content={'detail': 'Tags generation is disabled'},
         )
 
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
     if model_id not in models:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -354,15 +351,7 @@ async def generate_chat_tags(request: Request, form_data: dict, user=Depends(get
 
 
 async def generate_image_prompt(request: Request, form_data: dict, user=Depends(get_verified_user)):
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
     if model_id not in models:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -431,15 +420,7 @@ async def generate_queries(request: Request, form_data: dict, user=Depends(get_v
         log.info('Reusing cached queries: %s', request.state.cached_queries)
         return request.state.cached_queries
 
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
     if model_id not in models:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -507,15 +488,7 @@ async def generate_autocompletion(request: Request, form_data: dict, user=Depend
                 detail=ERROR_MESSAGES.INPUT_TOO_LONG(autocomplete_input_max_length),
             )
 
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
     if model_id not in models:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -566,15 +539,7 @@ async def generate_autocompletion(request: Request, form_data: dict, user=Depend
 
 @router.post('/emoji/completions')
 async def generate_emoji(request: Request, form_data: dict, user=Depends(get_verified_user)):
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
     if model_id not in models:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -620,15 +585,7 @@ async def generate_emoji(request: Request, form_data: dict, user=Depends(get_ver
 
 @router.post('/moa/completions')
 async def generate_moa_response(request: Request, form_data: dict, user=Depends(get_verified_user)):
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
-    else:
-        models = request.app.state.MODELS
-
-    model_id = form_data['model']
+    model_id, models = await resolve_task_models(request, form_data, user)
 
     if model_id not in models:
         raise HTTPException(

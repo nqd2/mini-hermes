@@ -707,6 +707,13 @@ async def get_user_usage_by_session_user(
     chat_stats = await Chats.get_user_usage_chat_stats(user.id, db=db)
     heatmap = await ChatMessages.get_user_daily_usage(user.id, period_start, period_end, timezone=user.timezone, db=db)
     top_models = await ChatMessages.get_user_top_models(user.id, period_start, period_end, db=db)
+    if user.role != 'admin':
+        from open_webui.mini_hermes.tier_service import GROUPS
+
+        top_models = [
+            {**model, 'model_id': model['model_id'] if model['model_id'] in GROUPS else 'legacy-model'}
+            for model in top_models
+        ]
     top_tools = await ChatMessages.get_user_top_tools(user.id, period_start, period_end, db=db)
 
     streaks = _calculate_streaks(heatmap)

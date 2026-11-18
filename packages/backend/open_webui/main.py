@@ -72,7 +72,6 @@ from open_webui.env import (
     AUDIT_INCLUDED_PATHS,
     AUDIT_LOG_LEVEL,
     BYPASS_MODEL_ACCESS_CONTROL,
-    CHANGELOG,
     DEPLOYMENT_ID,
     ENABLE_AUDIT_GET_REQUESTS,
     ENABLE_COMPRESSION_MIDDLEWARE,
@@ -89,7 +88,6 @@ from open_webui.env import (
     ENABLE_STAR_SESSIONS_MIDDLEWARE,
     ENABLE_TOOL_SERVERS,
     ENABLE_TOOLS,
-    ENABLE_VERSION_UPDATE_CHECK,
     ENABLE_WEBSOCKET_SUPPORT,
     EXTERNAL_PWA_MANIFEST_URL,
     GLOBAL_LOG_LEVEL,
@@ -804,7 +802,9 @@ app.include_router(chats.router, prefix='/api/v1/chats', tags=['chats'])
 app.include_router(search.router, prefix='/api/v1/search', tags=['search'])
 
 
-app.include_router(models.router, prefix='/api/v1/models', tags=['models'])
+app.include_router(
+    models.router, prefix='/api/v1/models', tags=['models'], dependencies=[Depends(get_admin_user)]
+)
 app.include_router(notifications.router, prefix='/api/v1/notifications', tags=['notifications'])
 app.include_router(knowledge.router, prefix='/api/v1/knowledge', tags=['knowledge'])
 app.include_router(prompts.router, prefix='/api/v1/prompts', tags=['prompts'])
@@ -815,9 +815,14 @@ app.include_router(memories.router, prefix='/api/v1/memories', tags=['memories']
 app.include_router(folders.router, prefix='/api/v1/folders', tags=['folders'])
 app.include_router(groups.router, prefix='/api/v1/groups', tags=['groups'])
 app.include_router(files.router, prefix='/api/v1/files', tags=['files'])
+from open_webui.mini_hermes.release_routes import local_changelog, router as release_router
 from open_webui.mini_hermes.routes import router as document_router
+from open_webui.mini_hermes.tier_routes import router as tier_router
+from open_webui.mini_hermes.tier_service import GROUPS, authorize_model, policy_error, virtual_catalog, virtual_model
 from open_webui.mini_hermes.v2.routes import router as v2_document_router
 
+app.include_router(tier_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-tiers'])
+app.include_router(release_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-release'])
 app.include_router(document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents'])
 app.include_router(v2_document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents-v2'])
 if ENABLE_ADMIN_ANALYTICS:
@@ -831,6 +836,8 @@ app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
 @app.get('/api/models')
 @app.get('/api/v1/models')  # Experimental: Compatibility with OpenAI API
 async def get_models(request: Request, refresh: bool = False, user=Depends(get_verified_user)):
+    if user.role != 'admin':
+        return {'data': await virtual_catalog(user)}
     all_models = await get_all_models(request, refresh=refresh, user=user)
 
     # Keep filter pipelines off the model menu; they work backstage.
@@ -981,6 +988,8 @@ async def embeddings(request: Request, form_data: dict, user=Depends(get_verifie
 
 
 async def _set_direct_model(request: Request, model_item: dict, user) -> None:
+    if user.role != 'admin':
+        raise policy_error('entitlement_missing', 403)
     model_meta = (model_item.get('info') or {}).get('meta') or {}
     knowledge_items = model_meta.get('knowledge')
     if knowledge_items:
@@ -992,6 +1001,11 @@ async def _set_direct_model(request: Request, model_item: dict, user) -> None:
 
 
 async def _resolve_chat_model(request: Request, user, model_id: str | None, model_item: dict):
+    await authorize_model(user, model_id)
+    if user.role != 'admin' and model_item.get('direct'):
+        raise policy_error('entitlement_missing', 403)
+    if isinstance(model_id, str) and model_id in GROUPS:
+        return virtual_model(model_id), None, None, False
     model_info = None
     fallback_model = None
     missing_base_model = False
@@ -1044,12 +1058,14 @@ async def chat_completion(
     form_data: dict,
     user=Depends(get_verified_user),
 ):
-    if not request.app.state.MODELS:
+    if user.role == 'admin' and not request.app.state.MODELS:
         await get_all_models(request, user=user)
 
     model_id = form_data.get('model', None)
     request.state.model_id = model_id
     model_item = form_data.pop('model_item', {})
+    if not isinstance(model_item, dict):
+        raise HTTPException(400, 'Invalid model item')
     tasks = form_data.pop('background_tasks', None)
 
     metadata = {}
@@ -1129,6 +1145,12 @@ async def chat_completion(
         else:
             # Single-model fallback
             message_ids = [{'model_id': model_id, 'message_id': form_data.pop('id', None)}]
+
+        if user.role != 'admin':
+            for entry in message_ids:
+                if not isinstance(entry, dict):
+                    raise HTTPException(400, 'Invalid message ID')
+                await authorize_model(user, entry.get('model_id'))
 
         user_message = form_data.pop('user_message', None) or form_data.pop('parent_message', None)
         chat_id = form_data.pop('chat_id', None) or ''
@@ -1773,7 +1795,10 @@ async def chat_completion(
             }
 
             # Resolve the model object for this specific model
-            resolved_model = request.app.state.MODELS.get(target_model_id, model)
+            resolved_model = (
+                virtual_model(target_model_id) if target_model_id in GROUPS
+                else request.app.state.MODELS.get(target_model_id, model)
+            )
 
             # Only the first model runs chat-level background tasks;
             # subsequent models only run follow-ups.
@@ -2289,6 +2314,7 @@ async def chat_completed(request: Request, form_data: dict, user=Depends(get_ver
     Kept for backward compatibility with external integrations."""
     await verify_chat_ownership(form_data.get('chat_id'), user)
 
+    await authorize_model(user, form_data.get('model'))
     try:
         model_item = form_data.pop('model_item', {})
 
@@ -2296,6 +2322,8 @@ async def chat_completed(request: Request, form_data: dict, user=Depends(get_ver
             await _set_direct_model(request, model_item, user)
 
         return await chat_completed_handler(request, form_data, user)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2307,6 +2335,7 @@ async def chat_completed(request: Request, form_data: dict, user=Depends(get_ver
 async def chat_action(request: Request, action_id: str, form_data: dict, user=Depends(get_verified_user)):
     await verify_chat_ownership(form_data.get('chat_id'), user)
 
+    await authorize_model(user, form_data.get('model'))
     try:
         model_item = form_data.pop('model_item', {})
 
@@ -2314,6 +2343,8 @@ async def chat_action(request: Request, action_id: str, form_data: dict, user=De
             await _set_direct_model(request, model_item, user)
 
         return await chat_action_handler(request, action_id, form_data, user)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2442,7 +2473,7 @@ async def get_app_config(request: Request):
             'auth': WEBUI_AUTH,
             'auth_trusted_header': bool(WEBUI_AUTH_TRUSTED_EMAIL_HEADER),
             'enable_signup_password_confirmation': ENABLE_SIGNUP_PASSWORD_CONFIRMATION,
-            'enable_signup': config.get('ui.enable_signup'),
+            'enable_signup': onboarding and config.get('ui.enable_login_form'),
             'enable_login_form': config.get('ui.enable_login_form'),
             'enable_websocket': ENABLE_WEBSOCKET_SUPPORT,
             **(
@@ -2455,11 +2486,11 @@ async def get_app_config(request: Request):
                 {
                     'enable_api_keys': config.get('auth.enable_api_keys'),
                     'enable_password_change_form': config.get('ui.enable_password_change_form'),
-                    'enable_version_update_check': ENABLE_VERSION_UPDATE_CHECK,
+                    'enable_version_update_check': False,
                     'enable_pyodide_file_persistence': ENABLE_PYODIDE_FILE_PERSISTENCE,
                     'enable_public_active_users_count': ENABLE_PUBLIC_ACTIVE_USERS_COUNT,
                     'enable_easter_eggs': ENABLE_EASTER_EGGS,
-                    'enable_direct_connections': config.get('direct.enable'),
+                    'enable_direct_connections': user.role == 'admin' and config.get('direct.enable'),
                     'enable_direct_integrations': ENABLE_TOOL_SERVERS
                     and config.get('direct.integrations.enable', False),
                     'enable_plugins': ENABLE_PLUGINS,
@@ -2494,8 +2525,10 @@ async def get_app_config(request: Request):
         },
         **(
             {
-                'default_models': ','.join(group_defaults) if group_defaults else config.get('ui.default_models'),
-                'default_pinned_models': config.get('ui.default_pinned_models'),
+                'default_models': (
+                    ','.join(group_defaults) if group_defaults else config.get('ui.default_models')
+                ) if user.role == 'admin' else '',
+                'default_pinned_models': config.get('ui.default_pinned_models') if user.role == 'admin' else '',
                 'default_prompt_suggestions': config.get('ui.prompt_suggestions'),
                 'default_prompt_suggestions_i18n': config.get('ui.prompt_suggestions_i18n'),
                 'code': {
@@ -2664,29 +2697,12 @@ async def get_app_version():
 
 @app.get('/api/version/updates')
 async def get_app_latest_release_version(user=Depends(get_verified_user)):
-    if not ENABLE_VERSION_UPDATE_CHECK:
-        log.debug(f'Version update check is disabled, returning current version as latest version')
-        return {'current': VERSION, 'latest': VERSION}
-    try:
-        timeout = aiohttp.ClientTimeout(total=1)
-        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
-            async with session.get(
-                'https://api.github.com/repos/open-webui/open-webui/releases/latest',
-                ssl=AIOHTTP_CLIENT_SESSION_SSL,
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-                latest_version = data['tag_name']
-
-                return {'current': VERSION, 'latest': latest_version[1:]}
-    except Exception as e:
-        log.warning(f'Version update check failed: {e}')
-        return {'current': VERSION, 'latest': None}
+    return {'current': VERSION, 'latest': VERSION}
 
 
 @app.get('/api/changelog')
 async def get_app_changelog():
-    return {key: CHANGELOG[key] for idx, key in enumerate(CHANGELOG) if idx < 5}
+    return local_changelog()
 
 
 @app.get('/api/usage')
@@ -2704,7 +2720,7 @@ async def get_current_usage(user=Depends(get_verified_user)):
             )
 
         return {
-            'model_ids': get_models_in_use(),
+            'model_ids': [model for model in get_models_in_use() if user.role == 'admin' or model in GROUPS],
             'user_count': await Users.get_active_user_count(),
         }
     except HTTPException:

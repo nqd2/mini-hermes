@@ -2,11 +2,8 @@
 	// Keep keys in nested template expressions visible to i18next-parser.
 	// $i18n.t("licensed under");
 
-	import { getVersionUpdates } from '$lib/apis';
-	import { WEBUI_BUILD_CHANNEL, WEBUI_VERSION } from '$lib/constants';
-	import { WEBUI_NAME, config, settings, showChangelog } from '$lib/stores';
-	import { compareVersion } from '$lib/utils';
-	import { onMount, getContext } from 'svelte';
+	import { WEBUI_NAME, settings, showChangelog } from '$lib/stores';
+	import { getContext } from 'svelte';
 
 	import BuildVersion from '$lib/components/common/BuildVersion.svelte';
 	import UserSettingRow from './UserSettingRow.svelte';
@@ -14,34 +11,9 @@
 
 	const i18n: any = getContext('i18n');
 
-	let updateAvailable = null;
-	let version = {
-		current: '',
-		latest: ''
-	};
 	const actionButtonClass =
 		'text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-500 dark:hover:text-white';
 
-	const checkForVersionUpdates = async () => {
-		updateAvailable = null;
-		version = await getVersionUpdates(localStorage.token).catch((error) => {
-			return {
-				current: WEBUI_VERSION,
-				latest: null
-			};
-		});
-
-		console.log(version);
-
-		updateAvailable = compareVersion(version.latest, version.current);
-		console.log(updateAvailable);
-	};
-
-	onMount(async () => {
-		if (WEBUI_BUILD_CHANNEL === 'main' && $config?.features?.enable_version_update_check) {
-			checkForVersionUpdates();
-		}
-	});
 </script>
 
 <div id="tab-about" class="flex flex-col h-full justify-between text-sm">
@@ -63,25 +35,6 @@
 					>
 						<BuildVersion />
 
-						{#if WEBUI_BUILD_CHANNEL === 'main' && $config?.features?.enable_version_update_check}
-							{#if version.latest === null}
-								<span>{$i18n.t('Could not check for updates')}</span>
-							{:else}
-								<a
-									class={($settings?.highContrastMode ?? false)
-										? 'inline-flex min-h-6 items-center'
-										: ''}
-									href="https://github.com/open-webui/open-webui/releases/tag/v{version.latest}"
-									target="_blank"
-								>
-									{updateAvailable === null
-										? $i18n.t('Checking for updates...')
-										: updateAvailable
-											? `(v${version.latest} ${$i18n.t('available!')})`
-											: $i18n.t('(latest)')}
-								</a>
-							{/if}
-						{/if}
 					</div>
 
 					<button
@@ -96,16 +49,6 @@
 					</button>
 				</div>
 
-				{#if WEBUI_BUILD_CHANNEL === 'main' && $config?.features?.enable_version_update_check}
-					<button
-						class={actionButtonClass}
-						on:click={() => {
-							checkForVersionUpdates();
-						}}
-					>
-						{$i18n.t('settings.personal.about.checkForUpdates.label')}
-					</button>
-				{/if}
 			</UserSettingRow>
 		</UserSettingSection>
 

@@ -1174,6 +1174,10 @@ async def transcription_handler(request, file_path, metadata, user=None):
         return await _transcribe_azure(request, file_path, filename, file_dir, id)
 
     elif await Config.get('audio.stt.engine') == 'mistral':
+        # Mistral's chat transcription uses a concrete chat inference model.
+        # Tier accounts can use the dedicated transcription engines.
+        if user and user.role != 'admin' and await Config.get('audio.stt.mistral.use_chat_completions'):
+            raise HTTPException(403, 'This transcription model is not available on your Mini-Hermes plan')
         return await _transcribe_mistral(request, file_path, filename, metadata, file_dir, id)
 
 

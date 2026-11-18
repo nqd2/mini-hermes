@@ -57,7 +57,25 @@ From `packages/frontend`, run `.\node_modules\.bin\vite.cmd dev --host 127.0.0.1
 
 For OAuth while using the local frontend, set and register `MH_GOOGLE_REDIRECT_URI=http://127.0.0.1:8080/api/v1/mini-hermes/drive/callback`. Open both frontend and callback with the same host name so the browser sends the OAuth nonce cookie.
 
-The LLM connection needs an API base URL, API key and model ID available from the provider. Open WebUI lists models from the configured endpoint; select a model with function tool support in the chat UI, such as `gpt-4.1-mini`. 1min.AI's [OpenAI-compatible endpoint](output/api/openai-compatible.md) supports text Chat Completions, streaming and model-dependent function tools. For GPT-5.6 and GPT-6 Sol/Luna tool turns, the backend sends `reasoning_effort: "none"`; strict function tools use `parallel_tool_calls: false`. It does not provide Responses, embeddings, image or audio endpoints through this URL. You can also manage the connection in **Admin Settings → Connections**. A connection already saved there takes precedence over later env changes; update it there if the new URL or key does not appear. The three filled `.env` files should not be committed.
+The LLM connection needs an API base URL, API key and model ID available from the provider. Admins can select a configured model with tool support, such as `gpt-4.1-mini`. Free and Plus accounts use the model groups configured below. 1min.AI's [OpenAI-compatible endpoint](output/api/openai-compatible.md) supports text Chat Completions, streaming and model-dependent function tools. For GPT-5.6 and GPT-6 Sol/Luna tool turns, the backend sends `reasoning_effort: "none"`; strict function tools use `parallel_tool_calls: false`. It does not provide Responses, embeddings, image or audio endpoints through this URL. You can also manage the connection in **Admin Settings → Connections**. A connection already saved there takes precedence over later env changes; update it there if the new URL or key does not appear. The three filled `.env` files should not be committed.
+
+## Provision accounts and model groups
+
+1. In **Admin Settings → Connections**, save enabled OpenAI-compatible connections. Use `https://openrouter.ai/api/v1` for Free. Configure OpenRouter, OpenAI or 1min for Plus according to the models your organization approves.
+2. In **Admin Settings → Models → Tier model routing**, add at least one eligible model to each group you want to support. Enter the concrete provider model ID, select the connection, and set the supported context size and capabilities. Lower priority numbers take precedence. Equally ranked Free candidates are rotated across new runs. Approve a provider's data policy before putting document traffic on a candidate. Free additionally requires an OpenRouter `:free` ID and a current zero-price catalog entry, and requests providers that deny data collection.
+3. In **Admin → Users**, create accounts. The first account is the bootstrap admin. Each active non-admin starts on Free unless an administrator sets a Plus plan and a positive monthly request limit in the account's **Save plan** action. Google login can link to an existing account using a verified Google email.
+
+Free users see Free Small, Medium and Large. Plus users see Plus Small, Medium and Large. A group without a configured or eligible model reports that it is unavailable. Editing a connection's target, credentials or protocol can invalidate its candidates. Reapprove them in the routing settings after changing the connection.
+
+Each physical backend Chat Completions or Responses request counts once, including streamed calls, tool-loop calls, and user-attributable title and document work. Plus resets at the start of each UTC calendar month. Default Free limits are two requests per user per UTC day and shared OpenRouter limits of 50 per day and 20 per minute. Verify the shared limit for your OpenRouter account before raising it. An unknown result after dispatch still consumes a request. Usage settings show the remaining user allowance and its reset time.
+
+The V2 startup migration adds tier, dispatch and run-selection records and a nullable model group on document tasks. Validate the migration against a disposable PostgreSQL database with `pg_trgm` before deploying. A rollback should restore the prior application image while preserving the added tables for reconciliation. Downgrading the schema deletes tier and dispatch records.
+
+## Mini-Hermes release notes
+
+Edit `packages/backend/open_webui/mini_hermes/releases.json` to add a version, ISO date and plain-text sections. Set `MH_RELEASE_VERSION` to that checked-in version in the release build. GitLab requires a matching version on `main` and release tags. Local builds default to `dev`. Run `MH_RELEASE_VERSION=0.1.0 python scripts/check_mh_release_manifest.py --production` to validate the current entry.
+
+Users can open release notes from **Settings → About**. Automatic display is controlled in Interface settings. Dismissing the notes saves the seen version to the user's account.
 
 ## Document workflow
 

@@ -211,19 +211,23 @@ export const desktopEvent: Writable<DesktopEvent | null> = writable(null);
 export const isLastActiveTab = writable(true);
 export const playingNotificationSound = writable(false);
 
-export type Model = OpenAIModel | ArenaModel;
+export type Model = OpenAIModel | ArenaModel | MhModel;
 
 type BaseModel = {
 	id: string;
 	name: string;
 	info?: ModelConfig;
-	owned_by: 'openai' | 'arena';
+	owned_by: 'openai' | 'arena' | 'mini-hermes';
 };
 
 export interface OpenAIModel extends BaseModel {
 	owned_by: 'openai';
 	external: boolean;
 	source?: string;
+}
+
+export interface MhModel extends BaseModel {
+	owned_by: 'mini-hermes';
 }
 
 export interface ArenaModel extends BaseModel {
@@ -237,6 +241,7 @@ type Settings = {
 	detectArtifacts?: boolean;
 	showUpdateToast?: boolean;
 	showChangelog?: boolean;
+	mh_last_seen_release_version?: string;
 	showEmojiInCall?: boolean;
 	voiceInterruption?: boolean;
 	collapseCodeBlocks?: boolean;

@@ -2080,7 +2080,10 @@ class OAuthManager:
             user = await Users.get_user_by_oauth_sub(provider, sub, db=db)
             if not user:
                 # If the user does not exist, check if merging is enabled
-                if auth_config.OAUTH_MERGE_ACCOUNTS_BY_EMAIL:
+                if (
+                    provider == 'google' and user_data.get('email_verified') is True
+                    or provider != 'google' and auth_config.OAUTH_MERGE_ACCOUNTS_BY_EMAIL
+                ):
                     # Check if the user exists by email
                     user = await Users.get_user_by_email(email, db=db)
                     if user:
@@ -2161,7 +2164,7 @@ class OAuthManager:
                     )
             else:
                 # If the user does not exist, check if signups are enabled
-                if auth_config.ENABLE_OAUTH_SIGNUP:
+                if auth_config.ENABLE_OAUTH_SIGNUP and not await Users.has_users(db=db):
                     # Check if an existing user with the same email already exists
                     existing_user = await Users.get_user_by_email(email, db=db)
                     if existing_user:
@@ -2188,20 +2191,13 @@ class OAuthManager:
                         password=await get_password_hash(str(uuid.uuid4())),  # Random password, not used
                         name=name,
                         profile_image_url=picture_url,
-                        role=await self.get_user_role(None, user_data),
                         oauth=oauth_data,
                         db=db,
+                        bootstrap_only=True,
                     )
 
                     if not user:
-                        raise HTTPException(500, detail=ERROR_MESSAGES.CREATE_USER_ERROR)
-
-                    # Atomically check if this is the only user *after* the
-                    # insert to avoid TOCTOU race on first-user registration.
-                    # Matches signup_handler pattern.
-                    if await Users.get_num_users(db=db) == 1:
-                        await Users.update_user_role_by_id(user.id, 'admin', db=db)
-                        user = await Users.get_user_by_id(user.id, db=db)
+                        raise HTTPException(status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
 
                     default_group_id = await Config.get('ui.default_group_id')
                     await apply_default_group_assignment(default_group_id, user.id, db=db)

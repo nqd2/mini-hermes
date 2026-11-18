@@ -84,7 +84,7 @@ No phase is an MVP. No production cutover or irreversible production migration i
 | Request bounds | Boundary tests pass at 95,000 preparation and 100,000 serialized JSON characters. A request beyond either applicable limit is rejected before provider invocation. |
 | Operations | Permission isolation, graceful shutdown, worker recovery, rate/resource exhaustion, audit, alerts, backup/restore and workload load tests pass for 10–20 daily users. Record 99.9% as internal target, not SLA. |
 | Performance | Capture current-runtime baseline first. Register absolute p95 latency, throughput, error-rate and resource thresholds before head-to-head comparison. |
-| License | Preserve Open WebUI notices; report rolling 30-day user count. Do not seek an enterprise license or revert to an older Open WebUI release absent a real usage/licensing need. |
+
 
 ### Go/no-go
 
@@ -96,5 +96,5 @@ No phase is an MVP. No production cutover or irreversible production migration i
 ## Verified facts, assumptions, and test obligations
 
 - **Verified in checkout:** current AgentRuntime, Document API/revision code, request budgeting, migration scaffolding, and tests exist. Their presence is not proof of production behavior. The final serialized body must be validated after provider transforms.
-- **Assumptions/decisions:** 10–20 users in a rolling 30-day window; Open WebUI ownership and license approach stay as decided; 95,000/100,000 character caps; current AgentRuntime remains production path; 99.9% is an internal target.
+- **Assumptions/decisions:** 10–20 users in a rolling 30-day window; 95,000/100,000 character caps; current AgentRuntime remains production path; 99.9% is an internal target.
 - **Must be proven in automated tests and staging:** atomic publication and crash recovery against the actual object store, immutable conditional writes, current authorization at commit, event outbox/replay/gap recovery, idempotent external side effects, concurrency and isolation gates, backup/restore, measured performance, and fresh-bootstrap/restore behavior. Production migration, if needed, requires a separate approved plan; old local data compatibility is not a gate.

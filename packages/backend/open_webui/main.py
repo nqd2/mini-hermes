@@ -72,7 +72,6 @@ from open_webui.env import (
     AUDIT_INCLUDED_PATHS,
     AUDIT_LOG_LEVEL,
     BYPASS_MODEL_ACCESS_CONTROL,
-    CHANGELOG,
     DEPLOYMENT_ID,
     ENABLE_AUDIT_GET_REQUESTS,
     ENABLE_COMPRESSION_MIDDLEWARE,
@@ -89,12 +88,10 @@ from open_webui.env import (
     ENABLE_STAR_SESSIONS_MIDDLEWARE,
     ENABLE_TOOL_SERVERS,
     ENABLE_TOOLS,
-    ENABLE_VERSION_UPDATE_CHECK,
     ENABLE_WEBSOCKET_SUPPORT,
     EXTERNAL_PWA_MANIFEST_URL,
     GLOBAL_LOG_LEVEL,
     INSTANCE_ID,
-    LICENSE_KEY,
     LOG_FORMAT,
     MAX_BODY_LOG_SIZE,
     # Redis
@@ -202,7 +199,6 @@ from open_webui.utils.auth import (
     decode_token,
     get_admin_user,
     get_http_authorization_cred,
-    get_license_data,
     get_verified_user,
     is_valid_token,
 )
@@ -328,10 +324,6 @@ https://github.com/open-webui/open-webui
     try:
         print(banner)
     except UnicodeEncodeError:
-        # Stdout can't encode the box-drawing banner (Windows cp1252, redirected/headless stdout); fall back to ASCII.
-        # LICENSE covers this Open WebUI CLI identifier.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         print(f'Open WebUI v{VERSION} - building the best AI user interface.\nhttps://github.com/open-webui/open-webui')
 
 
@@ -389,10 +381,6 @@ async def lifespan(app: FastAPI):
     )
     app.state.revision_outbox_dispatcher = asyncio.create_task(revision_outbox_dispatch_loop(app))
     await publish_event(request, EVENTS.SYSTEM_STARTUP_STARTED, source='system')
-
-    license_task = None
-    if LICENSE_KEY:
-        license_task = asyncio.create_task(asyncio.to_thread(get_license_data, app, LICENSE_KEY))
 
     # Create admin account from env vars if specified and no users exist
     if WEBUI_ADMIN_EMAIL and WEBUI_ADMIN_PASSWORD:
@@ -467,14 +455,6 @@ async def lifespan(app: FastAPI):
             log.warning(f'Failed to initialize tool servers at startup: {e}')
 
     # Mark application as ready to accept traffic from a startup perspective.
-    if license_task:
-        try:
-            await asyncio.wait_for(asyncio.shield(license_task), timeout=2)
-        except asyncio.TimeoutError:
-            log.warning('License data retrieval is still pending; continuing startup without it')
-        except Exception as e:
-            log.warning(f'License data retrieval failed during startup: {e}')
-
     app.state.startup_complete = True
     await publish_event(request, EVENTS.SYSTEM_STARTUP_COMPLETED, source='system')
 
@@ -556,9 +536,6 @@ async def revision_outbox_dispatch_loop(app: FastAPI, *, interval_seconds: int =
 # response_model routes keep FastAPI's Pydantic fast path either way.
 apply_orjson_http_json()
 
-# LICENSE covers this Open WebUI API metadata identifier.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 app = FastAPI(
     title='Open WebUI',
     docs_url='/docs' if ENV == 'dev' else None,
@@ -587,13 +564,7 @@ app.state.oauth_client_manager = oauth_client_manager
 app.state.instance_id = None
 app.state.redis = None
 
-# LICENSE covers this Open WebUI branding surface, including name, logo,
-# visual, textual, symbolic identifiers, metadata, and surrounding UI.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 app.state.WEBUI_NAME = WEBUI_NAME
-app.state.LICENSE_METADATA = None
-app.state.USER_COUNT = None
 app.state.EXTERNAL_PWA_MANIFEST_URL = EXTERNAL_PWA_MANIFEST_URL
 
 
@@ -831,7 +802,9 @@ app.include_router(chats.router, prefix='/api/v1/chats', tags=['chats'])
 app.include_router(search.router, prefix='/api/v1/search', tags=['search'])
 
 
-app.include_router(models.router, prefix='/api/v1/models', tags=['models'])
+app.include_router(
+    models.router, prefix='/api/v1/models', tags=['models'], dependencies=[Depends(get_admin_user)]
+)
 app.include_router(notifications.router, prefix='/api/v1/notifications', tags=['notifications'])
 app.include_router(knowledge.router, prefix='/api/v1/knowledge', tags=['knowledge'])
 app.include_router(prompts.router, prefix='/api/v1/prompts', tags=['prompts'])
@@ -842,9 +815,14 @@ app.include_router(memories.router, prefix='/api/v1/memories', tags=['memories']
 app.include_router(folders.router, prefix='/api/v1/folders', tags=['folders'])
 app.include_router(groups.router, prefix='/api/v1/groups', tags=['groups'])
 app.include_router(files.router, prefix='/api/v1/files', tags=['files'])
+from open_webui.mini_hermes.release_routes import local_changelog, router as release_router
 from open_webui.mini_hermes.routes import router as document_router
+from open_webui.mini_hermes.tier_routes import router as tier_router
+from open_webui.mini_hermes.tier_service import GROUPS, authorize_model, policy_error, virtual_catalog, virtual_model
 from open_webui.mini_hermes.v2.routes import router as v2_document_router
 
+app.include_router(tier_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-tiers'])
+app.include_router(release_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-release'])
 app.include_router(document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents'])
 app.include_router(v2_document_router, prefix='/api/v1/mini-hermes', tags=['mini-hermes-documents-v2'])
 if ENABLE_ADMIN_ANALYTICS:
@@ -858,6 +836,8 @@ app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
 @app.get('/api/models')
 @app.get('/api/v1/models')  # Experimental: Compatibility with OpenAI API
 async def get_models(request: Request, refresh: bool = False, user=Depends(get_verified_user)):
+    if user.role != 'admin':
+        return {'data': await virtual_catalog(user)}
     all_models = await get_all_models(request, refresh=refresh, user=user)
 
     # Keep filter pipelines off the model menu; they work backstage.
@@ -1008,6 +988,8 @@ async def embeddings(request: Request, form_data: dict, user=Depends(get_verifie
 
 
 async def _set_direct_model(request: Request, model_item: dict, user) -> None:
+    if user.role != 'admin':
+        raise policy_error('entitlement_missing', 403)
     model_meta = (model_item.get('info') or {}).get('meta') or {}
     knowledge_items = model_meta.get('knowledge')
     if knowledge_items:
@@ -1019,6 +1001,11 @@ async def _set_direct_model(request: Request, model_item: dict, user) -> None:
 
 
 async def _resolve_chat_model(request: Request, user, model_id: str | None, model_item: dict):
+    await authorize_model(user, model_id)
+    if user.role != 'admin' and model_item.get('direct'):
+        raise policy_error('entitlement_missing', 403)
+    if isinstance(model_id, str) and model_id in GROUPS:
+        return virtual_model(model_id), None, None, False
     model_info = None
     fallback_model = None
     missing_base_model = False
@@ -1071,12 +1058,14 @@ async def chat_completion(
     form_data: dict,
     user=Depends(get_verified_user),
 ):
-    if not request.app.state.MODELS:
+    if user.role == 'admin' and not request.app.state.MODELS:
         await get_all_models(request, user=user)
 
     model_id = form_data.get('model', None)
     request.state.model_id = model_id
     model_item = form_data.pop('model_item', {})
+    if not isinstance(model_item, dict):
+        raise HTTPException(400, 'Invalid model item')
     tasks = form_data.pop('background_tasks', None)
 
     metadata = {}
@@ -1156,6 +1145,12 @@ async def chat_completion(
         else:
             # Single-model fallback
             message_ids = [{'model_id': model_id, 'message_id': form_data.pop('id', None)}]
+
+        if user.role != 'admin':
+            for entry in message_ids:
+                if not isinstance(entry, dict):
+                    raise HTTPException(400, 'Invalid message ID')
+                await authorize_model(user, entry.get('model_id'))
 
         user_message = form_data.pop('user_message', None) or form_data.pop('parent_message', None)
         chat_id = form_data.pop('chat_id', None) or ''
@@ -1800,7 +1795,10 @@ async def chat_completion(
             }
 
             # Resolve the model object for this specific model
-            resolved_model = request.app.state.MODELS.get(target_model_id, model)
+            resolved_model = (
+                virtual_model(target_model_id) if target_model_id in GROUPS
+                else request.app.state.MODELS.get(target_model_id, model)
+            )
 
             # Only the first model runs chat-level background tasks;
             # subsequent models only run follow-ups.
@@ -2316,6 +2314,7 @@ async def chat_completed(request: Request, form_data: dict, user=Depends(get_ver
     Kept for backward compatibility with external integrations."""
     await verify_chat_ownership(form_data.get('chat_id'), user)
 
+    await authorize_model(user, form_data.get('model'))
     try:
         model_item = form_data.pop('model_item', {})
 
@@ -2323,6 +2322,8 @@ async def chat_completed(request: Request, form_data: dict, user=Depends(get_ver
             await _set_direct_model(request, model_item, user)
 
         return await chat_completed_handler(request, form_data, user)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2334,6 +2335,7 @@ async def chat_completed(request: Request, form_data: dict, user=Depends(get_ver
 async def chat_action(request: Request, action_id: str, form_data: dict, user=Depends(get_verified_user)):
     await verify_chat_ownership(form_data.get('chat_id'), user)
 
+    await authorize_model(user, form_data.get('model'))
     try:
         model_item = form_data.pop('model_item', {})
 
@@ -2341,6 +2343,8 @@ async def chat_action(request: Request, action_id: str, form_data: dict, user=De
             await _set_direct_model(request, model_item, user)
 
         return await chat_action_handler(request, action_id, form_data, user)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2399,8 +2403,6 @@ async def get_app_config(request: Request):
     if user is None:
         onboarding = not await Users.has_users()
 
-    license_metadata = getattr(app.state, 'LICENSE_METADATA', None)
-    user_count = await Users.get_num_users() if license_metadata else None
     config = await Config.get_many(
         'oauth.enable',
         'oauth.auto_redirect',
@@ -2471,7 +2473,7 @@ async def get_app_config(request: Request):
             'auth': WEBUI_AUTH,
             'auth_trusted_header': bool(WEBUI_AUTH_TRUSTED_EMAIL_HEADER),
             'enable_signup_password_confirmation': ENABLE_SIGNUP_PASSWORD_CONFIRMATION,
-            'enable_signup': config.get('ui.enable_signup'),
+            'enable_signup': onboarding and config.get('ui.enable_login_form'),
             'enable_login_form': config.get('ui.enable_login_form'),
             'enable_websocket': ENABLE_WEBSOCKET_SUPPORT,
             **(
@@ -2484,11 +2486,11 @@ async def get_app_config(request: Request):
                 {
                     'enable_api_keys': config.get('auth.enable_api_keys'),
                     'enable_password_change_form': config.get('ui.enable_password_change_form'),
-                    'enable_version_update_check': ENABLE_VERSION_UPDATE_CHECK,
+                    'enable_version_update_check': False,
                     'enable_pyodide_file_persistence': ENABLE_PYODIDE_FILE_PERSISTENCE,
                     'enable_public_active_users_count': ENABLE_PUBLIC_ACTIVE_USERS_COUNT,
                     'enable_easter_eggs': ENABLE_EASTER_EGGS,
-                    'enable_direct_connections': config.get('direct.enable'),
+                    'enable_direct_connections': user.role == 'admin' and config.get('direct.enable'),
                     'enable_direct_integrations': ENABLE_TOOL_SERVERS
                     and config.get('direct.integrations.enable', False),
                     'enable_plugins': ENABLE_PLUGINS,
@@ -2523,11 +2525,12 @@ async def get_app_config(request: Request):
         },
         **(
             {
-                'default_models': ','.join(group_defaults) if group_defaults else config.get('ui.default_models'),
-                'default_pinned_models': config.get('ui.default_pinned_models'),
+                'default_models': (
+                    ','.join(group_defaults) if group_defaults else config.get('ui.default_models')
+                ) if user.role == 'admin' else '',
+                'default_pinned_models': config.get('ui.default_pinned_models') if user.role == 'admin' else '',
                 'default_prompt_suggestions': config.get('ui.prompt_suggestions'),
                 'default_prompt_suggestions_i18n': config.get('ui.prompt_suggestions_i18n'),
-                **({'user_count': user_count} if user_count is not None else {}),
                 'code': {
                     'engine': config.get('code_execution.engine'),
                     'interpreter_engine': config.get('code_interpreter.engine'),
@@ -2553,14 +2556,6 @@ async def get_app_config(request: Request):
                     'response_watermark': config.get('ui.watermark'),
                     'iframe_csp': IFRAME_CSP,
                 },
-                'license_metadata': license_metadata,
-                **(
-                    {
-                        'active_entries': user_count,
-                    }
-                    if user.role == 'admin' and user_count is not None
-                    else {}
-                ),
             }
             if user is not None and (user.role in ['admin', 'user'])
             else {
@@ -2572,16 +2567,6 @@ async def get_app_config(request: Request):
                         }
                     }
                     if user and user.role == 'pending'
-                    else {}
-                ),
-                **(
-                    {
-                        'metadata': {
-                            'login_footer': license_metadata.get('login_footer', ''),
-                            'auth_logo_position': license_metadata.get('auth_logo_position', ''),
-                        }
-                    }
-                    if license_metadata
                     else {}
                 ),
             }
@@ -2712,29 +2697,12 @@ async def get_app_version():
 
 @app.get('/api/version/updates')
 async def get_app_latest_release_version(user=Depends(get_verified_user)):
-    if not ENABLE_VERSION_UPDATE_CHECK:
-        log.debug(f'Version update check is disabled, returning current version as latest version')
-        return {'current': VERSION, 'latest': VERSION}
-    try:
-        timeout = aiohttp.ClientTimeout(total=1)
-        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
-            async with session.get(
-                'https://api.github.com/repos/open-webui/open-webui/releases/latest',
-                ssl=AIOHTTP_CLIENT_SESSION_SSL,
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-                latest_version = data['tag_name']
-
-                return {'current': VERSION, 'latest': latest_version[1:]}
-    except Exception as e:
-        log.warning(f'Version update check failed: {e}')
-        return {'current': VERSION, 'latest': None}
+    return {'current': VERSION, 'latest': VERSION}
 
 
 @app.get('/api/changelog')
 async def get_app_changelog():
-    return {key: CHANGELOG[key] for idx, key in enumerate(CHANGELOG) if idx < 5}
+    return local_changelog()
 
 
 @app.get('/api/usage')
@@ -2752,7 +2720,7 @@ async def get_current_usage(user=Depends(get_verified_user)):
             )
 
         return {
-            'model_ids': get_models_in_use(),
+            'model_ids': [model for model in get_models_in_use() if user.role == 'admin' or model in GROUPS],
             'user_count': await Users.get_active_user_count(),
         }
     except HTTPException:
@@ -2995,10 +2963,6 @@ async def oauth_backchannel_logout(
 async def get_manifest_json():
     external_pwa_manifest_url = getattr(app.state, 'EXTERNAL_PWA_MANIFEST_URL', None)
     if external_pwa_manifest_url:
-        # LICENSE covers this install-time Open WebUI branding surface, including
-        # names, logos, manifests, metadata, and surrounding UI.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         session = await get_session()
         async with session.get(
             external_pwa_manifest_url,
@@ -3007,10 +2971,6 @@ async def get_manifest_json():
             r.raise_for_status()
             return await r.json()
     else:
-        # LICENSE covers this generated Open WebUI install branding surface,
-        # including names, logos, manifests, metadata, and surrounding UI.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         return {
             'name': app.state.WEBUI_NAME,
             'short_name': app.state.WEBUI_NAME,
@@ -3019,9 +2979,6 @@ async def get_manifest_json():
             'display': 'standalone',
             'background_color': '#343541',
             'icons': [
-                # LICENSE covers this Open WebUI install icon.
-                # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-                # https://docs.openwebui.com/license.
                 {
                     'src': '/static/logo.png',
                     'type': 'image/png',
@@ -3046,9 +3003,6 @@ async def get_manifest_json():
 @app.get('/opensearch.xml')
 async def get_opensearch_xml():
     webui_url = await Config.get('webui.url')
-    # LICENSE covers this Open WebUI search identifier.
-    # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-    # https://docs.openwebui.com/license.
     xml_content = rf"""
     <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" xmlns:moz="http://www.mozilla.org/2006/browser/search/">
     <ShortName>{app.state.WEBUI_NAME}</ShortName>

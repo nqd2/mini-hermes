@@ -41,9 +41,7 @@
 	$: models = modelIds.map((id) => $_models.find((m) => m.id === id));
 	$: selectedModel = atSelectedModel ?? models[selectedModelIdx];
 	$: selectedModelName = resolveLocalizedModelName(selectedModel, $i18n.language);
-	$: selectedModelDescription =
-		$config?.license_metadata?.chat_placeholder_description ||
-		resolveLocalizedModelDescription(selectedModel, $i18n.language);
+	$: selectedModelDescription = resolveLocalizedModelDescription(selectedModel, $i18n.language);
 	$: selectedSuggestionPrompts =
 		resolveLocalizedModelPromptSuggestions(atSelectedModel, $i18n.language) ??
 		resolveLocalizedModelPromptSuggestions(models[selectedModelIdx], $i18n.language) ??
@@ -89,9 +87,6 @@
 								alt=""
 								draggable="false"
 								on:error={(e) => {
-									// LICENSE covers this Open WebUI fallback logo.
-									// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-									// https://docs.openwebui.com/license.
 									e.currentTarget.src = '/favicon.png';
 								}}
 							/>

@@ -12,7 +12,7 @@ from open_webui.internal.db import Base, get_async_db, get_async_db_context
 from open_webui.models.users import User, UserModel, UserProfileImageResponse, Users, UserStatus
 from open_webui.utils.validate import validate_image_url
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
-from sqlalchemy import JSON, Boolean, Column, String, Text, delete, select, update
+from sqlalchemy import JSON, Boolean, Column, String, Text, delete, exists, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -289,10 +289,19 @@ class AuthsTable:
         role: str = 'pending',
         oauth: dict | None = None,
         db: AsyncSession | None = None,
+        *,
+        bootstrap_only: bool = False,
     ) -> UserModel | None:
         """Create an Auth + User pair inside a single transaction."""
         async with get_async_db_context(db) as session:
             log.info('insert_new_auth')
+
+            if bootstrap_only:
+                if session.bind.dialect.name == 'postgresql':
+                    await session.execute(text("SELECT pg_advisory_xact_lock(hashtextextended('mh-first-admin', 0))"))
+                if await session.scalar(select(exists().where(User.id.is_not(None)))):
+                    return None
+                role = 'admin'
 
             new_id = str(uuid.uuid4())
 
@@ -314,6 +323,7 @@ class AuthsTable:
                     role,
                     oauth=oauth,
                     db=session,
+                    commit=False,
                 )
                 await session.commit()
             except IntegrityError:

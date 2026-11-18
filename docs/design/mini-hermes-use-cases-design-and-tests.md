@@ -42,7 +42,7 @@ Quyết định chuẩn: [ADR-001](../adr/ADR-001-agent-runtime-production-path.
 - Preparation tối đa **95.000 ký tự**; final serialized JSON tối đa **100.000 ký tự**, token/byte budgets riêng.
 - Original Office/PDF immutable; sửa Office phải preview/approval/Revision Service commit. PDF chưa cam kết chỉnh nội dung.
 - Production phục vụ **10–20 users trong rolling 30 ngày**. Không coi số này là concurrent users. Availability 99,9% là mục tiêu nội bộ, chưa là SLA.
-- Giữ Open WebUI notices và license/copyright; theo dõi rolling count, không mặc định đổi license/version.
+
 
 <a id="chapter-1"></a>
 ## Chương 1 Đặc tả nghiệp vụ và luồng sử dụng
@@ -2689,7 +2689,6 @@ Mỗi use case dưới là TARGET. FR-MH-NN là yêu cầu chức năng của UC
 | Mục tiêu | Analytics usage traces và rolling user count với kết quả có thể xác minh và trạng thái cuối rõ ràng. |
 | Tác nhân | Admin, user xem usage bản thân |
 | Quyền | Admin analytics; self usage chỉ owner |
-| Điều kiện khả dụng | Analytics feature; license notices giữ nguyên và rolling count được theo dõi. |
 | Tiền điều kiện | Metrics/events ingestion hoạt động; enable_admin_analytics nếu bật. |
 | Trigger/input | Date range/timezone/model/user filters, trace drilldown, rolling 30-day count. |
 | Source hiện trạng | [library.py:64](../../packages/backend/open_webui/mini_hermes/library.py#L64), [analytics.py:457](../../packages/backend/open_webui/routers/analytics.py#L457), [configs.py:98](../../packages/backend/open_webui/routers/configs.py#L98) |
@@ -7639,7 +7638,7 @@ Cleanup chung: dừng test workers, release leases, xóa isolated test schema/bu
 |---|---|
 | Liên kết | [UC-MH-52](#uc-mh-52); FR-MH-52 |
 | Trạng thái | PLANNED_NOT_EXECUTED |
-| Tiền điều kiện | Metrics/events ingestion hoạt động; enable_admin_analytics nếu bật. Analytics feature; license notices giữ nguyên và rolling count được theo dõi. |
+| Tiền điều kiện | Metrics/events ingestion hoạt động; enable_admin_analytics nếu bật. Analytics feature;|
 | Fixture/input | Date range/timezone/model/user filters, trace drilldown, rolling 30-day count.; FX-ID/FX-ACL và fixture domain tương ứng trong 3.1. |
 | Mức ưu tiên | P0 cho authz/commit/durability; P1 cho functionality/recovery; UI cosmetic P2. |
 
@@ -7666,7 +7665,7 @@ Cleanup chung: dừng test workers, release leases, xóa isolated test schema/bu
 |---|---|
 | Liên kết | [UC-MH-52](#uc-mh-52); FR-MH-52 |
 | Trạng thái | PLANNED_NOT_EXECUTED |
-| Tiền điều kiện | Metrics/events ingestion hoạt động; enable_admin_analytics nếu bật. Analytics feature; license notices giữ nguyên và rolling count được theo dõi. |
+| Tiền điều kiện | Metrics/events ingestion hoạt động; enable_admin_analytics nếu bật. Analytics feature; |
 | Fixture/input | User thường query user_id khác hoặc admin export raw credential; FX-ID/FX-ACL và fixture domain tương ứng trong 3.1. |
 | Mức ưu tiên | P0 cho authz/commit/durability; P1 cho functionality/recovery; UI cosmetic P2. |
 
@@ -7693,7 +7692,7 @@ Cleanup chung: dừng test workers, release leases, xóa isolated test schema/bu
 |---|---|
 | Liên kết | [UC-MH-52](#uc-mh-52); FR-MH-52 |
 | Trạng thái | PLANNED_NOT_EXECUTED |
-| Tiền điều kiện | Metrics/events ingestion hoạt động; enable_admin_analytics nếu bật. Analytics feature; license notices giữ nguyên và rolling count được theo dõi. |
+| Tiền điều kiện | Metrics/events ingestion hoạt động; enable_admin_analytics nếu bật. Analytics feature;|
 | Fixture/input | Event delivery duplicate/late hoặc aggregate rebuild; FX-ID/FX-ACL và fixture domain tương ứng trong 3.1. |
 | Mức ưu tiên | P0 cho authz/commit/durability; P1 cho functionality/recovery; UI cosmetic P2. |
 
@@ -8443,7 +8442,7 @@ Status toàn bộ TC-X: **PLANNED_NOT_EXECUTED**. Cleanup dùng isolated environ
 | NFR-11 Privacy | Secrets encrypted, exports/traces redacted, consent/retention enforcement; no cross-user cache | TC-X-15/17/21/22 và log/export secret-canary scan |
 | NFR-12 Restore | Backup DB/object/key manifests restore vào isolated target; smoke và checksums đạt | TC-X-19; zero lost committed revision references |
 | NFR-13 File fidelity | Original immutable; supported edits preserve golden content/format; unsupported features được cảnh báo | TC-X-12; OpenXML parts/formulas/styles và visual checks |
-| NFR-14 Licensing | Preserve notices; report unique rolling30day count; không đổi license/version nếu không có nhu cầu thực | Release checklist và usage query evidence; không coi tài liệu là kết luận pháp lý mới |
+| NFR-14 Licensing | Preserve notices; report unique rolling30day count; | Release checklist và usage query evidence; không coi tài liệu là kết luận pháp lý mới |
 | NFR-15 No legacy/Ollama | Fresh schema/bootstrap không chạy legacy import/backfill; zero Ollama UI/probes/requests | TC-X-14 và static call graph/smoke baseline mới |
 
 ### 5.1 Workload và chốt thresholds

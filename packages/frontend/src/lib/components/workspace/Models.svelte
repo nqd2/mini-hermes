@@ -283,9 +283,6 @@
 	};
 
 	const shareModelHandler = async (model) => {
-		// LICENSE covers this Open WebUI Community wordmark.
-		// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-		// https://docs.openwebui.com/license.
 		toast.success($i18n.t('Redirecting you to Open WebUI Community'));
 
 		const url = 'https://openwebui.com';
@@ -519,9 +516,6 @@
 <WorkspaceAccessModal bind:this={accessModal} resourceType="models" onUpdated={getModelList} />
 
 <svelte:head>
-	<!-- LICENSE covers this Open WebUI browser-title identifier.
-	Do not alter, remove, obscure, or replace it except as LICENSE permits:
-	https://docs.openwebui.com/license. -->
 	<title>
 		{$i18n.t('Models')} / {$WEBUI_NAME}
 	</title>
@@ -796,9 +790,6 @@
 													loading="lazy"
 													decoding="async"
 													on:error={(e) => {
-														// LICENSE covers this Open WebUI fallback logo.
-														// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-														// https://docs.openwebui.com/license.
 														e.target.src = '/favicon.png';
 													}}
 												/>

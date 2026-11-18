@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import logging
-from typing import Any
+import time
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
 
 from open_webui.utils.json_codec import JSONCodec
 
 from .context import ContextManager, PreparedContext
 from .contracts import compute_run_snapshot_versions
 from .request_budget import RequestBudgetManager
+
+if TYPE_CHECKING:
+    from open_webui.mini_hermes.tier_service import DispatchContext
 
 log = logging.getLogger(__name__)
 
@@ -153,6 +160,8 @@ class ProviderGateway:
         method: str,
         url: str,
         prepared: PreparedContext,
+        *,
+        llm_dispatch: DispatchContext | None = None,
         **request_options: Any,
     ) -> Any:
         if not isinstance(prepared, PreparedContext):
@@ -178,6 +187,38 @@ class ProviderGateway:
             prepared.metrics['estimated_input_tokens'],
         )
         wire_req_id = log_llm_request(method, url, prepared.wire_body)
-        resp = await session.request(method=method, url=url, **{body_argument: prepared.wire_body}, **request_options)
+        if llm_dispatch is None:
+            resp = await session.request(method=method, url=url, **{body_argument: prepared.wire_body}, **request_options)
+        else:
+            from open_webui.mini_hermes.tier_service import tier_repository, upstream_free_reset
+
+            wire_bytes = prepared.wire_body.encode('utf-8')
+            fingerprint = hashlib.sha256(wire_bytes).hexdigest()
+            request_options['allow_redirects' if body_argument == 'data' else 'follow_redirects'] = False
+            await tier_repository.begin_dispatch(llm_dispatch, fingerprint, datetime.now(timezone.utc))
+            started = time.monotonic()
+            try:
+                resp = await session.request(
+                    method=method, url=url, **{body_argument: prepared.wire_body}, **request_options
+                )
+            except (Exception, asyncio.CancelledError):
+                # A failed audit update leaves the committed sent row chargeable.
+                try:
+                    await tier_repository.finish_dispatch(llm_dispatch.dispatch_key)
+                except Exception:
+                    log.exception('Could not record unknown LLM dispatch outcome')
+                raise
+            try:
+                status = resp.status if hasattr(resp, 'status') else resp.status_code
+                await tier_repository.finish_dispatch(
+                    llm_dispatch.dispatch_key,
+                    status=status,
+                    request_id=resp.headers.get('x-request-id') or resp.headers.get('request-id'),
+                    latency_ms=int((time.monotonic() - started) * 1000),
+                    shared_reset_at=upstream_free_reset(status, resp.headers, datetime.now(timezone.utc))
+                    if llm_dispatch.free_account else None,
+                )
+            except Exception:
+                log.exception('Could not record LLM provider response metadata')
         attach_dev_wire_meta(resp, wire_req_id, url)
         return resp

@@ -720,12 +720,18 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     else:
         models = request.app.state.MODELS
 
-    task_model_id = get_task_model_id(
-        form_data['model'],
-        await Config.get('task.model.default'),
-        await Config.get('task.model.external'),
-        models,
-    )
+    from open_webui.mini_hermes.tier_service import GROUPS, virtual_model
+
+    if form_data['model'] in GROUPS:
+        task_model_id = form_data['model']
+        models = {task_model_id: virtual_model(task_model_id)}
+    else:
+        task_model_id = get_task_model_id(
+            form_data['model'],
+            await Config.get('task.model.default'),
+            await Config.get('task.model.external'),
+            models,
+        )
 
     events = []
     sources = []

@@ -2,7 +2,7 @@
 	import { getContext, onMount } from 'svelte';
 
 	import { goto } from '$app/navigation';
-	import { adminGroupCount, adminUserCount, config, user } from '$lib/stores';
+	import { adminGroupCount, adminUserCount, user } from '$lib/stores';
 	import { page } from '$app/stores';
 	import { getGroups } from '$lib/apis/groups';
 	import { getUsers } from '$lib/apis/users';
@@ -37,14 +37,8 @@
 	};
 
 	let loaded = false;
-	$: usersSeatLimit = $config?.license_metadata?.seats ?? null;
-	$: usersCountExceeded = usersSeatLimit !== null && ($adminUserCount ?? 0) > usersSeatLimit;
 	$: formattedUserCount =
-		$adminUserCount === null
-			? null
-			: usersSeatLimit !== null
-				? `${formatNumber($adminUserCount)} of ${formatNumber(usersSeatLimit)}`
-				: formatNumber($adminUserCount);
+		$adminUserCount === null ? null : formatNumber($adminUserCount);
 	$: formattedGroupCount = $adminGroupCount === null ? null : formatNumber($adminGroupCount);
 
 	const loadCounts = async () => {
@@ -98,9 +92,7 @@
 				<div class=" self-center">{$i18n.t('Overview')}</div>
 				{#if formattedUserCount !== null}
 					<div
-						class="self-center text-sm {usersCountExceeded
-							? `text-red-500 ${selectedTab === 'overview' ? '' : 'opacity-50'}`
-							: 'opacity-60'}"
+						class="self-center text-sm opacity-60"
 					>
 						{formattedUserCount}
 					</div>

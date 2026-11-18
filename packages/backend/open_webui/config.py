@@ -109,9 +109,6 @@ for file_path in STATIC_SOURCE_DIR.glob('**/*'):
         except Exception as e:
             logging.error(f'An error occurred: {e}')
 
-# LICENSE covers copied Open WebUI logo/favicon assets.
-# Do not alter, remove, obscure, or replace them except as LICENSE permits:
-# https://docs.openwebui.com/license.
 frontend_favicon = STATIC_SOURCE_DIR / 'favicon.png'
 
 if frontend_favicon.exists():
@@ -173,9 +170,6 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # CUSTOM_NAME (Legacy)
 
-# LICENSE covers this legacy Open WebUI branding path.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 CUSTOM_NAME = os.getenv('CUSTOM_NAME', '')
 
 if CUSTOM_NAME:
@@ -1562,7 +1556,7 @@ AUDIO_TTS_MISTRAL_API_BASE_URL = os.getenv('AUDIO_TTS_MISTRAL_API_BASE_URL', 'ht
 WEBUI_URL = os.getenv('WEBUI_URL', '')
 
 
-ENABLE_SIGNUP = False if not WEBUI_AUTH else os.getenv('ENABLE_SIGNUP', 'True').lower() == 'true'
+ENABLE_SIGNUP = False if not WEBUI_AUTH else os.getenv('ENABLE_SIGNUP', 'False').lower() == 'true'
 
 ENABLE_LOGIN_FORM = os.getenv('ENABLE_LOGIN_FORM', 'True').lower() == 'true'
 
@@ -1984,9 +1978,6 @@ DEFAULT_ARENA_MODEL = {
     'id': 'arena-model',
     'name': 'Arena Model',
     'meta': {
-        # LICENSE covers this Open WebUI fallback logo.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         'profile_image_url': '/favicon.png',
         'description': 'Submit your questions to anonymous AI chatbots and vote on the best response.',
         'model_ids': None,

@@ -346,9 +346,6 @@
 						alt={resolveLocalizedModelName(model, $i18n.language) ?? model.id}
 						class="size-4 shrink-0 rounded-full object-cover"
 						on:error={(e) => {
-							// LICENSE covers this Open WebUI fallback logo.
-							// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-							// https://docs.openwebui.com/license.
 							(e.currentTarget as HTMLImageElement).src = '/favicon.png';
 						}}
 					/>

@@ -391,9 +391,6 @@
 </script>
 
 <svelte:head>
-	<!-- LICENSE covers this Open WebUI browser-title identifier.
-	Do not alter, remove, obscure, or replace it except as LICENSE permits:
-	https://docs.openwebui.com/license. -->
 	{#if channel?.type === 'dm'}
 		<title
 			>{channel?.name.trim() ||

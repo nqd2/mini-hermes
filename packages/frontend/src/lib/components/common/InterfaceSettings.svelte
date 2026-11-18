@@ -4,8 +4,7 @@
 		canUseCalls,
 		canUseChannels,
 		canUseTemporaryChats,
-		canUseWebSearch,
-		isSettingsAdmin
+		canUseWebSearch
 	} from '$lib/utils/settings-access';
 	import { config, settings, terminalServers, user, visibleControls } from '$lib/stores';
 	import { onMount, getContext } from 'svelte';
@@ -112,7 +111,6 @@
 	let stylizedPdfExport = true;
 
 	// Admin - Show Update Available Toast
-	let showUpdateToast = true;
 	let showChangelog = true;
 
 	// File
@@ -344,7 +342,6 @@
 		responseAutoCopy = currentSettings?.responseAutoCopy ?? false;
 
 		showUsername = currentSettings?.showUsername ?? false;
-		showUpdateToast = currentSettings?.showUpdateToast ?? true;
 		showChangelog = currentSettings?.showChangelog ?? true;
 
 		showEmojiInCall = currentSettings?.showEmojiInCall ?? false;
@@ -744,57 +741,28 @@
 		</p>
 	</div>
 
-	{#if isSettingsAdmin({ user: $user, config: $config })}
-		<div>
-			<div class={settingRowClass}>
-				<label
-					id="toast-notifications-label"
-					class={settingLabelClass}
-					for="toast-notifications-label-control"
-				>
-					{$i18n.t('settings.personal.interface.toastNotificationsForNewUpdates.label')}
-				</label>
+	<div>
+		<div class={settingRowClass}>
+			<label id="whats-new-label" class={settingLabelClass} for="whats-new-label-control">
+				{$i18n.t(`Show Mini-Hermes release notes on sign-in`)}
+			</label>
 
-				<div class={settingControlClass}>
-					<Switch
-						ariaLabelledbyId="toast-notifications-label"
-						tooltip={true}
-						bind:state={showUpdateToast}
-						inherited={isDefaultSetting('showUpdateToast')}
-						on:change={() => {
-							saveSettings({ showUpdateToast });
-						}}
-					/>
-				</div>
+			<div class={settingControlClass}>
+				<Switch
+					ariaLabelledbyId="whats-new-label"
+					tooltip={true}
+					bind:state={showChangelog}
+					inherited={isDefaultSetting('showChangelog')}
+					on:change={() => {
+						saveSettings({ showChangelog });
+					}}
+				/>
 			</div>
-			<p class={settingDescriptionClass}>
-				{$i18n.t('settings.personal.interface.toastNotificationsForNewUpdates.description')}
-			</p>
 		</div>
-
-		<div>
-			<div class={settingRowClass}>
-				<label id="whats-new-label" class={settingLabelClass} for="whats-new-label-control">
-					{$i18n.t(`Show "What's New" Modal on Login`)}
-				</label>
-
-				<div class={settingControlClass}>
-					<Switch
-						ariaLabelledbyId="whats-new-label"
-						tooltip={true}
-						bind:state={showChangelog}
-						inherited={isDefaultSetting('showChangelog')}
-						on:change={() => {
-							saveSettings({ showChangelog });
-						}}
-					/>
-				</div>
-			</div>
-			<p class={settingDescriptionClass}>
-				{$i18n.t('Open the changelog modal after sign-in when enabled.')}
-			</p>
-		</div>
-	{/if}
+		<p class={settingDescriptionClass}>
+			{$i18n.t('Show the notes once for each new Mini-Hermes version.')}
+		</p>
+	</div>
 
 	<div class={sectionHeadingClass}>
 		{$i18n.t('settings.personal.interface.sections.chat.title')}

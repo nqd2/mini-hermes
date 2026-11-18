@@ -13,6 +13,8 @@ WORKDIR /opt/mini-hermes-js
 RUN npm install --no-audit --no-fund --omit=dev --no-save docx@9.15.2 pptxgenjs@4.0.1
 
 FROM python:3.12-slim AS runtime
+ARG MH_RELEASE_VERSION=dev
+ENV MH_RELEASE_VERSION=${MH_RELEASE_VERSION}
 ENV UV_HTTP_TIMEOUT=180
 COPY --from=ghcr.io/astral-sh/uv:0.12.20 /uv /uvx /bin/
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,7 +27,10 @@ WORKDIR /app/packages/backend
 COPY packages/backend/pyproject.toml packages/backend/uv.lock packages/backend/README.md packages/backend/LICENSE* packages/backend/CHANGELOG.md ./
 COPY packages/backend/requirements-mini-hermes.lock ./
 RUN uv pip install --system --no-cache -r requirements-mini-hermes.lock
+COPY packages/backend/alembic_v2.ini ./
 COPY packages/backend/open_webui ./open_webui
+COPY scripts/check_mh_release_manifest.py /app/scripts/
+RUN python /app/scripts/check_mh_release_manifest.py
 COPY --from=frontend /src/packages/frontend/build ./open_webui/frontend
 ENV PYTHONPATH="/app/packages/backend" \
     ENV=prod \

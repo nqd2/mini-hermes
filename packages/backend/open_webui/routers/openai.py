@@ -5,6 +5,7 @@ import hashlib
 import logging
 import re
 import time
+from copy import deepcopy
 from typing import Optional
 from urllib.parse import quote, urlparse
 
@@ -33,6 +34,9 @@ from open_webui.env import (
 )
 from open_webui.events import EVENTS, publish_event, publish_model_provider_request_failed
 from open_webui.internal.db import get_async_session
+from open_webui.mini_hermes.model_routing import get_connections, normalize_connections, select_model, select_rate_limit_fallback
+from open_webui.mini_hermes.routed_response import logical_result, logical_stream, prepare_logical_request, provider_error
+from open_webui.mini_hermes.tier_service import GROUPS, authorize_model, virtual_catalog
 from open_webui.models.access_grants import AccessGrants
 from open_webui.models.config import Config
 from open_webui.models.groups import Groups
@@ -41,7 +45,7 @@ from open_webui.models.users import UserModel
 from open_webui.utils.access_control import check_model_access, has_connection_access, has_permission
 from open_webui.utils.anthropic import ANTHROPIC_VERSION, get_anthropic_models, is_anthropic_url
 from open_webui.utils.auth import get_admin_user, get_verified_user
-from open_webui.utils.headers import get_headers_and_cookies, include_user_info_headers
+from open_webui.utils.headers import get_headers_and_cookies, get_json_bearer_headers, include_user_info_headers
 from open_webui.utils.dev_wire_log import log_llm_json_response
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.misc import convert_logit_bias_input_to_json, get_provider_function
@@ -512,7 +516,22 @@ async def count_anthropic_tokens(request: Request, form_data: dict, user: UserMo
 
 @router.get('/config')
 async def get_config(request: Request, user=Depends(get_admin_user)):
-    return await get_openai_config()
+    config = await get_openai_config()
+    connections = await get_connections(include_disabled=True)
+    existing_ids = {connection_id: connection.options for connection_id, connection in connections.items()}
+    urls = config.get('OPENAI_API_BASE_URLS') or []
+    keys = config.get('OPENAI_API_KEYS') or []
+    options = config.get('OPENAI_API_CONFIGS') or {}
+    legacy = normalize_connections(urls, keys, {
+        index: {k: v for k, v in value.items() if k != 'connection_id'} for index, value in options.items()
+    })
+    for index, item in legacy.items():
+        original = options.get(index, options.get(urls[int(index)], {}))
+        connection_id = original.get('connection_id', item['connection_id'])
+        if connection_id in existing_ids:
+            item['connection_id'] = connection_id
+    config['OPENAI_API_CONFIGS'] = legacy
+    return config
 
 
 class OpenAIConfigForm(BaseModel):
@@ -531,8 +550,10 @@ async def update_config(request: Request, form_data: OpenAIConfigForm, user=Depe
     elif len(api_keys) < len(form_data.OPENAI_API_BASE_URLS):
         api_keys = [*api_keys, *([''] * (len(form_data.OPENAI_API_BASE_URLS) - len(api_keys)))]
 
-    valid_keys = set(map(str, range(len(form_data.OPENAI_API_BASE_URLS))))
-    api_configs = {key: value for key, value in form_data.OPENAI_API_CONFIGS.items() if key in valid_keys}
+    api_configs = normalize_connections(
+        form_data.OPENAI_API_BASE_URLS, api_keys, form_data.OPENAI_API_CONFIGS,
+        (await get_connections(include_disabled=True)).values(),
+    )
 
     await Config.upsert(
         {
@@ -630,9 +651,6 @@ async def speech(request: Request, user=Depends(get_verified_user)):
                 except Exception:
                     detail = f'External: {e}'
 
-            # LICENSE covers this Open WebUI error identifier.
-            # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-            # https://docs.openwebui.com/license.
             raise HTTPException(
                 status_code=r.status if r else 500,
                 detail=detail if detail else 'Open WebUI: Server Connection Error',
@@ -835,8 +853,10 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
 @router.get('/models')
 @router.get('/models/{url_idx}')
 async def get_models(request: Request, url_idx: int | None = None, user=Depends(get_verified_user)):
-    if url_idx is not None and user.role != 'admin':
-        raise HTTPException(status_code=401, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
+    if user.role != 'admin':
+        if url_idx is not None:
+            raise HTTPException(401, detail=ERROR_MESSAGES.ACCESS_PROHIBITED)
+        return {'object': 'list', 'data': await virtual_catalog(user)}
 
     if not await Config.get('openai.enable'):
         raise HTTPException(status_code=503, detail='OpenAI API is disabled')
@@ -897,9 +917,6 @@ async def get_models(request: Request, url_idx: int | None = None, user=Depends(
             except aiohttp.ClientError as e:
                 # ClientError covers all aiohttp requests issues
                 log.exception(f'Client error: {str(e)}')
-                # LICENSE covers this Open WebUI error identifier.
-                # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-                # https://docs.openwebui.com/license.
                 raise HTTPException(status_code=500, detail='Open WebUI: Server Connection Error')
             except Exception as e:
                 log.exception(f'Unexpected error: {e}')
@@ -1460,12 +1477,31 @@ def convert_responses_result(response: dict) -> dict:
     }
 
 
+class _CandidateRateLimited(HTTPException):
+    def __init__(self, error, selection, run_attempt):
+        super().__init__(error.status_code, detail=error.detail, headers=error.headers)
+        self.selection = selection
+        self.run_attempt = run_attempt
+
+
 @router.post('/chat/completions')
 async def generate_chat_completion(
     request: Request,
     form_data: dict,
     user=Depends(get_verified_user),
 ):
+    try:
+        return await _generate_chat_completion(request, form_data, user)
+    except _CandidateRateLimited as error:
+        replacement = await select_rate_limit_fallback(
+            user.id, form_data, error.selection, error.run_attempt,
+        )
+        if replacement is None:
+            raise
+        return await _generate_chat_completion(request, form_data, user, replacement=replacement)
+
+
+async def _generate_chat_completion(request, form_data, user, *, replacement=None):
     if not await Config.get('openai.enable'):
         raise HTTPException(status_code=503, detail='OpenAI API is disabled')
 
@@ -1489,58 +1525,73 @@ async def generate_chat_completion(
     # keep the model the client asked for when reached from /api/chat/completions
     if not hasattr(request.state, 'model_id'):
         request.state.model_id = model_id
-    model_info = await Models.get_model_by_id(model_id)
-
-    # Check model info and override the payload
-    if model_info:
-        if model_info.base_model_id:
-            base_model_id = (
-                request.base_model_id if hasattr(request, 'base_model_id') else model_info.base_model_id
-            )  # Use request's base_model_id if available
-            payload['model'] = base_model_id
-            model_id = base_model_id
-
-        params = model_info.params.model_dump()
-
-        if params:
-            system = params.pop('system', None)
-
-            payload = apply_model_params_to_body_openai(params, payload)
-            if not bypass_system_prompt:
-                payload = await apply_system_prompt_to_body(system, payload, metadata, user)
-
-        await check_model_access(user, model_info, bypass_filter)
+    await authorize_model(user, model_id)
+    selected = None
+    if isinstance(model_id, str) and model_id in GROUPS:
+        server_metadata = getattr(request.state, 'metadata', None) or {}
+        # The application builds (and fans out) this metadata after authentication.
+        # A direct /openai call has no application metadata in request.state.
+        metadata = metadata if server_metadata and isinstance(metadata, dict) else server_metadata
+        run_id = None if metadata.get('task') else metadata.get('agent_turn_id') or metadata.get('v2_run_id')
+        selected = replacement or await select_model(user.id, model_id, payload, run_id)
+        # Provider transforms may edit message parts in place. Retain the
+        # caller's original payload if a definite rejection allows a retry.
+        payload = deepcopy(payload)
+        url, key, api_config = selected.connection.url, selected.connection.key, selected.connection.options
+        selected.apply(payload)
     else:
-        await check_model_access(user, None, bypass_filter)
+        model_info = await Models.get_model_by_id(model_id)
 
-    # Check if model is already in app state cache to avoid expensive get_all_models() call
-    models = request.app.state.OPENAI_MODELS
-    if not models or model_id not in models:
-        await get_all_models(request, user=user)
+        # Check model info and override the payload
+        if model_info:
+            if model_info.base_model_id:
+                base_model_id = (
+                    request.base_model_id if hasattr(request, 'base_model_id') else model_info.base_model_id
+                )  # Use request's base_model_id if available
+                payload['model'] = base_model_id
+                model_id = base_model_id
+
+            params = model_info.params.model_dump()
+
+            if params:
+                system = params.pop('system', None)
+
+                payload = apply_model_params_to_body_openai(params, payload)
+                if not bypass_system_prompt:
+                    payload = await apply_system_prompt_to_body(system, payload, metadata, user)
+
+            await check_model_access(user, model_info, bypass_filter)
+        else:
+            await check_model_access(user, None, bypass_filter)
+
+        # Check if model is already in app state cache to avoid expensive get_all_models() call
         models = request.app.state.OPENAI_MODELS
-    model = models.get(model_id)
+        if not models or model_id not in models:
+            await get_all_models(request, user=user)
+            models = request.app.state.OPENAI_MODELS
+        model = models.get(model_id)
 
-    if model:
-        idx = model['urlIdx']
-    else:
-        raise HTTPException(
-            status_code=404,
-            detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
-        )
+        if model:
+            idx = model['urlIdx']
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
+            )
 
-    url, key, api_config = await get_openai_connection(idx)
+        url, key, api_config = await get_openai_connection(idx)
 
-    prefix_id = api_config.get('prefix_id', None)
-    payload['model'] = strip_provider_model_prefix(payload['model'], prefix_id)
+        prefix_id = api_config.get('prefix_id', None)
+        payload['model'] = strip_provider_model_prefix(payload['model'], prefix_id)
 
-    # Add user info to the payload if the model is a pipeline
-    if 'pipeline' in model and model.get('pipeline'):
-        payload['user'] = {
-            'name': user.name,
-            'id': user.id,
-            'email': user.email,
-            'role': user.role,
-        }
+        # Add user info to the payload if the model is a pipeline
+        if 'pipeline' in model and model.get('pipeline'):
+            payload['user'] = {
+                'name': user.name,
+                'id': user.id,
+                'email': user.email,
+                'role': user.role,
+            }
 
     # Check if model is a reasoning model that needs special handling
     if is_openai_new_model(payload['model']):
@@ -1561,7 +1612,10 @@ async def generate_chat_completion(
         if logit_bias:
             payload['logit_bias'] = JSONCodec.loads(logit_bias)
 
-    headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
+    if selected:
+        headers, cookies = get_json_bearer_headers(key), {}
+    else:
+        headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
 
     is_responses = api_config.get('api_type') == 'responses'
     if not is_responses:
@@ -1613,6 +1667,9 @@ async def generate_chat_completion(
             request_url = f'{url}/responses'
         else:
             request_url = f'{url}/chat/completions'
+    if selected and is_responses:
+        selected.apply(payload)
+        payload['store'] = False
     requested_model = payload.get('model')
     # For Chat Completions, strip image parts from multimodal tool messages
     # (Chat Completions doesn't support images in tool content).
@@ -1631,7 +1688,7 @@ async def generate_chat_completion(
     from open_webui.agent_runtime.gateway import ProviderGateway
 
     provider_gateway = ProviderGateway()
-    prepared_request = provider_gateway.prepare(payload, url, capability_overrides)
+    prepared_request = prepare_logical_request(provider_gateway, payload, url, selected, capability_overrides)
     await provider_gateway.checkpoint(request, prepared_request, metadata=metadata or {})
     payload = prepared_request.payload
     serialized_payload = prepared_request.wire_body
@@ -1664,6 +1721,7 @@ async def generate_chat_completion(
             timeout=get_client_timeout(stream=is_streaming_request),
             provider_base_url=url,
             capability_overrides=capability_overrides,
+            **({'llm_dispatch': selected.dispatch(user.id)} if selected else {}),
         )
         log.info(
             'Provider chat response: model=%s status=%s request_id=%s',
@@ -1671,6 +1729,25 @@ async def generate_chat_completion(
             r.status,
             r.headers.get('x-request-id') or r.headers.get('request-id'),
         )
+
+        if selected:
+            if r.status >= 300:
+                error = provider_error(r, selected)
+                if (
+                    replacement is None and r.status == 429
+                    and error.detail['code'] == 'provider_rate_limit'
+                ):
+                    raise _CandidateRateLimited(error, selected, metadata.get('agent_turn_attempt'))
+                raise error
+            if 'text/event-stream' in r.headers.get('Content-Type', ''):
+                streaming = True
+                return StreamingResponse(logical_stream(r, model_id), media_type='text/event-stream')
+            result = await _read_provider_response(r, request_url)
+            if not isinstance(result, dict):
+                raise HTTPException(502, detail={'code': 'provider_error'})
+            if is_responses:
+                result = convert_responses_result(result)
+            return logical_result(result, model_id)
 
         # Check if response is SSE
         if 'text/event-stream' in r.headers.get('Content-Type', ''):
@@ -1747,6 +1824,8 @@ async def generate_chat_completion(
                 response = convert_responses_result(response)
 
             return response
+    except HTTPException:
+        raise
     except Exception as e:
         log.exception(e)
 
@@ -1910,25 +1989,36 @@ async def responses(
     model_id = form_data.model
     request.state.model_id = model_id
 
-    # Enforce per-model access control
-    await check_model_access(user, await Models.get_model_by_id(model_id), BYPASS_MODEL_ACCESS_CONTROL)
+    await authorize_model(user, model_id)
+    selected = None
+    if model_id in GROUPS:
+        # Provider-owned continuation state can reference another user's data.
+        if payload.get('previous_response_id') or payload.get('conversation'):
+            raise HTTPException(400, detail={'code': 'unsupported_continuation'})
+        payload['store'] = False
+        selected = await select_model(user.id, model_id, payload, responses=True)
+        url, key, api_config = selected.connection.url, selected.connection.key, selected.connection.options
+        selected.apply(payload)
+    else:
+        # Enforce per-model access control
+        await check_model_access(user, await Models.get_model_by_id(model_id), BYPASS_MODEL_ACCESS_CONTROL)
 
-    if model_id:
-        models = request.app.state.OPENAI_MODELS
-        if not models or model_id not in models:
-            await get_all_models(request, user=user)
+        if model_id:
             models = request.app.state.OPENAI_MODELS
-        if model_id in models:
-            idx = models[model_id]['urlIdx']
+            if not models or model_id not in models:
+                await get_all_models(request, user=user)
+                models = request.app.state.OPENAI_MODELS
+            if model_id in models:
+                idx = models[model_id]['urlIdx']
 
-    url, key, api_config = await get_openai_connection(idx)
+        url, key, api_config = await get_openai_connection(idx)
 
-    payload['model'] = strip_provider_model_prefix(payload['model'], api_config.get('prefix_id'))
+        payload['model'] = strip_provider_model_prefix(payload['model'], api_config.get('prefix_id'))
     capability_overrides = getattr(request.state, 'resource_model_capabilities', None)
     from open_webui.agent_runtime.gateway import ProviderGateway
 
     provider_gateway = ProviderGateway()
-    prepared_request = provider_gateway.prepare(payload, url, capability_overrides)
+    prepared_request = prepare_logical_request(provider_gateway, payload, url, selected, capability_overrides)
     await provider_gateway.checkpoint(request, prepared_request)
     payload = prepared_request.payload
     body = prepared_request.wire_body
@@ -1942,7 +2032,10 @@ async def responses(
     streaming = False
 
     try:
-        headers, cookies = await get_headers_and_cookies(request, url, key, api_config, user=user)
+        if selected:
+            headers, cookies = get_json_bearer_headers(key), {}
+        else:
+            headers, cookies = await get_headers_and_cookies(request, url, key, api_config, user=user)
 
         if api_config.get('azure') or api_config.get('provider') == 'azure':
             auth_type = api_config.get('auth_type', 'bearer')
@@ -1973,12 +2066,24 @@ async def responses(
             timeout=get_client_timeout(stream=is_streaming_request),
             provider_base_url=url,
             capability_overrides=capability_overrides,
+            **({'llm_dispatch': selected.dispatch(user.id)} if selected else {}),
         )
         log.info(
             'Provider responses response: model=%s status=%s request_id=%s',
             payload.get('model'), r.status,
             r.headers.get('x-request-id') or r.headers.get('request-id'),
         )
+
+        if selected:
+            if r.status >= 300:
+                raise provider_error(r, selected)
+            if 'text/event-stream' in r.headers.get('Content-Type', ''):
+                streaming = True
+                return StreamingResponse(logical_stream(r, model_id), media_type='text/event-stream')
+            result = await _read_provider_response(r, request_url)
+            if not isinstance(result, dict):
+                raise HTTPException(502, detail={'code': 'provider_error'})
+            return logical_result(result, model_id)
 
         # Check if response is SSE
         if 'text/event-stream' in r.headers.get('Content-Type', ''):
@@ -2031,7 +2136,7 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
     Disabled by default. Set ENABLE_OPENAI_API_PASSTHROUGH=True to enable.
     """
 
-    if not ENABLE_OPENAI_API_PASSTHROUGH:
+    if user.role != 'admin' or not ENABLE_OPENAI_API_PASSTHROUGH:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail='Direct API passthrough is disabled. Set ENABLE_OPENAI_API_PASSTHROUGH=True to enable.',
@@ -2185,9 +2290,6 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
         raise
     except Exception as e:
         log.exception(e)
-        # LICENSE covers this Open WebUI error identifier.
-        # Do not alter, remove, obscure, or replace it except as LICENSE permits:
-        # https://docs.openwebui.com/license.
         raise HTTPException(
             status_code=r.status if r else 500,
             detail='Open WebUI: Server Connection Error',

@@ -222,6 +222,13 @@ async def generate_chat_completion(
                 **request.state.metadata,
             }
 
+    from open_webui.mini_hermes.tier_service import GROUPS, authorize_model
+
+    model_id = form_data.get('model')
+    if user.role != 'admin' or (isinstance(model_id, str) and model_id in GROUPS):
+        await authorize_model(user, model_id)
+        return await generate_openai_chat_completion(request, form_data, user=user)
+
     if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
         # Merge the direct connection model into server models so that
         # task functions (title, tags, etc.) can resolve a server-side
@@ -344,16 +351,23 @@ chat_completion = generate_chat_completion
 
 
 async def chat_completed(request: Request, form_data: dict, user: Any):
-    if not request.app.state.MODELS:
-        await get_all_models(request, user=user)
+    from open_webui.mini_hermes.tier_service import GROUPS, authorize_model, virtual_model
 
-    if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
-        models = {
-            **dict(request.app.state.MODELS.items()),
-            request.state.model['id']: request.state.model,
-        }
+    model_id = form_data.get('model')
+    await authorize_model(user, model_id)
+    if isinstance(model_id, str) and model_id in GROUPS:
+        models = {model_id: virtual_model(model_id)}
     else:
-        models = request.app.state.MODELS
+        if not request.app.state.MODELS:
+            await get_all_models(request, user=user)
+
+        if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
+            models = {
+                **dict(request.app.state.MODELS.items()),
+                request.state.model['id']: request.state.model,
+            }
+        else:
+            models = request.app.state.MODELS
 
     data = form_data
 

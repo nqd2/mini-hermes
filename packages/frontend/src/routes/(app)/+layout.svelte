@@ -4,19 +4,19 @@
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { fade } from 'svelte/transition';
 
-	import { getBackendConfig, getModels, getToolServersData, getVersionUpdates } from '$lib/apis';
+	import { getBackendConfig, getModels, getToolServersData } from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
 	import { getSkills } from '$lib/apis/skills';
 	import { getSessionUser } from '$lib/apis/auths';
 	import { getBanners } from '$lib/apis/configs';
 	import { getTerminalServers } from '$lib/apis/terminal';
-	import { getUserSettings } from '$lib/apis/users';
+	import { getUserSettings, updateUserSettings } from '$lib/apis/users';
+	import { getMhRelease, type MhRelease } from '$lib/apis/mini-hermes/release';
+	import { shouldShowMhRelease } from '$lib/utils/mhReleaseVisibility';
 	import { setAppFontFamily, setTextScale } from '$lib/utils/text-scale';
 
-	import { WEBUI_VERSION, WEBUI_API_BASE_URL, WEBUI_BUILD_CHANNEL } from '$lib/constants';
-	import { compareVersion } from '$lib/utils';
+	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 	import {
 		config,
@@ -46,9 +46,8 @@
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
-	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
+	import MhReleaseModal from '$lib/components/MhReleaseModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
-	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { loadKeybindings, matchKeybinding, Shortcut } from '$lib/shortcuts';
 	import { canUseTemporaryChats } from '$lib/utils/settings-access';
@@ -57,7 +56,38 @@
 
 	let loaded = false;
 
-	let version;
+	let release: MhRelease | null = null;
+
+	const loadMhRelease = async () => {
+		if (!['user', 'admin'].includes($user?.role)) return;
+		const userId = $user.id;
+		try {
+			const loadedRelease = await getMhRelease(localStorage.token);
+			if ($user?.id !== userId) return;
+			release = loadedRelease;
+			if (shouldShowMhRelease(release.version, $settings?.mh_last_seen_release_version,
+				$settings?.showChangelog ?? true)) {
+				showChangelog.set(true);
+			}
+		} catch {
+			release = null;
+		}
+	};
+
+	const dismissMhRelease = async () => {
+		showChangelog.set(false);
+		if (!release || release.version === 'dev' || $settings?.mh_last_seen_release_version === release.version) return;
+		const version = release.version;
+		const userId = $user?.id;
+		try {
+			await updateUserSettings(localStorage.token, { ui: { mh_last_seen_release_version: version } });
+			if ($user?.id === userId) {
+				settings.update((current) => ({ ...current, mh_last_seen_release_version: version }));
+			}
+		} catch {
+			toast.error($i18n.t('Failed to update settings'));
+		}
+	};
 	let handledSettingsUrl = '';
 
 	const clearChatInputStorage = () => {
@@ -392,9 +422,7 @@
 		};
 		setupKeyboardShortcuts();
 
-		if ($user?.role === 'admin' && ($settings?.showChangelog ?? true)) {
-			showChangelog.set($settings?.version !== $config.version);
-		}
+		void loadMhRelease();
 
 		if ($user?.role === 'admin' || ($user?.permissions?.chat?.temporary ?? true)) {
 			if ($page.url.searchParams.get('temporary-chat') === 'true') {
@@ -406,24 +434,6 @@
 			}
 		}
 
-		// Check for version updates
-		if (
-			WEBUI_BUILD_CHANNEL === 'main' &&
-			$user?.role === 'admin' &&
-			$config?.features?.enable_version_update_check
-		) {
-			// Check if the user has dismissed the update toast in the last 24 hours
-			if (localStorage.dismissedUpdateToast) {
-				const dismissedUpdateToast = new Date(Number(localStorage.dismissedUpdateToast));
-				const now = new Date();
-
-				if (now.getTime() - dismissedUpdateToast.getTime() > 24 * 60 * 60 * 1000) {
-					checkForVersionUpdates();
-				}
-			} else {
-				checkForVersionUpdates();
-			}
-		}
 		// Persist showTabs: track open/close state separately from saved size
 		// chatControlsSize always retains the last width for openPane()
 		await showTabs.set(!$mobile ? localStorage.showTabs === 'true' : false);
@@ -457,30 +467,10 @@
 		void gotoAuth();
 	}
 
-	const checkForVersionUpdates = async () => {
-		version = await getVersionUpdates(localStorage.token).catch((error) => {
-			return {
-				current: WEBUI_VERSION,
-				latest: null
-			};
-		});
-	};
 </script>
 
 <SettingsModal bind:show={$showSettings} />
-<ChangelogModal bind:show={$showChangelog} />
-
-{#if WEBUI_BUILD_CHANNEL === 'main' && version && compareVersion(version.latest, version.current) && ($settings?.showUpdateToast ?? true)}
-	<div class=" absolute bottom-8 right-8 z-50" in:fade={{ duration: 100 }}>
-		<UpdateInfoToast
-			{version}
-			on:close={() => {
-				localStorage.setItem('dismissedUpdateToast', Date.now().toString());
-				version = null;
-			}}
-		/>
-	</div>
-{/if}
+<MhReleaseModal show={$showChangelog} {release} close={dismissMhRelease} />
 
 {#if $user}
 	<div class="app relative">

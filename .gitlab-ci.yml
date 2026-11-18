@@ -15,11 +15,18 @@ contract_test:
     - local
   script:
     - pip install --no-cache-dir pytest pyyaml
-    - pytest packages/backend/tests/test_ci_pipeline_contract.py
+    - pytest packages/backend/tests/test_ci_pipeline_contract.py packages/backend/tests/test_mh_release_manifest.py
+    - |
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [ -n "${CI_COMMIT_TAG:-}" ]; then
+        python scripts/check_mh_release_manifest.py --production
+      else
+        python scripts/check_mh_release_manifest.py
+      fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_COMMIT_TAG
 
 build_image:
   stage: build
@@ -27,10 +34,11 @@ build_image:
   tags:
     - local
   script:
-    - docker build -t ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} -f Dockerfile .
+    - docker build --build-arg "MH_RELEASE_VERSION=${MH_RELEASE_VERSION:-dev}" -t ${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} -f Dockerfile .
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == "dev"
+    - if: $CI_COMMIT_TAG
 
 deploy_dev:
   stage: deploy

@@ -3,7 +3,6 @@ import importlib.metadata
 import json
 import logging
 import os
-import pkgutil
 import re
 import shutil
 import sys
@@ -14,9 +13,6 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
-import markdown
-from bs4 import BeautifulSoup
-from cryptography.hazmat.primitives import serialization
 
 # Load .env file
 
@@ -156,65 +152,6 @@ ENABLE_DB_MIGRATIONS = os.getenv('ENABLE_DB_MIGRATIONS', 'True').lower() == 'tru
 # to orjson. Faster, but stricter: see open_webui/utils/json_codec.py for the differences.
 ENABLE_ORJSON = os.getenv('ENABLE_ORJSON', 'True').lower() == 'true'
 
-
-# Function to parse each section
-def parse_section(section):
-    items = []
-    for li in section.find_all('li'):
-        # Extract raw HTML string
-        raw_html = str(li)
-
-        # Extract text without HTML tags
-        text = li.get_text(separator=' ', strip=True)
-
-        # Split into title and content
-        parts = text.split(': ', 1)
-        title = parts[0].strip() if len(parts) > 1 else ''
-        content = parts[1].strip() if len(parts) > 1 else text
-
-        items.append({'title': title, 'content': content, 'raw': raw_html})
-    return items
-
-
-try:
-    changelog_path = BACKEND_DIR / 'CHANGELOG.md'
-    with open(str(changelog_path.absolute()), encoding='utf8') as file:
-        changelog_content = file.read()
-
-except Exception:
-    changelog_content = (pkgutil.get_data('open_webui', 'CHANGELOG.md') or b'').decode()
-
-# Convert markdown content to HTML
-html_content = markdown.markdown(changelog_content)
-
-# Parse the HTML content
-soup = BeautifulSoup(html_content, 'html.parser')
-
-# Initialize JSON structure
-changelog_json = {}
-
-# Iterate over each version
-for version in soup.find_all('h2'):
-    version_number = version.get_text().strip().split(' - ')[0][1:-1]  # Remove brackets
-    date = version.get_text().strip().split(' - ')[1]
-
-    version_data = {'date': date}
-
-    # Find the next sibling that is a h3 tag (section title)
-    current = version.find_next_sibling()
-
-    while current and current.name != 'h2':
-        if current.name == 'h3':
-            section_title = current.get_text().lower()  # e.g., "added", "fixed"
-            section_items = parse_section(current.find_next_sibling('ul'))
-            version_data[section_title] = section_items
-
-        # Move to the next element
-        current = current.find_next_sibling()
-
-    changelog_json[version_number] = version_data
-
-CHANGELOG = changelog_json
 
 # Data/frontend build dir
 
@@ -924,43 +861,13 @@ if ENABLE_SCIM and not SCIM_AUTH_PROVIDER:
         'to enable externalId storage.'
     )
 
-# LICENSE_KEY
-
-LICENSE_KEY = os.getenv('LICENSE_KEY', '')
-
-LICENSE_BLOB = None
-LICENSE_BLOB_PATH = os.getenv('LICENSE_BLOB_PATH', DATA_DIR / 'l.data')
-if LICENSE_BLOB_PATH and os.path.exists(LICENSE_BLOB_PATH):
-    with open(LICENSE_BLOB_PATH, 'rb') as f:
-        LICENSE_BLOB = f.read()
-
-LICENSE_PUBLIC_KEY = os.getenv('LICENSE_PUBLIC_KEY', '')
-
-pk = None
-if LICENSE_PUBLIC_KEY:
-    pk = serialization.load_pem_public_key(
-        f"""
------BEGIN PUBLIC KEY-----
-{LICENSE_PUBLIC_KEY}
------END PUBLIC KEY-----
-""".encode()
-    )
-
 
 # WEBUI Identity
 
-# LICENSE covers this Open WebUI branding surface, including name, logo,
-# visual, textual, symbolic identifiers, metadata, and surrounding UI.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 WEBUI_NAME = os.getenv('WEBUI_NAME', 'Open WebUI')
 if WEBUI_NAME != 'Open WebUI':
     WEBUI_NAME += ' (Open WebUI)'
 
-# LICENSE covers this Open WebUI branding surface, including this favicon
-# and any visual, textual, or symbolic identifiers it preserves.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 WEBUI_FAVICON_URL = 'https://openwebui.com/favicon.png'
 WEBUI_BUILD_HASH = os.getenv('WEBUI_BUILD_HASH', 'dev-build')
 TRUSTED_SIGNATURE_KEY = os.getenv('TRUSTED_SIGNATURE_KEY', '')
@@ -1012,10 +919,6 @@ except ValueError:
 
 # Progressive Web App
 
-# LICENSE covers this install-time Open WebUI branding surface, including
-# names, logos, manifests, metadata, and surrounding UI.
-# Do not alter, remove, obscure, or replace it except as LICENSE permits:
-# https://docs.openwebui.com/license.
 EXTERNAL_PWA_MANIFEST_URL = os.getenv('EXTERNAL_PWA_MANIFEST_URL', None)
 
 # Group defaults
@@ -1188,7 +1091,7 @@ PIP_PACKAGE_INDEX_OPTIONS = os.getenv('PIP_PACKAGE_INDEX_OPTIONS', '').split()
 
 # OFFLINE_MODE
 
-ENABLE_VERSION_UPDATE_CHECK = os.getenv('ENABLE_VERSION_UPDATE_CHECK', 'true').lower() == 'true'
+ENABLE_VERSION_UPDATE_CHECK = os.getenv('ENABLE_VERSION_UPDATE_CHECK', 'false').lower() == 'true'
 OFFLINE_MODE = os.getenv('OFFLINE_MODE', 'false').lower() == 'true'
 
 if OFFLINE_MODE:

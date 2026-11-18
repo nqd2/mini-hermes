@@ -1010,9 +1010,6 @@
 							<div
 								class="self-center relative flex size-[calc(30px*var(--app-text-scale,1))] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900"
 							>
-								<!-- LICENSE covers this Open WebUI sidebar logo.
-							Do not alter, remove, obscure, or replace it except as LICENSE permits:
-							https://docs.openwebui.com/license. -->
 								<img
 									src="{WEBUI_BASE_URL}/static/favicon.png"
 									class="sidebar-new-chat-icon size-5 rounded-full group-hover:hidden"
@@ -1190,9 +1187,6 @@
 						aria-label={$i18n.t('New Chat')}
 						on:click={newChatHandler}
 					>
-						<!-- LICENSE covers this Open WebUI sidebar logo.
-					Do not alter, remove, obscure, or replace it except as LICENSE permits:
-					https://docs.openwebui.com/license. -->
 						<img
 							crossorigin="anonymous"
 							src="{WEBUI_BASE_URL}/static/favicon.png"
@@ -1202,9 +1196,6 @@
 					</a>
 
 					<a href="/" class="flex min-w-0 flex-1 px-0.5" on:click={newChatHandler}>
-						<!-- LICENSE covers this Open WebUI sidebar name.
-					Do not alter, remove, obscure, or replace it except as LICENSE permits:
-					https://docs.openwebui.com/license. -->
 						<div
 							id="sidebar-webui-name"
 							class=" self-center truncate font-normal text-gray-700 dark:text-gray-200"

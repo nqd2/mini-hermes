@@ -13,7 +13,7 @@ These instructions apply to the entire repository. Follow the latest user reques
 - `references/open-webui` is preserved upstream source for comparison. Do not edit it unless the task explicitly targets upstream reference material.
 - Work in the supplied checkout. Do not create a worktree.
 - If a new branch is needed, use only `feature/<feature-name>`, `dev`, or `main`. Never create a `codex/*` branch.
-- Preserve production data, product API contracts, permissions, and Open WebUI license and copyright notices. The user approved a fresh persistence baseline and reset of the verified local development DB during the separate persistence implementation; this does not authorize production deletion. Do not commit `.env` files, credentials, or tokens.
+- The user approved a fresh persistence baseline and reset of the verified local development DB during the separate persistence implementation; this does not authorize production deletion. Do not commit `.env` files, credentials, or tokens.
 - Use the existing stack and dependencies. Add a dependency only when the task requires it and the user approves that design.
 
 ## Product and architecture decisions
@@ -23,7 +23,6 @@ These instructions apply to the entire repository. Follow the latest user reques
 - The approved target replaces persistence for both Mini-Hermes and Open WebUI using PostgreSQL and SQLAlchemy async. Do not retain models, backfills, history imports, or adapters solely for legacy data. Preserve the UI/Auth/RBAC/chat/model-management capabilities. User-facing import/export accepts the new versioned format.
 - Ollama is outside the product target: no Ollama provider selection, discovery, health/about probes, model management, or embedding configuration. Do not install or start Ollama to suppress connection errors.
 - Use the [Vietnamese use-case, design, test, and audit specification](docs/design/mini-hermes-use-cases-design-and-tests.md) for the detailed target; its test scenarios are planned evidence, not completed production gates.
-- Open WebUI owns product UI, authentication, RBAC, chat, and model management. Keep its current license notices and track the rolling 30-day user count. Do not pursue a new license or downgrade Open WebUI without a real licensing need.
 - The **99.9% availability target is internal**, not a committed SLA.
 - Each conversation stays bound to one engine and version. Each run has one execution owner and a matching run binding. Never resume a checkpoint across runtimes. Canary and rollback change engine selection only for new conversations.
 

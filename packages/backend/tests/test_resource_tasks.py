@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
@@ -15,11 +17,20 @@ from open_webui.mini_hermes.resource_tasks import (
 )
 
 
+@pytest.fixture(autouse=True)
+def active_summary_owner(monkeypatch):
+    from open_webui.mini_hermes.tier_service import PlanSnapshot, tier_repository
+    from open_webui.models.users import Users
+
+    monkeypatch.setattr(Users, 'get_user_by_id', AsyncMock(return_value=SimpleNamespace(role='user')))
+    monkeypatch.setattr(tier_repository, 'get_plan', AsyncMock(return_value=PlanSnapshot('free', None)))
+
+
 @pytest.mark.asyncio
 async def test_summary_task_checkpoints_chunks_and_reduces_with_evidence(monkeypatch):
     from open_webui.mini_hermes import resource_tasks
 
-    async def summarize(text):
+    async def summarize(text, _task):
         return 'summary:' + text[:30]
 
     monkeypatch.setattr(resource_tasks, 'summarize_with_provider', summarize)
@@ -71,7 +82,8 @@ async def test_summary_task_checkpoints_chunks_and_reduces_with_evidence(monkeyp
             ]
         )
         await db.commit()
-        task = await create_summary_task(db, doc, 'alice', 'chat-1')
+        task = await create_summary_task(db, doc, 'alice', 'chat-1', 'mh-free-medium')
+        assert task.logical_model_id == 'mh-free-medium'
         assert (await db.execute(select(DocumentChunk.id))).scalars().all() == ['c1', 'c2']
         for _ in range(8):
             if task.status == 'completed':
@@ -93,7 +105,7 @@ async def test_large_summary_reduces_multiple_groups_across_database_sessions(mo
 
     calls = []
 
-    async def summarize(text):
+    async def summarize(text, _task):
         calls.append(text)
         return f'summary-{len(calls)}:{text[:30]}'
 
@@ -234,7 +246,7 @@ async def test_cancel_and_resume_keeps_checkpoint_and_rejects_changed_revision()
 async def test_summary_task_reloads_checkpoint_after_session_restart(monkeypatch):
     from open_webui.mini_hermes import resource_tasks
 
-    async def summarize(text):
+    async def summarize(text, _task):
         return 'summary:' + text[:30]
 
     monkeypatch.setattr(resource_tasks, 'summarize_with_provider', summarize)

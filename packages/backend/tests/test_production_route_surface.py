@@ -134,3 +134,24 @@ async def test_client_config_does_not_advertise_retired_products(monkeypatch):
     assert retired.isdisjoint(body['features'])
     assert 'onedrive' not in body
     assert 'audio' not in body
+
+
+@pytest.mark.asyncio
+async def test_client_config_does_not_expose_open_webui_license_data(monkeypatch):
+    monkeypatch.setattr(main, 'decode_token', lambda _: {'id': 'user-1'})
+    monkeypatch.setattr(main, 'is_valid_token', AsyncMock(return_value=True))
+    monkeypatch.setattr(main.Users, 'get_user_by_id', AsyncMock(return_value=SimpleNamespace(id='user-1', role='admin')))
+    monkeypatch.setattr(main.Groups, 'get_groups_by_member_id', AsyncMock(return_value=[]))
+    monkeypatch.setattr(main.Config, 'get_many', AsyncMock(return_value={}))
+    monkeypatch.setattr(main.Users, 'get_num_users', AsyncMock(return_value=100))
+    monkeypatch.setattr(main.app.state, 'redis', None, raising=False)
+    monkeypatch.setattr(main.app.state, 'LICENSE_METADATA', {'type': 'trial', 'seats': 10}, raising=False)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+        response = await client.get('/api/config', headers={'Authorization': 'Bearer test-token'})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert 'license_metadata' not in body
+    assert 'user_count' not in body
+    assert 'active_entries' not in body

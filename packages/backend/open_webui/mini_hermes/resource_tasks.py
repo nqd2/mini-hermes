@@ -66,7 +66,9 @@ async def pending_tasks_for_chat(chat_id: str | None, owner_id: str) -> list[str
         return []
 
 
-async def create_summary_task(db, doc: Document, owner_id: str, chat_id: str | None = None) -> ResourceTask:
+async def create_summary_task(
+    db, doc: Document, owner_id: str, chat_id: str | None = None, logical_model_id: str | None = None,
+) -> ResourceTask:
     revision = (
         await db.execute(
             select(Revision).where(Revision.document_id == doc.id, Revision.number == doc.current_revision)
@@ -87,11 +89,23 @@ async def create_summary_task(db, doc: Document, owner_id: str, chat_id: str | N
         raise ResourceIndexFailed([failed_job_id])
     if count > MAX_TASK_CHUNKS:
         raise HTTPException(413, 'Document task exceeds the 5000-section safety limit.')
+    from .tier_service import GROUPS, tier_repository
+
+    from open_webui.models.users import Users
+
+    owner = await Users.get_user_by_id(owner_id)
+    plan = await tier_repository.get_plan(owner_id)
+    if not owner or owner.role != 'admin':
+        if not isinstance(logical_model_id, str) or GROUPS.get(logical_model_id) != plan.tier:
+            logical_model_id = f'mh-{plan.tier}-small'
+    elif logical_model_id not in GROUPS:
+        logical_model_id = None
     task = ResourceTask(
         id=str(uuid4()),
         document_id=doc.id,
         owner_id=owner_id,
         chat_id=chat_id,
+        logical_model_id=logical_model_id,
         revision=revision.number,
         kind='summary',
         status='pending',
@@ -185,7 +199,8 @@ async def resume_summary_task(db, task_id: str, owner_id: str, doc: Document) ->
 
 
 async def call_provider(messages: list[dict], *, max_tokens: int, temperature: float = 0.1,
-                        target: dict | None = None) -> str:
+                        target: dict | None = None, owner_id: str | None = None,
+                        logical_model_id: str | None = None, task_id: str | None = None) -> str:
     """Call the configured OpenAI-compatible provider with the exact guarded body."""
     from open_webui.config import OPENAI_API_BASE_URLS, OPENAI_API_KEYS
 
@@ -193,7 +208,23 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
     api_key = (OPENAI_API_KEYS or ['not-needed'])[0]
     model = os.getenv('MH_RESOURCE_TASK_MODEL', os.getenv('MH_SMALL_TASK_MODEL', 'gpt-4.1-mini')).strip()
     api_type = 'chat'
-    if target:
+    selected = None
+    from open_webui.models.users import Users
+
+    owner = await Users.get_user_by_id(owner_id) if owner_id else None
+    if owner_id and (not owner or owner.role != 'admin' or logical_model_id):
+        from .model_routing import select_model
+        from .tier_service import tier_repository
+
+        plan = await tier_repository.get_plan(owner_id)
+        group_id = logical_model_id or f'mh-{plan.tier}-small'
+        selected = await select_model(
+            owner_id, group_id, {'messages': messages, 'max_tokens': max_tokens}, task_id,
+        )
+        base_url, api_key = selected.connection.url, selected.connection.key
+        api_type = selected.connection.options.get('api_type', 'chat')
+        model = selected.candidate.model_id
+    elif target:
         from open_webui.routers.openai import get_openai_connection, strip_provider_model_prefix
 
         base_url, api_key, config = await get_openai_connection(target['index'])
@@ -214,7 +245,9 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         'temperature': temperature,
     }
     path = '/chat/completions'
-    if target:
+    if selected:
+        selected.apply(payload)
+    if target or selected:
         from open_webui.routers.openai import (
             convert_to_responses_payload, is_openai_new_model, openai_reasoning_model_handler,
         )
@@ -226,10 +259,14 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
             payload = convert_to_responses_payload(payload)
             payload.pop('temperature', None)
             payload['store'] = False
+            if selected:
+                selected.apply(payload)
     from open_webui.agent_runtime.gateway import ProviderGateway
 
     gateway = ProviderGateway()
-    prepared_request = gateway.prepare(payload, base_url)
+    from .routed_response import prepare_logical_request
+
+    prepared_request = prepare_logical_request(gateway, payload, base_url, selected)
     metrics = prepared_request.metrics
     log.info(
         'Resource model request size: model=%s messages=%d serialized_chars=%d estimated_tokens=%d',
@@ -247,6 +284,7 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
             provider_base_url=base_url,
             body_argument='content',
+            **({'llm_dispatch': selected.dispatch(owner_id)} if selected else {}),
         )
     from open_webui.utils.dev_wire_log import log_llm_json_response
 
@@ -266,9 +304,9 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         )
         raise ProviderRequestError(
             status_code=response.status_code,
-            code=error.get('code'),
-            param=error.get('param'),
-            request_id=response.headers.get('x-request-id'),
+            code=None if selected else error.get('code'),
+            param=None if selected else error.get('param'),
+            request_id=None if selected else response.headers.get('x-request-id'),
         )
     data = JSONCodec.loads(response.content)
     if api_type == 'responses':
@@ -278,7 +316,7 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
     return str(data['choices'][0]['message'].get('content') or '').strip()[:2000]
 
 
-async def summarize_with_provider(text: str) -> str:
+async def summarize_with_provider(text: str, task: ResourceTask) -> str:
     """Summarize one bounded unit using the same serialized-body guard as chat."""
     return await call_provider(
         [
@@ -291,7 +329,7 @@ async def summarize_with_provider(text: str) -> str:
             },
             {'role': 'user', 'content': text},
         ],
-        max_tokens=300,
+        max_tokens=300, owner_id=task.owner_id, logical_model_id=task.logical_model_id, task_id=task.id,
     )
 
 
@@ -331,7 +369,7 @@ async def process_summary_task(db, task: ResourceTask) -> None:
             task.lease_until = None
             await db.commit()
             return
-        summary = await summarize_with_provider(chunk.content)
+        summary = await summarize_with_provider(chunk.content, task)
         await db.refresh(task, attribute_names=['cancel_requested'])
         checkpoint = copy.deepcopy(task.checkpoint or {'items': [], 'reduced': []})
         checkpoint.setdefault('items', []).append({'summary': summary, 'evidence_ids': [chunk.id]})
@@ -365,7 +403,7 @@ async def process_summary_task(db, task: ResourceTask) -> None:
         await db.commit()
         return
     prompt = '\n\n'.join(item.get('summary', '') for item in group)
-    summary = await summarize_with_provider(prompt)
+    summary = await summarize_with_provider(prompt, task)
     await db.refresh(task, attribute_names=['cancel_requested'])
     checkpoint = copy.deepcopy(task.checkpoint or {'items': [], 'reduced': []})
     checkpoint.setdefault('reduced', []).append(

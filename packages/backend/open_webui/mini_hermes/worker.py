@@ -5,9 +5,10 @@ import base64
 import hashlib
 import logging
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
 
+from fastapi import HTTPException
 from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import aliased
 
@@ -33,8 +34,6 @@ MAX_DESCRIPTION_INPUT_CHARS = 8_000
 
 
 def _description_failure_is_permanent(error: Exception) -> bool:
-    from fastapi import HTTPException
-
     from .resource_tasks import ProviderRequestError
 
     if isinstance(error, ProviderRequestError):
@@ -262,11 +261,6 @@ async def process_description(document_id: str):
             )
         ).scalar_one()
         try:
-            configured_model = os.getenv(
-                'MH_RESOURCE_TASK_MODEL', os.getenv('MH_SMALL_TASK_MODEL', 'gpt-4.1-mini')
-            ).strip()
-            if not configured_model:
-                raise RuntimeError('MH_SMALL_TASK_MODEL is not configured')
             content = extract_text(await get_verified_revision_content(ObjectStore(), revision), doc.filename)
             if not content.strip():
                 doc.description = ''
@@ -285,18 +279,29 @@ async def process_description(document_id: str):
                         # task processes every indexed chunk under its own budget.
                         {'role': 'user', 'content': content[:MAX_DESCRIPTION_INPUT_CHARS]},
                     ],
-                    max_tokens=100,
+                    max_tokens=100, owner_id=doc.owner_id,
                 )
                 doc.description_status = 'complete'
                 doc.description_error = None
         except Exception as exc:
             doc.description_status = 'failed_permanent' if _description_failure_is_permanent(exc) else 'failed'
-            doc.description_error = str(exc)[:1000]
+            doc.description_error = (
+                (exc.detail.get('message') or exc.detail.get('code'))
+                if isinstance(exc, HTTPException) and isinstance(exc.detail, dict)
+                else 'Document description generation failed'
+            )
             doc.description_next_attempt_at = (
                 now()
                 if doc.description_status == 'failed_permanent'
                 else now() + timedelta(seconds=min(3600, 2**doc.description_attempts))
             )
+            if (
+                isinstance(exc, HTTPException) and isinstance(exc.detail, dict)
+                and exc.detail.get('code') in {'quota_exhausted', 'free_capacity_exhausted'}
+                and exc.detail.get('reset_at')
+            ):
+                doc.description_attempts = max(0, doc.description_attempts - 1)
+                doc.description_next_attempt_at = datetime.fromisoformat(exc.detail['reset_at'])
             log.exception('Document description generation failed for %s', document_id)
         await db.commit()
 

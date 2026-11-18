@@ -24,6 +24,7 @@ from .library import document_in_chat_scope, has_document_access, list_chat_docu
 from .models import ChatResource, Document, ResourceAnalysis, ResourceAnalysisEvidence, ResourceTask, Revision, now
 from .resource_aware import resolve_resource_scope
 from .resource_tasks import call_provider
+from .tier_service import GROUPS
 from .service import get_verified_revision_content
 from .storage import ObjectStore
 
@@ -68,15 +69,18 @@ async def queue_chat_analysis(metadata, user, prompt: str, request=None, model=N
         doc = next(doc for doc in documents if doc.id == ids[0])
         if Path(doc.filename).suffix.casefold() not in FORMATS:
             return None
-        target = await _provider_target(request, model)
-        if target is None:
+        group_id = (model or {}).get('id')
+        if group_id not in GROUPS:
+            group_id = None
+        target = None if group_id else await _provider_target(request, model)
+        if target is None and group_id is None:
             return {'content': (
                 'Model này chưa hỗ trợ phân tích tài liệu chạy nền. Hãy chọn model có kết nối OpenAI được cấu hình.'
                 if re.search(r'tóm\s+tắt', prompt, re.I)
                 else 'This model does not support background document analysis. Choose a configured OpenAI model.'
             )}
         key = hashlib.sha256(json.dumps(
-            [user.id, chat_id, message_id, doc.id, doc.current_revision, prompt, target], ensure_ascii=False,
+            [user.id, chat_id, message_id, doc.id, doc.current_revision, prompt, group_id or target], ensure_ascii=False,
         ).encode()).hexdigest()
         async with Chats.edit_message_output(chat_id, message_id, db=db) as message:
             if message is None or message.get('role') != 'assistant':
@@ -89,7 +93,7 @@ async def queue_chat_analysis(metadata, user, prompt: str, request=None, model=N
             else:
                 task = ResourceTask(
                     id=str(uuid4()), document_id=doc.id, revision=doc.current_revision,
-                    chat_id=chat_id, owner_id=user.id, kind='analysis', phase='survey',
+                    chat_id=chat_id, owner_id=user.id, logical_model_id=group_id, kind='analysis', phase='survey',
                     status='pending', completed_units=0, total_units=0, checkpoint={'target': target},
                 )
                 db.add(task)
@@ -323,7 +327,16 @@ async def process_analysis_step(db, task):
     failure = None
     trace = None
     step_failed = False
-    provider = partial(call_provider, target=(task.checkpoint or {}).get('target'))
+    target = (task.checkpoint or {}).get('target')
+    # Previously enqueued tasks must not reuse a concrete model for users
+    # whose entitlement was restricted after they queued the task.
+    from open_webui.models.users import Users
+
+    owner = await Users.get_user_by_id(task.owner_id)
+    if owner is None or owner.role != 'admin' or task.logical_model_id:
+        provider = partial(call_provider, owner_id=task.owner_id, logical_model_id=task.logical_model_id, task_id=task.id)
+    else:
+        provider = partial(call_provider, target=target)
     try:
         doc = await verify_analysis_scope(db, task)
         if not task.cancel_requested:

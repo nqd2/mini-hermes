@@ -258,6 +258,7 @@ async def start_document_summary_task(
     __chat_id__: str = None,
     __event_emitter__=None,
     __resource_scope_ids__: list[str] = None,
+    __model__: dict | None = None,
 ) -> dict:
     """Start a resumable hierarchical summary for a scoped document version."""
     if not __user__:
@@ -268,7 +269,9 @@ async def start_document_summary_task(
         from .resource_tasks import create_summary_task
 
         try:
-            task = await create_summary_task(db, doc, __user__['id'], __chat_id__)
+            task = await create_summary_task(
+                db, doc, __user__['id'], __chat_id__, logical_model_id=(__model__ or {}).get('id'),
+            )
         except ResourceIndexPending as exc:
             return {
                 'status': 'pending',

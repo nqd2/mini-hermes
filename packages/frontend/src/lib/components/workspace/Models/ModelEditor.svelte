@@ -197,9 +197,6 @@
 		base_model_id: null,
 		name: '',
 		meta: {
-			// LICENSE covers this Open WebUI fallback logo.
-			// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-			// https://docs.openwebui.com/license.
 			profile_image_url: `${WEBUI_BASE_URL}/static/favicon.png`,
 			background_image_url: null as string | null,
 			voice: undefined as { voice?: string } | undefined,
@@ -1087,9 +1084,6 @@
 												? '-mt-14 sm:-mt-16'
 												: '-mt-9'}"
 										>
-											<!-- LICENSE covers this Open WebUI fallback logo.
-									Do not alter, remove, obscure, or replace it except as LICENSE permits:
-									https://docs.openwebui.com/license. -->
 											<div class="group relative size-12 shrink-0">
 												<button
 													class="group relative flex size-full items-center overflow-hidden rounded-xl {info

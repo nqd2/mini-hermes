@@ -1,10 +1,8 @@
 <script lang="ts">
-	import DOMPurify from 'dompurify';
 	import MfaChallengeForm from '$lib/components/auth/MfaChallenge.svelte';
 	import { mfaRequest, type MfaChallenge } from '$lib/apis/auths/mfa';
 	let mfaChallenge: MfaChallenge | null = null;
 	let pendingApproval = false;
-	import { marked } from 'marked';
 
 	import { toast } from 'svelte-sonner';
 
@@ -220,9 +218,6 @@
 </script>
 
 <svelte:head>
-	<!-- LICENSE covers this Open WebUI browser-title identifier.
-	Do not alter, remove, obscure, or replace it except as LICENSE permits:
-	https://docs.openwebui.com/license. -->
 	<title>
 		{`${$WEBUI_NAME}`}
 	</title>
@@ -282,20 +277,6 @@
 							id="auth-login-card"
 							class=" sm:max-w-md my-auto sm:pb-10 w-full dark:text-gray-100"
 						>
-							{#if $config?.metadata?.auth_logo_position === 'center'}
-								<div class="flex justify-center mb-6">
-									<!-- LICENSE covers this Open WebUI sign-in logo.
-									Do not alter, remove, obscure, or replace it except as LICENSE permits:
-									https://docs.openwebui.com/license. -->
-									<img
-										id="logo"
-										crossorigin="anonymous"
-										src="{WEBUI_BASE_URL}/static/favicon.png"
-										class="size-24 rounded-full"
-										alt="{$WEBUI_NAME} logo"
-									/>
-								</div>
-							{/if}
 							<form
 								class=" flex flex-col justify-center"
 								on:submit={(e) => {
@@ -507,29 +488,14 @@
 
 
 						</div>
-						{#if $config?.metadata?.login_footer}
-							<div class="max-w-3xl mx-auto">
-								<div class="mt-2 text-[0.7rem] text-gray-500 dark:text-gray-400 marked">
-									{@html DOMPurify.sanitize(marked($config?.metadata?.login_footer))}
-								</div>
-							</div>
-						{/if}
 					</div>
 				{/if}
 			</div>
 		</div>
 
-		{#if !$config?.metadata?.auth_logo_position || $config?.metadata?.auth_logo_position === 'top-right'}
-			<div
-				class="fixed top-0 m-10 z-50"
-				class:left-0={!$config?.metadata?.auth_logo_position}
-				class:right-0={$config?.metadata?.auth_logo_position === 'top-right'}
-			>
+			<div class="fixed top-0 left-0 m-10 z-50">
 				<div class="flex space-x-2">
 					<div class=" self-center">
-						<!-- LICENSE covers this Open WebUI sign-in logo.
-						Do not alter, remove, obscure, or replace it except as LICENSE permits:
-						https://docs.openwebui.com/license. -->
 						<img
 							id="logo"
 							crossorigin="anonymous"
@@ -540,6 +506,5 @@
 					</div>
 				</div>
 			</div>
-		{/if}
 	{/if}
 </div>

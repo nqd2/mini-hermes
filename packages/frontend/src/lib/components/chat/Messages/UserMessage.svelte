@@ -166,9 +166,6 @@
 		<div
 			class="shrink-0 me-2 {($settings?.chatBubble ?? true) ? 'mt-6' : 'hidden @lg:flex mt-0.5'}"
 		>
-			<!-- LICENSE covers this Open WebUI fallback logo.
-			Do not alter, remove, obscure, or replace it except as LICENSE permits:
-			https://docs.openwebui.com/license. -->
 			<ProfilePreview user={{ id: authorId, name: authorName }}>
 				<ProfileImage
 					src={authorId

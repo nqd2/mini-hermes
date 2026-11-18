@@ -76,8 +76,8 @@ async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_
 
     summary = await bootstrap_v2_database(config)
 
-    assert summary["tables_created"] == 101
-    assert get_v2_current_revision(schema_url) == "0005_v2_user_input_wait"
+    assert summary["tables_created"] == 104
+    assert get_v2_current_revision(schema_url) == "0006_mh_model_tiers"
     assert summary["environment_id"] == "development"
     assert summary["admin_email"] == "testadmin@hermes.test"
     assert len(summary["roles_seeded"]) == 4
@@ -96,7 +96,7 @@ async def test_bootstrap_v2_database_creates_all_tables_and_seeds(disposable_pg_
                 )
             ).all()
             mh_tables = [t for t in tables if t.startswith("mh_")]
-            assert len(mh_tables) == 101
+            assert len(mh_tables) == 104
 
             # 2. Verify roles
             roles = (await conn.scalars(text("SELECT name FROM mh_roles ORDER BY name"))).all()
@@ -171,7 +171,7 @@ def test_alembic_v2_migrations_upgrade_and_downgrade(disposable_pg_schema):
 
     run_v2_migrations(schema_url, "head")
 
-    assert get_v2_current_revision(schema_url) == "0005_v2_user_input_wait"
+    assert get_v2_current_revision(schema_url) == "0006_mh_model_tiers"
     assert check_v2_migrations_up_to_date(schema_url) is True
 
     from sqlalchemy import create_engine
@@ -217,7 +217,7 @@ def test_v2_migration_does_not_create_retired_openwebui_tables(disposable_pg_sch
         "mh_agent_session", "mh_agent_turn", "mh_agent_event",
         "mh_ow_user", "mh_ow_auth", "mh_ow_chat", "mh_ow_model",
     } <= tables
-    assert sum(name.startswith("mh_") for name in tables) == 101
+    assert sum(name.startswith("mh_") for name in tables) == 104
     assert not tables.intersection({
         "mh_ow_app", "mh_ow_automation", "mh_ow_automation_run",
         "mh_ow_calendar", "mh_ow_calendar_event", "mh_ow_calendar_event_attendee",

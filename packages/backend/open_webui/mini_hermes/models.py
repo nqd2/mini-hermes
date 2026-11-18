@@ -131,6 +131,7 @@ class ResourceTask(Base):
     document_id: Mapped[str] = mapped_column(ForeignKey('mh_document.id'), index=True)
     owner_id: Mapped[str] = mapped_column(String, index=True)
     chat_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    logical_model_id: Mapped[str | None] = mapped_column(String(32))
     revision: Mapped[int] = mapped_column(Integer)
     kind: Mapped[str] = mapped_column(String(32), default='summary')
     status: Mapped[str] = mapped_column(String(24), default='pending', index=True)

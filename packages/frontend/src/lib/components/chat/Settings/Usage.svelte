@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
+	import { getMyPlan, type Allowance } from '$lib/apis/mini-hermes/tiers';
+	import { user as sessionUser } from '$lib/stores';
 	import type { Writable } from 'svelte/store';
 
 	import {
@@ -270,7 +272,17 @@
 
 	const modelName = (id: string | null) => (id ? (modelNames.get(id) ?? id) : '-');
 
-	onMount(loadUsage);
+	let allowance: Allowance | null = null;
+	let allowanceError = false;
+
+	onMount(() => {
+		void loadUsage();
+		if ($sessionUser?.role === 'user') {
+			void getMyPlan(localStorage.token)
+				.then((current) => { allowance = current; })
+				.catch(() => { allowanceError = true; });
+		}
+	});
 </script>
 
 <div id="tab-usage" class="flex h-full min-h-0 flex-col">
@@ -279,6 +291,22 @@
 			{$i18n.t('settings.personal.usage.title')}
 		</h2>
 	</div>
+
+	{#if allowance}
+		<div class="mb-3 rounded-lg border border-gray-200 px-3 py-2 text-xs dark:border-gray-800">
+			<p class="font-medium">
+				{allowance.tier === 'plus' ? 'Plus' : 'Free'} · {allowance.remaining.toLocaleString()}
+				{$i18n.t('LLM requests remaining')}
+			</p>
+			<p class="mt-1 text-gray-500">
+				{$i18n.t('Resets')} <time datetime={allowance.reset_at}>{new Date(allowance.reset_at).toLocaleString()}</time>
+			</p>
+		</div>
+	{:else if allowanceError}
+		<p class="mb-3 text-xs text-red-600 dark:text-red-400" role="alert">
+			{$i18n.t('Could not load your LLM allowance')}
+		</p>
+	{/if}
 
 	{#if loading}
 		<div class="flex flex-1 items-center justify-center">

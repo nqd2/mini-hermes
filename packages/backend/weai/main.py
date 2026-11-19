@@ -2342,7 +2342,7 @@ async def chat_action(request: Request, action_id: str, form_data: dict, user=De
 
 
 @app.get('/api/config')
-async def get_app_config(request: Request):
+async def get_app_config(request: Request, response: Response):
     user = None
     token = None
 
@@ -2358,14 +2358,13 @@ async def get_app_config(request: Request):
     if token:
         try:
             data = decode_token(token)
+            if data is not None and 'id' in data and await is_valid_token(data, request.app.state.redis):
+                user = await Users.get_user_by_id(data['id'])
         except Exception as e:
-            log.debug(e)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail='Invalid token',
-            )
-        if data is not None and 'id' in data and await is_valid_token(data, request.app.state.redis):
-            user = await Users.get_user_by_id(data['id'])
+            log.debug(f'Invalid or expired token in /api/config: {e}')
+            user = None
+            if 'token' in request.cookies:
+                response.delete_cookie('token')
 
     group_defaults = None
     if user is not None and user.role in ('admin', 'user'):

@@ -156,3 +156,22 @@ async def test_client_config_does_not_expose_weai_license_data(monkeypatch):
     assert 'license_metadata' not in body
     assert 'user_count' not in body
     assert 'active_entries' not in body
+
+
+@pytest.mark.asyncio
+async def test_client_config_with_invalid_or_stale_token_cookie_returns_200_and_clears_cookie(monkeypatch):
+    monkeypatch.setattr(main, 'decode_token', lambda _: {'id': 'deleted-user'})
+    monkeypatch.setattr(main, 'is_valid_token', AsyncMock(side_effect=HTTPException(401, 'Invalid authentication request.')))
+    monkeypatch.setattr(main.Config, 'get_many', AsyncMock(return_value={}))
+    monkeypatch.setattr(main.Users, 'has_users', AsyncMock(return_value=False))
+    monkeypatch.setattr(main.app.state, 'redis', None, raising=False)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test', cookies={'token': 'stale-token'}) as client:
+        response = await client.get('/api/config')
+
+    assert response.status_code == 200
+    assert response.json().get('status') is True
+    assert response.json().get('onboarding') is True
+    # Verify stale token cookie is deleted
+    assert 'token' in response.cookies or any('token=""' in v for k, v in response.headers.items() if k.lower() == 'set-cookie')
+

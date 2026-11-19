@@ -1,5 +1,6 @@
 """Versioned execution contracts shared by application services and adapters."""
 
+import os
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Literal, Protocol
@@ -29,13 +30,27 @@ class Coverage:
     resource_ids: tuple[str, ...] = ()
 
 
+def _default_max_model_calls() -> int:
+    try:
+        return int(os.getenv('AGENT_RUNTIME_MAX_MODEL_CALLS', '8'))
+    except (ValueError, TypeError):
+        return 8
+
+
+def _default_max_reads() -> int:
+    try:
+        return int(os.getenv('AGENT_RUNTIME_MAX_READS', '24'))
+    except (ValueError, TypeError):
+        return 24
+
+
 @dataclass
 class ExecutionBudget:
     deadline: float = field(default_factory=lambda: time.time() + 300)
     model_calls: int = 0
     reads: int = 0
-    max_model_calls: int = 8
-    max_reads: int = 24
+    max_model_calls: int = field(default_factory=_default_max_model_calls)
+    max_reads: int = field(default_factory=_default_max_reads)
 
     def exhausted(self) -> bool:
         return time.time() >= self.deadline or self.model_calls >= self.max_model_calls or self.reads >= self.max_reads

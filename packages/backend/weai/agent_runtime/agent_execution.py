@@ -193,9 +193,19 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
     if tool_name == 'publish_document_output' and any(item.get('preview_id') for item in records):
         action = 'propose'
     blocked = any(
-        item.get('error')
-        or item.get('status') in {'blocked', 'failed', 'error', 'cancelled'}
-        or item.get('code') in {'resource_read_limit', 'resource_task_time_limit', 'tool_result_too_large'}
+        (
+            item.get('error')
+            and not (
+                isinstance(item.get('error'), dict)
+                and 'type' in item['error']
+                and not {'message', 'detail', 'code'}.intersection(item['error'])
+            )
+        )
+        or (isinstance(item.get('status'), str) and item['status'] in {'blocked', 'failed', 'error', 'cancelled'})
+        or (
+            isinstance(item.get('code'), str)
+            and item['code'] in {'resource_read_limit', 'resource_task_time_limit', 'tool_result_too_large'}
+        )
         for item in records
     )
     blocked = (
@@ -206,7 +216,10 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
         )
         or any(isinstance(item.get('exit_code'), int) and item['exit_code'] != 0 for item in records)
     )
-    pending = any(item.get('status') in {'pending', 'processing', 'queued'} for item in records)
+    pending = any(
+        isinstance(item.get('status'), str) and item['status'] in {'pending', 'processing', 'queued'}
+        for item in records
+    )
     evidence_ids = []
     for item in records:
         for key in _EVIDENCE_KEYS:

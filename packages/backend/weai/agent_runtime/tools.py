@@ -561,7 +561,7 @@ async def run_document_code(
     __chat_id__: str = None,
     __resource_scope_ids__: list[str] = None,
 ) -> dict:
-    """Run Python or JavaScript in the document sandbox. Read files under inputs/; write deliverables under outputs/."""
+    """Run Python or JavaScript in the document sandbox. Current working directory is the workspace root. Read files using relative paths under inputs/ (e.g. 'inputs/...', do NOT use root '/inputs/...'); write deliverables under outputs/."""
     if language not in {'python', 'javascript', 'node'}:
         return {'error': 'language must be python or javascript'}
     if not code or len(code) > 100_000:

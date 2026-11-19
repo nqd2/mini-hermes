@@ -98,7 +98,7 @@ def advance_resource_summary_task_phase(metadata: dict, tool_name: str, result: 
             if result['task_id'] not in task_ids:
                 task_ids.append(result['task_id'])
             state['resource_task_ids'] = task_ids
-            if result.get('status') in {'pending', 'processing', 'queued'}:
+            if isinstance(result.get('status'), str) and result['status'] in {'pending', 'processing', 'queued'}:
                 state.update(status='pending', reason='resource_summary_task_pending')
             metadata['resource_summary_task_phase'] = 'awaiting'
         else:
@@ -107,7 +107,7 @@ def advance_resource_summary_task_phase(metadata: dict, tool_name: str, result: 
         return
 
     if phase == 'status' and tool_name == 'get_document_task':
-        if isinstance(result, dict) and result.get('status') in {'pending', 'processing', 'queued'}:
+        if isinstance(result, dict) and isinstance(result.get('status'), str) and result['status'] in {'pending', 'processing', 'queued'}:
             task_id = result.get('task_id')
             task_ids = list(state.get('resource_task_ids') or [])
             if isinstance(task_id, str) and task_id and task_id not in task_ids:
@@ -180,7 +180,8 @@ class ResourceAnswerGate:
             isinstance(item, dict)
             and item.get('type') == 'function_call'
             and item.get('name') == 'ask_user'
-            and item.get('status') in {'completed', 'rejected'}
+            and isinstance(item.get('status'), str)
+            and item['status'] in {'completed', 'rejected'}
             for item in output
         )
         has_assistant_message = any(

@@ -400,3 +400,69 @@ def test_content_display_and_compound_file_actions_keep_distinct_requirements():
 
     content_filtered_inventory = initialize_task_state('List the attached files that mention tuition')
     assert content_filtered_inventory['required_action'] == 'search'
+
+
+def test_record_tool_result_handles_unhashable_nested_fields_without_exception():
+    state = initialize_task_state('Analyze data')
+
+    # Tool output containing schema or arbitrary nested structures where status or code is a dict or list
+    tool_output_with_unhashable_status = {
+        'tools': [
+            {
+                'name': 'search_knowledge_files',
+                'parameters': {
+                    'properties': {
+                        'status': {'type': 'string', 'description': 'File status'},
+                        'code': {'type': 'integer', 'description': 'Response code'},
+                    }
+                },
+            }
+        ],
+        'status': {'code': 200, 'details': ['ok']},
+        'code': ['code1', 'code2'],
+    }
+
+    # Must not raise TypeError: unhashable type: 'dict' or 'list'
+    record_tool_result(state, 'search_tools', tool_output_with_unhashable_status)
+    assert len(state['steps']) == 1
+    assert state['steps'][0]['status'] == 'succeeded'
+
+
+def test_record_tool_result_handles_schema_error_field_without_false_blocking():
+    state = initialize_task_state('Search tools')
+
+    # Schema definition that has property named 'error'
+    schema_output = {
+        'tools': [
+            {
+                'name': 'grep_knowledge_files',
+                'parameters': {
+                    'properties': {
+                        'error': {'type': 'string', 'description': 'Error regex pattern'}
+                    }
+                }
+            }
+        ]
+    }
+
+    record_tool_result(state, 'search_tools', schema_output)
+    assert state['steps'][0]['status'] == 'succeeded'
+
+
+def test_record_tool_result_preserves_legitimate_blocked_and_pending_status():
+    state = initialize_task_state('Run document code')
+
+    blocked_output = {
+        'status': 'failed',
+        'error': 'SyntaxError: unexpected EOF while parsing',
+    }
+    record_tool_result(state, 'run_document_code', blocked_output)
+    assert state['steps'][0]['status'] == 'blocked'
+
+    pending_output = {
+        'status': 'pending',
+        'task_id': 'task-123',
+    }
+    record_tool_result(state, 'get_document_task', pending_output)
+    assert state['steps'][1]['status'] == 'pending'
+

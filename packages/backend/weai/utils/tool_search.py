@@ -26,7 +26,7 @@ RESOURCE_SUMMARY_TOOLS = {
 RESOURCE_DOCUMENT_TOOLS = RESOURCE_SUMMARY_TOOLS | {
     'ask_user', 'list_chat_files', 'view_file', 'grep_chat_files', 'display_file',
     'read_editable_document', 'search_editable_document', 'read_document_skill',
-    'run_document_code', 'run_skill_script', 'publish_document_output',
+    'run_workspace_command', 'run_document_code', 'run_skill_script', 'publish_document_output',
     'propose_document_edit', 'read_agent_artifact', 'cancel_document_task', 'resume_document_task',
 }
 

@@ -139,15 +139,16 @@ async def prepare_chat_skill_context(
     chat_context['mentioned_skill_ids'] = sorted(mentioned_skill_ids & resolved_skill_ids)
     adapters.strip_skill_mentions(form_data.get('messages', []), resolved_skill_ids)
 
-    if metadata.get('ar_agent_enabled') and use_builtin_tools:
+    if metadata.get('ar_agent_enabled') and use_builtin_tools and model_builtin_tools.get('agent_runtime_documents', True):
         form_data['messages'] = adapters.add_or_update_system_message(
-            'Agent Runtime document agent is active. Available bundled skills: '
-            'docx, pdf, pptx, xlsx. Read the relevant SKILL.md with '
-            'read_document_skill before using its scripts. Work only with '
-            'documents granted to this chat. Use run_document_code or '
-            'run_skill_script to prepare and inspect files. publish_document_output '
-            'creates a staged proposal for review; it does not save a changed revision. '
-            'Never claim that a file changed or was saved until the approved commit succeeds.',
+            'Use the private chat workspace for file and project tasks. run_workspace_command runs a shell '
+            'from the workspace root. Find original attachments under inputs/ and editable project files in work/. Keep scripts and '
+            'intermediate files in work/ across calls. Inspect exit_code, stdout and stderr, fix errors, '
+            'and run checks on the actual output. Read bundled docx, pdf, pptx or xlsx instructions with '
+            'read_document_skill as needed. Put the finished file (or a project archive) in outputs/. '
+            'Use publish_document_output and give the user its download_url. Pass source_document_id '
+            'only for an in-place document edit requiring an approved preview. A partial read or failed '
+            'command does not finish a file delivery.',
             form_data['messages'],
             append=True,
         )

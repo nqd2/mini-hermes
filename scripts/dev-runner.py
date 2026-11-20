@@ -24,6 +24,19 @@ LOCK = threading.Lock()
 PROCESSES: dict[str, subprocess.Popen[str]] = {}
 
 
+def sandbox_compose(*args: str, check: bool = True) -> None:
+    # Compose receives only the broker token. Client code executes inside the Linux service.
+    token = dotenv_values(BACKEND / '.env').get('AGENT_RUNTIME_SANDBOX_TOKEN')
+    if not token or token.startswith('replace-'):
+        if check:
+            raise RuntimeError('Set AGENT_RUNTIME_SANDBOX_TOKEN in packages/backend/.env')
+        token = 'unused-during-shutdown'
+    subprocess.run(
+        ['docker', 'compose', '-f', str(ROOT / 'scripts' / 'compose.dev-sandbox.yaml'), *args],
+        cwd=ROOT, env={**os.environ, 'AGENT_RUNTIME_SANDBOX_TOKEN': token}, check=check,
+    )
+
+
 def prepare_data_dir() -> None:
     settings = dotenv_values(BACKEND / '.env')
     data_dir = Path(settings.get('DATA_DIR') or 'data')
@@ -124,16 +137,22 @@ def watch_backend() -> None:
         if STOP.is_set():
             return
         print(
-            f'[dev] restarting sandbox, backend, connector and worker after {len(changes)} file change(s)',
+            f'[dev] reloading development services after {len(changes)} file change(s)',
             flush=True,
         )
+        if any(Path(path) == BACKEND / '.env' or (BACKEND / 'weai' / 'agent_runtime') in Path(path).parents
+               for _, path in changes):
+            try:
+                sandbox_compose('up', '--build', '--wait')
+            except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+                print(f'[sandbox] reload failed: {error}', flush=True)
+                continue
         with LOCK:
-            old = [PROCESSES.pop(name, None) for name in ('worker', 'connector', 'backend', 'sandbox')]
+            old = [PROCESSES.pop(name, None) for name in ('worker', 'connector', 'backend')]
         for process in old:
             if process:
                 stop_process(process, tree=False)
         if not STOP.is_set():
-            start('sandbox', [PYTHON, '-m', 'weai.agent_runtime.sandbox_service'], BACKEND)
             start('backend', [PYTHON, '-m', 'uvicorn', 'weai.main:app',
                               '--host', '127.0.0.1', '--port', '8080', '--loop', 'none'], BACKEND)
             wait_for_backend()
@@ -153,9 +172,11 @@ def main() -> int:
     if hasattr(signal, 'SIGBREAK'):
         signal.signal(signal.SIGBREAK, handle_stop_signal)
 
+    sandbox_started = False
     try:
         prepare_data_dir()
-        start('sandbox', [PYTHON, '-m', 'weai.agent_runtime.sandbox_service'], BACKEND)
+        sandbox_compose('up', '--build', '--wait')
+        sandbox_started = True
         start('backend', [PYTHON, '-m', 'uvicorn', 'weai.main:app',
                           '--host', '127.0.0.1', '--port', '8080', '--loop', 'none'], BACKEND)
         wait_for_backend()
@@ -195,6 +216,8 @@ def main() -> int:
             processes = list(PROCESSES.values())
         for process in reversed(processes):
             stop_process(process)
+        if sandbox_started:
+            sandbox_compose('down', check=False)
     return 0
 
 

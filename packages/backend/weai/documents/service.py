@@ -138,8 +138,8 @@ async def publish_generated_document(
     """Save new sandbox output; edits to existing resources require a preview."""
     filename = PurePosixPath(output_path).name
     suffix = PurePosixPath(filename).suffix.lower()
-    if not filename or suffix not in SUPPORTED:
-        raise HTTPException(400, 'Supported output formats: DOCX, XLSX, PPTX and PDF')
+    if not filename or suffix not in SUPPORTED_RESOURCE_SUFFIXES:
+        raise HTTPException(400, 'Unsupported document output format')
     if len(content) > MAX_BYTES:
         raise HTTPException(413, 'File exceeds 20 MB limit')
     if source_document_id is not None:

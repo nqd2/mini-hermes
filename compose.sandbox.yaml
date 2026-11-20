@@ -1,0 +1,29 @@
+services:
+  sandbox:
+    image: ${IMAGE_NAME:-weai}:${IMAGE_TAG:-local}
+    command: ["python", "-m", "weai.agent_runtime.sandbox_service"]
+    environment:
+      AGENT_RUNTIME_SANDBOX_HOST: 0.0.0.0
+      AGENT_RUNTIME_SANDBOX_PORT: '8765'
+      AGENT_RUNTIME_SANDBOX_TOKEN: ${AGENT_RUNTIME_SANDBOX_TOKEN:?Set AGENT_RUNTIME_SANDBOX_TOKEN in .env}
+      PYTHONDONTWRITEBYTECODE: '1'
+      HOME: /tmp
+    expose:
+      - '8765'
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,mode=0711,size=512m
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    ipc: none
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.0

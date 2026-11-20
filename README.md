@@ -42,13 +42,13 @@ From the repository root, start the local dev stack with:
 powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
 ```
 
-This starts pinned SeaweedFS and PostgreSQL containers, then runs the sandbox, backend, worker, connector and Vite locally. The local sandbox listens on `127.0.0.1:8765`; Compose provides the internal network isolation described above. PostgreSQL uses `postgres:17.6`, a named volume and port `127.0.0.1:5433`; `DATABASE_URL` in the backend env is the single source for its database credentials. Pass `-SkipSeaweedFS` or `-SkipPostgres` when using an already running external service. Ctrl+C stops the app processes; the storage containers remain available. Python edits or changes to `packages/backend/.env` restart the sandbox, backend, connector and worker. Vite hot reloads frontend code and restarts for changes to `packages/frontend/.env`. The root `.env` only affects Compose after restarting its services.
+This starts SeaweedFS, PostgreSQL and a Linux sandbox in Docker, then runs the backend, worker, connector and Vite locally. The dev sandbox exposes its authenticated API on `127.0.0.1:8765`. It uses the same child-process and filesystem restrictions as the production sandbox. PostgreSQL uses `postgres:17.6`, a named volume and port `127.0.0.1:5433`; `DATABASE_URL` in the backend env is the single source for its database credentials. Pass `-SkipSeaweedFS` or `-SkipPostgres` when using an already running external service. Ctrl+C stops the app processes; the storage containers remain available. Python edits restart the backend, connector and worker. Agent Runtime and backend environment changes also refresh the sandbox container. Vite hot reloads frontend code and restarts for changes to `packages/frontend/.env`. The root `.env` only affects Compose after restarting its services.
 
 To run components separately, first run `scripts/dev-seaweedfs.ps1` and `scripts/dev-postgres.ps1` from the repository root. Start the sandbox with its token, then the app so it runs migrations, followed by the worker and connector. Run each Python command from `packages/backend` in its own terminal; run the token assignment in the sandbox terminal before its command:
 
 ```powershell
 $env:AGENT_RUNTIME_SANDBOX_TOKEN = ((Get-Content .env | Where-Object { $_ -match '^AGENT_RUNTIME_SANDBOX_TOKEN=' } | Select-Object -Last 1) -split '=', 2)[1]
-..\..\.venv\Scripts\python.exe -m weai.agent_runtime.sandbox_service
+docker compose -f ..\..\scripts\compose.dev-sandbox.yaml up --build --wait
 ..\..\.venv\Scripts\python.exe -m uvicorn weai.main:app --host 127.0.0.1 --port 8080 --loop none
 ..\..\.venv\Scripts\python.exe -m weai.documents.worker
 ..\..\.venv\Scripts\python.exe -m uvicorn weai.documents.drive:app --host 127.0.0.1 --port 8090 --loop none
@@ -82,7 +82,9 @@ Users can open release notes from **Settings → About**. Automatic display is c
 
 ## Document workflow
 
-The agent sandbox uses the bundled `docx`, `pdf`, `pptx` and `xlsx` skill packs in `packages/backend/weai/agent_runtime/skills`. Its outputs are saved in SeaweedFS with metadata in PostgreSQL. This agent flow does not publish to Drive in the current phase.
+Attach files or open a WeAI Project to give the agent a chat-scoped workspace. `run_workspace_command` runs a shell with original inputs under `inputs/`, editable project files and scripts under `work/`, and deliverables under `outputs/`. Project files with duplicate names remain available by upload ID under `inputs/project/`. For a directory tree, attach an archive. The agent can unpack it under `work/`, run the project and return a new archive. Use `/tool` to activate an empty workspace and `/stop-tool` to disable it.
+
+The Compose sandbox assigns each workspace a private Linux identity. Commands run offline and default to 30 seconds, with up to 300 seconds per call. Scratch files survive calls in the same chat. They expire after one hour of inactivity or a sandbox restart. Removing a source from scope clears derived scratch files on the next run. Use `publish_document_output` to retain a deliverable. Office documents and supported text formats use the document library, while other outputs use the authenticated Files download API. Existing document updates still require preview approval. Bundled `docx`, `pdf`, `pptx` and `xlsx` instructions are available through `read_document_skill`.
 
 Upload DOCX, XLSX, PPTX or PDF, or connect Drive and import a Docs, Sheets or Slides link. A Google-native file is exported as an Office revision in SeaweedFS while its original Drive file ID and version remain in PostgreSQL. PDF is read-only.
 

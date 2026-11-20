@@ -21,6 +21,7 @@ from weai.documents.library import (
 from weai.documents.models import Document, ResourceTask
 from weai.documents.resource_uploads import register_chat_upload
 from .sandbox import SandboxClient
+from .workspace_files import project_upload_ids, publish_workspace_file, raw_inputs
 from weai.documents.service import build_preview, create_artifact_preview, create_preview, publish_generated_document
 from weai.documents.storage import ObjectStore
 
@@ -29,7 +30,7 @@ def _file_ids(files: list[dict] | None) -> set[str]:
     return {
         str(item['id'])
         for item in files or []
-        if isinstance(item, dict) and item.get('id') and item.get('type', 'file') == 'file'
+        if isinstance(item, dict) and item.get('id') and item.get('type', 'file') in {'file', 'image'}
     }
 
 
@@ -84,7 +85,7 @@ async def _scoped_document(
     resource_scope_ids: list[str] | None = None,
 ) -> Document:
     doc = await accessible_document(db, document_id, user['id'], permission, is_admin=user.get('role') == 'admin')
-    if not await document_in_chat_scope(db, doc, chat_id, _file_ids(files)):
+    if not await document_in_chat_scope(db, doc, chat_id if is_saved_chat_id(chat_id) else None, _file_ids(files)):
         from fastapi import HTTPException
 
         raise HTTPException(404, 'Document is not available in this conversation')
@@ -452,9 +453,10 @@ async def propose_document_edit(
         }
 
 
-def _workspace_id(user: dict, chat_id: str | None, files: list[dict] | None) -> str:
-    scope = chat_id or ','.join(sorted(_file_ids(files)))
-    return hashlib.sha256(f'{user["id"]}:{scope}'.encode()).hexdigest()
+def _workspace_id(user: dict, chat_id: str | None) -> str:
+    if not chat_id:
+        raise HTTPException(400, 'A chat identifier is required for a private workspace')
+    return hashlib.sha256(f'{user["id"]}:{chat_id}'.encode()).hexdigest()
 
 
 async def _sandbox_inputs(
@@ -463,7 +465,8 @@ async def _sandbox_inputs(
     chat_id: str | None,
     files: list[dict] | None,
     resource_scope_ids: list[str] | None = None,
-) -> tuple[dict[str, str], dict[str, int]]:
+    *, folder_id: str | None = None,
+) -> tuple[dict[str, str], dict[str, int | str]]:
     file_ids = _file_ids(files)
     scope_ids = {str(file_id) for file_id in resource_scope_ids or []}
     scope_restricted = resource_scope_ids is not None
@@ -490,6 +493,13 @@ async def _sandbox_inputs(
                 or document.id in scope_ids
             ):
                 docs[document.id] = document
+    project_ids = await project_upload_ids(db, folder_id, user)
+    if scope_restricted:
+        project_ids.intersection_update(scope_ids)
+    raw_ids = file_ids - {doc.source_file_id for doc in docs.values()}
+    if len(docs) + len(raw_ids | project_ids) > 30:
+        raise HTTPException(413, 'Workspace exceeds 30 input files')
+    remaining_bytes = 40 * 1024 * 1024
     inputs = {}
     input_revisions = {}
     for doc in sorted(docs.values(), key=lambda item: item.id):
@@ -501,13 +511,18 @@ async def _sandbox_inputs(
                 select(Revision).where(Revision.document_id == doc.id, Revision.number == doc.current_revision)
             )
         ).scalar_one()
+        remaining_bytes -= revision.size
+        if remaining_bytes < 0:
+            raise HTTPException(413, 'Workspace inputs exceed 40 MB')
         name = Path(doc.filename).name
         input_path = f'inputs/{doc.id}/{name}'
         from weai.documents.service import get_verified_revision_content
 
         inputs[input_path] = base64.b64encode(await get_verified_revision_content(store, revision)).decode()
         input_revisions[input_path] = revision.number
-    return inputs, input_revisions
+    raw, hashes = await raw_inputs(db, user, raw_ids, project_ids, remaining_bytes=remaining_bytes,
+                                   remaining_files=30 - len(inputs))
+    return {**inputs, **raw}, {**input_revisions, **hashes}
 
 
 async def _execute_document(
@@ -516,6 +531,7 @@ async def _execute_document(
     files: list[dict] | None,
     chat_id: str | None,
     resource_scope_ids: list[str] | None = None,
+    folder_id: str | None = None,
 ) -> dict:
     if not user or not user.get('id'):
         return {'error': 'User context unavailable'}
@@ -523,11 +539,13 @@ async def _execute_document(
         if is_saved_chat_id(chat_id):
             from weai.models.chats import Chats
 
-            if not await Chats.get_chat_by_id_and_user_id(chat_id, user['id'], db=db):
+            chat = await Chats.get_chat_by_id_and_user_id(chat_id, user['id'], db=db)
+            if not chat:
                 raise HTTPException(404, 'Chat not found')
-        inputs, input_revisions = await _sandbox_inputs(db, user, chat_id, files, resource_scope_ids)
+            folder_id = chat.folder_id
+        inputs, input_revisions = await _sandbox_inputs(db, user, chat_id, files, resource_scope_ids, folder_id=folder_id)
     payload.update(
-        {'workspace_id': _workspace_id(user, chat_id, files), 'inputs': inputs, 'input_revisions': input_revisions}
+        {'workspace_id': _workspace_id(user, chat_id), 'inputs': inputs, 'input_revisions': input_revisions}
     )
     result = await SandboxClient().run(payload)
     if isinstance(result, dict) and not result.get('error') and result.get('status') not in {'failed', 'error'}:
@@ -538,7 +556,7 @@ async def _execute_document(
             parts = PurePosixPath(input_path).parts
             if len(parts) < 3:
                 continue
-            document_id = parts[1]
+            document_id = parts[2] if len(parts) == 4 else parts[1]
             identifier = evidence_id(document_id, str(revision), None, None, 'sandbox-input')
             input_evidence.append(
                 {
@@ -553,6 +571,39 @@ async def _execute_document(
     return result
 
 
+async def run_workspace_command(
+    command: str,
+    timeout_seconds: int = 30,
+    __user__: dict = None,
+    __files__: list[dict] = None,
+    __chat_id__: str = None,
+    __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
+) -> dict:
+    """Run a terminal command in the private chat workspace. Inspect inputs/, edit project files and scripts
+    in work/, run tests, then save deliverables in outputs/. Returns exit code, stdout, stderr and output paths.
+    """
+    if not command.strip() or '\x00' in command or len(command) > 100_000:
+        return {'error': 'command must be between 1 and 100000 characters'}
+    if not 1 <= timeout_seconds <= 300:
+        return {'error': 'timeout_seconds must be between 1 and 300'}
+    result = await _execute_document(
+        {'language': 'shell', 'code': command, 'timeout_seconds': timeout_seconds},
+        __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
+    )
+    # Preserve the exit code and the end of a traceback in a bounded model observation.
+    budget = int((__metadata__ or {}).get('resource_file_context_char_budget') or 16_000)
+    stream_limit = max(100, min(4_000, budget // 5))
+    for stream in ('stdout', 'stderr'):
+        output = result.get(stream, '')
+        if len(output) > stream_limit:
+            half = stream_limit // 2
+            result[stream] = output[:half] + '\n... output truncated ...\n' + output[-half:]
+            result[f'{stream}_truncated'] = True
+    return result
+
+
 async def run_document_code(
     language: str,
     code: str,
@@ -560,6 +611,7 @@ async def run_document_code(
     __files__: list[dict] = None,
     __chat_id__: str = None,
     __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
 ) -> dict:
     """Run Python or JavaScript in the document sandbox. Current working directory is the workspace root. Read files using relative paths under inputs/ (e.g. 'inputs/...', do NOT use root '/inputs/...'); write deliverables under outputs/."""
     if language not in {'python', 'javascript', 'node'}:
@@ -567,7 +619,8 @@ async def run_document_code(
     if not code or len(code) > 100_000:
         return {'error': 'code must be between 1 and 100000 characters'}
     return await _execute_document(
-        {'language': language, 'code': code}, __user__, __files__, __chat_id__, __resource_scope_ids__
+        {'language': language, 'code': code}, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
     )
 
 
@@ -579,12 +632,14 @@ async def run_skill_script(
     __files__: list[dict] = None,
     __chat_id__: str = None,
     __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
 ) -> dict:
     """Run a bundled document skill script in the sandbox using conversation files."""
     if skill not in {'docx', 'xlsx', 'pptx', 'pdf'}:
         return {'error': 'Unknown document skill'}
     return await _execute_document(
-        {'skill': skill, 'script': script, 'args': args or []}, __user__, __files__, __chat_id__, __resource_scope_ids__
+        {'skill': skill, 'script': script, 'args': args or []}, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
     )
 
 
@@ -626,6 +681,7 @@ async def publish_document_output(
     __files__: list[dict] = None,
     __chat_id__: str = None,
     __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
 ) -> dict:
     """Save a new output, or stage an update to an existing document for user approval."""
     if not __user__ or not __user__.get('id'):
@@ -640,12 +696,13 @@ async def publish_document_output(
         or len(relative.parts) < 2
     ):
         return {'error': 'path must be under outputs/'}
-    workspace_id = _workspace_id(__user__, __chat_id__, __files__)
+    workspace_id = _workspace_id(__user__, __chat_id__)
     async with get_async_db() as db:
         if is_saved_chat_id(__chat_id__):
             from weai.models.chats import Chats
 
-            if not await Chats.get_chat_by_id_and_user_id(__chat_id__, __user__['id'], db=db):
+            chat = await Chats.get_chat_by_id_and_user_id(__chat_id__, __user__['id'], db=db)
+            if not chat:
                 raise HTTPException(404, 'Chat not found')
         source_document = None
         if source_document_id:
@@ -661,9 +718,28 @@ async def publish_document_output(
             raise HTTPException(503, 'Sandbox output provenance is unavailable')
         if set(input_paths) != set(input_revisions):
             raise HTTPException(503, 'Sandbox output provenance is invalid')
-        for input_path in input_paths:
+        raw_paths = {p for p in input_paths if isinstance(p, str) and len(PurePosixPath(p).parts) == 4}
+        if not all(PurePosixPath(p).parts[:2] in {('inputs', 'project'), ('inputs', 'uploads')}
+                   and isinstance(input_revisions[p], str) for p in raw_paths):
+            raise HTTPException(503, 'Sandbox output provenance is invalid')
+        if raw_paths:
+            folder_id = chat.folder_id if is_saved_chat_id(__chat_id__) else (__metadata__ or {}).get('folder_id')
+            requested_ids = {PurePosixPath(p).parts[2] for p in raw_paths}
+            if __resource_scope_ids__ is not None:
+                requested_ids.intersection_update(__resource_scope_ids__)
+            attached = _file_ids(__files__)
+            if is_saved_chat_id(__chat_id__):
+                attached.update(await chat_attachment_file_ids(db, __chat_id__, __user__['id']))
+            project = await project_upload_ids(db, folder_id, __user__)
+            _, current = await raw_inputs(
+                db, __user__, requested_ids & attached, requested_ids & project,
+                remaining_bytes=40 * 1024 * 1024, remaining_files=30,
+            )
+            if any(p not in current or current[p] != input_revisions[p] for p in raw_paths):
+                raise HTTPException(409, 'Workspace inputs changed or are no longer available')
+        for input_path in set(input_paths) - raw_paths:
             parts = PurePosixPath(input_path).parts if isinstance(input_path, str) else ()
-            if len(parts) < 3 or parts[0] != 'inputs':
+            if len(parts) != 3 or parts[0] != 'inputs' or type(input_revisions[input_path]) is not int:
                 raise HTTPException(503, 'Sandbox output provenance is invalid')
             input_document = await _scoped_document(
                 db, parts[1], __user__, __chat_id__, __files__, 'read', __resource_scope_ids__
@@ -692,6 +768,12 @@ async def publish_document_output(
                 'approval_endpoint': f'/api/v1/agent-runtime/previews/{preview.id}/commit',
                 'approval_required': True,
             }
+        from weai.documents.library import SUPPORTED_RESOURCE_SUFFIXES
+
+        if relative.suffix.lower() not in SUPPORTED_RESOURCE_SUFFIXES:
+            if not content:
+                raise HTTPException(422, 'Workspace output is empty')
+            return await publish_workspace_file(db, __user__['id'], workspace_id, path, content)
         doc, revision, job = await publish_generated_document(
             db,
             ObjectStore(),

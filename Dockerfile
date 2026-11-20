@@ -12,7 +12,7 @@ FROM node:22-bookworm-slim AS js-tools
 WORKDIR /opt/agent-runtime-js
 RUN npm install --no-audit --no-fund --omit=dev --no-save docx@9.15.2 pptxgenjs@4.0.1
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim AS sandbox-runtime
 ARG WEAI_RELEASE_VERSION=dev
 ENV WEAI_RELEASE_VERSION=${WEAI_RELEASE_VERSION}
 ENV UV_HTTP_TIMEOUT=180
@@ -28,9 +28,9 @@ COPY packages/backend/pyproject.toml packages/backend/uv.lock packages/backend/R
 COPY packages/backend/requirements-agent-runtime.lock ./
 RUN uv pip install --system --no-cache -r requirements-agent-runtime.lock
 COPY packages/backend/weai ./weai
+RUN chmod a+rx weai weai/agent_runtime && chmod -R a+rX weai/agent_runtime/skills
 COPY scripts/check_release_manifest.py /app/scripts/
 RUN python /app/scripts/check_release_manifest.py
-COPY --from=frontend /src/packages/frontend/build ./weai/frontend
 ENV PYTHONPATH="/app/packages/backend" \
     ENV=prod \
     DATA_DIR=/app/data \
@@ -39,5 +39,7 @@ ENV PYTHONPATH="/app/packages/backend" \
     PORT=8080 \
     PYTHONUNBUFFERED=1
 RUN mkdir -p /app/data
+FROM sandbox-runtime AS runtime
+COPY --from=frontend /src/packages/frontend/build ./weai/frontend
 EXPOSE 8080
 CMD ["uvicorn", "weai.main:app", "--host", "0.0.0.0", "--port", "8080"]

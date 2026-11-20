@@ -234,6 +234,10 @@ def test_gate_1_staging_compose_topology_and_sandbox_isolation() -> None:
     assert required_services.issubset(set(services.keys()))
 
     sandbox = services["sandbox"]
+    if "extends" in sandbox:
+        base = sandbox["extends"]
+        shared = yaml.safe_load((compose_path.parent / base["file"]).read_text(encoding="utf-8"))
+        sandbox = {**shared["services"][base["service"]], **sandbox}
     assert sandbox.get("read_only") is True
     assert "ALL" in sandbox.get("cap_drop", [])
     assert "no-new-privileges:true" in sandbox.get("security_opt", [])

@@ -139,14 +139,28 @@ async def _invoke_tool(
             }
         )
 
+    scope = metadata.get('resource_scope_ids') if metadata.get('resource_execution_requested') else None
+    files = metadata.get('files') or []
+    if name in {'run_workspace_command', 'run_document_code', 'run_skill_script', 'publish_document_output'}:
+        history = metadata.get('resource_history_files') or []
+        files = [*history, *([files] if isinstance(files, dict) else files)]
+        project_files = [item for item in (metadata.get('folder_knowledge') or []) if item.get('type') == 'file']
+        if project_files and scope and set(scope) == {str(item['id']) for item in history}:
+            from weai.documents.resource_aware import resolve_resource_scope
+
+            # Whole-project tasks can use dependencies next to an attachment. A named
+            # or ambiguous reference retains the attachment scope already resolved for chat.
+            selected, ambiguous = resolve_resource_scope(
+                metadata.get('resource_task_prompt', ''), [*history, *project_files]
+            )
+            if not ambiguous and set(scope).issubset(selected):
+                scope = selected
     function = await get_updated_tool_function(
         function=tool['callable'],
         extra_params={
             '__messages__': form_data.get('messages', []),
-            '__files__': metadata.get('files') or [],
-            '__resource_scope_ids__': (
-                metadata.get('resource_scope_ids') if metadata.get('resource_execution_requested') else None
-            ),
+            '__files__': files,
+            '__resource_scope_ids__': scope,
         },
     )
     return await function(**params)

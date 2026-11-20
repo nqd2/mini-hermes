@@ -37,4 +37,8 @@ def document_agent_mode(messages: list[dict], has_files: bool = False) -> bool:
             command_state = match.group(1).lower() == 'tool'
     if command_state is not None:
         return command_state
-    return bool(_ACTION.search(latest_user_text) and (has_files or _DOCUMENT.search(latest_user_text)))
+    if has_files:
+        from weai.documents.resource_aware import is_independent_greeting
+
+        return not is_independent_greeting(latest_user_text, pending_task=False)
+    return bool(_ACTION.search(latest_user_text) and _DOCUMENT.search(latest_user_text))

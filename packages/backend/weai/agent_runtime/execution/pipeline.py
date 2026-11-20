@@ -143,15 +143,16 @@ class ResourceRequestPipeline:
             capabilities.max_output_tokens,
         )
         metadata['resource_execution_requested'] = not metadata['resource_greeting'] and (
-            action in {'display', 'discover'} or requires_resource_evidence(task_prompt, has_pending_task=pending)
+            action in {'display', 'discover', 'create'} or requires_resource_evidence(task_prompt, has_pending_task=pending)
         )
         metadata['resource_evidence_requested'] = (
             not metadata['resource_greeting']
             and action not in {'display', 'discover'}
+            and not (action == 'create' and metadata.get('ar_agent_enabled') and capabilities.supports_tools)
             and requires_resource_evidence(task_prompt, has_pending_task=pending)
         )
         state['requires_complete_coverage'] = bool(
-            state.get('requires_complete_coverage') or metadata['resource_context_mode'] == 'FULL'
+            state.get('requires_complete_coverage') or (metadata['resource_context_mode'] == 'FULL' and action != 'create')
         )
         if (
             ambiguous_scope

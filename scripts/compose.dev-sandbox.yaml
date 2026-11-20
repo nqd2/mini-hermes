@@ -1,0 +1,17 @@
+name: weai-dev-workspace
+services:
+  sandbox:
+    extends:
+      file: ../compose.sandbox.yaml
+      service: sandbox
+    image: weai-dev-workspace:local
+    build:
+      context: ..
+      target: sandbox-runtime
+    ports:
+      - "127.0.0.1:8765:8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8765), 2).close()"]
+      interval: 3s
+      timeout: 3s
+      retries: 20

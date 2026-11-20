@@ -607,6 +607,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         request_files=form_data.get('files'),
         resource_manifest=resource_manifest,
         base_include_file_context=metadata['include_file_context'],
+        in_project=bool(chat.folder_id if chat and chat.user_id == user.id else metadata.get('folder_id')),
     )
     metadata['resource_chat_has_files'] = resource_context.has_chat_files
     metadata['resource_history_files'] = resource_context.history_files

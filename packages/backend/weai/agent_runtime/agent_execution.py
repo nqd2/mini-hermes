@@ -15,6 +15,7 @@ _TOOL_ACTIONS = {
     'search_knowledge_files': 'search',
     'query_chat_files': 'search',
     'query_knowledge_files': 'search',
+    'run_workspace_command': 'calculate',
     'run_document_code': 'calculate',
     'run_skill_script': 'calculate',
     'get_document_task': 'read',
@@ -56,10 +57,14 @@ def infer_required_action(prompt: str) -> str:
         text,
     ):
         return 'commit'
+    if re.search(r'\b(?:translate|dịch(?!\s+(?:vụ|bệnh)))\b', text) and re.search(
+        r'preserve (?:the )?formatting|keep (?:the )?(?:original )?formatting|giữ nguyên định dạng', text
+    ):
+        return 'create'
     if re.search(r'\b(edit|change|update|rewrite|fill|replace)\b|sửa|đổi|cập nhật|điền|thay thế', text):
         return 'propose'
     create_match = re.search(
-        r'\b(?:create|generate|export|make)\b.{0,60}\b(?:file|document|spreadsheet|workbook|xlsx|csv|pdf|docx|pptx|artifact)\b|'
+        r'\b(?:create|generate|export|make|deliver|output|package)\b.{0,60}\b(?:file|document|spreadsheet|workbook|xlsx|csv|pdf|docx|pptx|artifact|archive|zip|script)\b|'
         r'\bconvert\b.{0,60}\b(?:to|into)\s+(?:a\s+)?(?:file|document|spreadsheet|workbook|xlsx|csv|pdf|docx|pptx)\b|'
         r'tạo.{0,60}(?:file|tệp|tài liệu|bảng tính)|xuất.{0,40}(?:file|tệp|tài liệu)|chuyển đổi.{0,40}(?:file|tệp|tài liệu)',
         text,
@@ -270,7 +275,8 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
         )
     elif action == 'create':
         effect_confirmed = any(
-            isinstance(item.get('document_id'), str)
+            bool(item.get('file_id') and item.get('sha256') and item.get('download_url'))
+            or isinstance(item.get('document_id'), str)
             and item.get('document_id')
             and isinstance(item.get('revision'), int)
             for item in records
@@ -419,7 +425,8 @@ def can_answer_task(state: dict) -> bool:
                 for step in successful
             )
         return any(
-            step.get('action') in {'read', 'search'} and step.get('evidence_ids') and step.get('has_content')
+            (step.get('action') in {'read', 'search'} or step.get('tool') == 'run_workspace_command')
+            and step.get('evidence_ids') and step.get('has_content')
             for step in successful
         )
 

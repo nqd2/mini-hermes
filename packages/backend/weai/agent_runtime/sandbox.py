@@ -12,12 +12,12 @@ class SandboxClient:
     def __init__(self):
         self.url = os.getenv('AGENT_RUNTIME_SANDBOX_URL', 'http://127.0.0.1:8765').rstrip('/')
 
-    async def _post(self, route: str, payload: dict) -> dict:
+    async def _post(self, route: str, payload: dict, *, timeout: int = 60) -> dict:
         token = os.getenv('AGENT_RUNTIME_SANDBOX_TOKEN')
         if not token:
             raise HTTPException(503, 'AGENT_RUNTIME_SANDBOX_TOKEN is not configured')
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(f'{self.url}{route}', json=payload,
                                              headers={'X-Agent-Runtime-Sandbox-Token': token})
             response.raise_for_status()
@@ -32,7 +32,7 @@ class SandboxClient:
             raise HTTPException(503, 'Document sandbox is unavailable') from exc
 
     async def run(self, payload: dict) -> dict:
-        return await self._post('/run', payload)
+        return await self._post('/run', payload, timeout=max(60, payload.get('timeout_seconds', 30) + 15))
 
     async def read(self, workspace_id: str, path: str) -> dict:
         return await self._post('/read', {'workspace_id': workspace_id, 'path': path})

@@ -33,7 +33,7 @@ async def chat_attachment_file_ids(db: AsyncSession, chat_id: str, user_id: str)
         if isinstance(attachments, dict):
             attachments = [attachments]
         for attachment in attachments:
-            if isinstance(attachment, dict) and attachment.get('id') and attachment.get('type', 'file') == 'file':
+            if isinstance(attachment, dict) and attachment.get('id') and attachment.get('type', 'file') in {'file', 'image'}:
                 found[str(attachment['id'])] = None
     return list(found)
 

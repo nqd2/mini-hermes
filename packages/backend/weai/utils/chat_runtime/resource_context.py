@@ -25,6 +25,7 @@ def resolve_chat_resource_context(
     request_files: list[dict] | dict | None,
     resource_manifest: list[dict] | None,
     base_include_file_context: bool,
+    in_project: bool = False,
 ) -> ChatResourceContext:
     """Merge file references from the current request, history and authorized chat manifest."""
     manifest = resource_manifest or []
@@ -58,7 +59,7 @@ def resolve_chat_resource_context(
 
     history_files = list(file_refs.values())
     has_files = bool(
-        has_scoped_documents
+        history_files
         or request_files
         or user_message.get('files')
         or any(message.get('files') for message in messages if message.get('role') == 'user')
@@ -73,5 +74,5 @@ def resolve_chat_resource_context(
         has_chat_files=bool(history_files) or has_scoped_documents,
         has_files=has_files,
         include_file_context=include_file_context,
-        agent_enabled=document_agent_mode(messages, has_files=has_files),
+        agent_enabled=document_agent_mode(messages, has_files=has_files or in_project),
     )

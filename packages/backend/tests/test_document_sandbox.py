@@ -366,7 +366,7 @@ async def test_agent_execution_mounts_only_chat_scoped_documents(monkeypatch):
     monkeypatch.setattr(tools, 'ObjectStore', Store)
     monkeypatch.setattr(tools, 'SandboxClient', Client)
     async def owned_chat(*args, **kwargs):
-        return SimpleNamespace(id='chat-1', chat={'messages': []})
+        return SimpleNamespace(id='chat-1', folder_id=None, chat={'messages': []})
     monkeypatch.setattr(Chats, 'get_chat_by_id_and_user_id', owned_chat)
     result = await tools.run_document_code(
         'python', "print('ok')", __user__={'id': 'alice', 'role': 'user'}, __chat_id__='chat-1')
@@ -493,13 +493,20 @@ async def test_chat_preview_list_exposes_hashes_needed_for_user_approval(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_viewer_history_and_source_resolution_check_read_permission():
+async def test_viewer_history_and_source_resolution_check_read_permission(monkeypatch):
     from weai.documents.routes import list_document_revisions, resolve_source_file
+
+    from weai.internal import db as database
+    from weai.models.access_grants import AccessGrant
+    from weai.models.groups import Group, GroupMember
+
+    monkeypatch.setattr(database, 'DATABASE_ENABLE_SESSION_SHARING', True)
 
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Document.metadata.create_all(
-            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__]))
+            sync, tables=[Folder.__table__, Document.__table__, Revision.__table__, DocumentChunk.__table__,
+                          Group.__table__, GroupMember.__table__, AccessGrant.__table__]))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as db:
         db.add(Document(id='viewer-doc', owner_id='alice', filename='report.docx',

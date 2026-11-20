@@ -2439,6 +2439,12 @@ async def streaming_chat_response_handler(response, ctx):
                         )
                         return
 
+                    # Mark resolved function calls ready for execution so UI transitions from Preparing to Executing.
+                    for call in response_tool_calls:
+                        staged_item = output_by_call_id.get(call['id'])
+                        if staged_item is not None and staged_item.get('status') == 'in_progress':
+                            staged_item['status'] = 'completed'
+
                     await emit_output()
 
                     results = []
@@ -2721,6 +2727,26 @@ async def streaming_chat_response_handler(response, ctx):
                                 return request_messages
 
                             new_form_data['messages'] = get_request_messages(messages)
+                            from weai.agent_runtime.request_budget import RequestBudgetLimits
+                            from weai.model_routing.model_capabilities import resolve_model_capabilities
+
+                            prep_char_budget = RequestBudgetLimits.from_environment().preparation_limit_chars
+                            state_caps = getattr(getattr(request, 'state', None), 'resource_model_capabilities', None)
+                            if isinstance(state_caps, dict) and 'context_window_tokens' in state_caps:
+                                avail_tokens = max(
+                                    1,
+                                    int(state_caps['context_window_tokens'])
+                                    - int(state_caps.get('max_output_tokens', 4_096)),
+                                )
+                            else:
+                                resolved_caps = resolve_model_capabilities(
+                                    str(form_data.get('model') or ''),
+                                    '',
+                                    (model.get('info') or {}).get('meta', {}).get('capabilities'),
+                                )
+                                avail_tokens = max(
+                                    1, resolved_caps.context_window_tokens - resolved_caps.max_output_tokens
+                                )
                             try:
                                 user_messages = [
                                     (message, message.get('content'))
@@ -2750,6 +2776,8 @@ async def streaming_chat_response_handler(response, ctx):
                                         form_data['model'],
                                         request.app.state.MODELS,
                                         bypass_system_prompt=True,
+                                        force_char_budget=prep_char_budget,
+                                        force_token_budget=avail_tokens,
                                     )
                                 finally:
                                     for message, content in user_messages:
@@ -2796,10 +2824,27 @@ async def streaming_chat_response_handler(response, ctx):
 
                         new_form_data = normalize_messages_for_model(new_form_data)
 
+                        try:
+                            from weai.utils.context_compaction import prune_oversized_tool_history
+
+                            new_form_data, _ = prune_oversized_tool_history(
+                                new_form_data,
+                                prep_char_budget,
+                                max_tokens=avail_tokens,
+                                model=str(form_data.get('model') or ''),
+                            )
+                        except Exception:
+                            log.debug('Deterministic tool history pruning skipped', exc_info=True)
+
                         if metadata.get('resource_execution_requested'):
                             from weai.agent_runtime.execution.pipeline import ResourceRequestPipeline
 
                             if not ResourceRequestPipeline.consume_model_call(metadata):
+                                if metadata.get('ar_agent_enabled'):
+                                    log.info(
+                                        'Workspace agent turn reached model-call budget; pausing cleanly for Continue Response'
+                                    )
+                                    break
                                 await emit_message_error(
                                     'Resource task model-call budget is exhausted; the answer is incomplete.'
                                 )

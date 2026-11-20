@@ -20,6 +20,7 @@
 	import FullHeightIframe from './FullHeightIframe.svelte';
 	import MCPApp from '$lib/components/chat/Messages/MCPApp.svelte';
 	import { settings } from '$lib/stores';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import { formatToolDisplayName } from '$lib/utils/toolName';
 
 	export let id: string = '';
@@ -164,6 +165,58 @@ export let workerStatus: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'int
 
 	$: parsedArgs = parseArguments(args);
 	$: parsedResult = parseJSONString(result);
+	$: isWorkspaceExecTool =
+		attributes?.name === 'run_workspace_command' ||
+		attributes?.name === 'run_document_code' ||
+		attributes?.name === 'run_skill_script';
+	$: isWorkspaceSubtasksTool = attributes?.name === 'run_workspace_subtasks';
+	$: execCodeLanguage =
+		attributes?.name === 'run_workspace_command'
+			? 'Terminal'
+			: attributes?.name === 'run_document_code'
+				? String(parsedArgs?.language ?? 'Code').replace(/^./, (c) => c.toUpperCase())
+				: attributes?.name === 'run_skill_script'
+					? `Skill: ${parsedArgs?.skill ?? ''}/${parsedArgs?.script ?? ''}`
+					: '';
+	$: execCodeBody =
+		attributes?.name === 'run_workspace_command'
+			? typeof parsedArgs?.command === 'string'
+				? parsedArgs.command
+				: ''
+			: attributes?.name === 'run_document_code'
+				? typeof parsedArgs?.code === 'string'
+					? parsedArgs.code
+					: ''
+				: attributes?.name === 'run_skill_script' && Array.isArray(parsedArgs?.args)
+					? parsedArgs.args.join(' ')
+					: '';
+	$: execStructuredResult =
+		isWorkspaceExecTool &&
+		typeof parsedResult === 'object' &&
+		parsedResult !== null &&
+		('exit_code' in parsedResult || 'stdout' in parsedResult || 'stderr' in parsedResult)
+			? (parsedResult as Record<string, unknown>)
+			: null;
+	$: subtasksStructuredResult =
+		isWorkspaceSubtasksTool &&
+		typeof parsedResult === 'object' &&
+		parsedResult !== null &&
+		'total' in parsedResult
+			? (parsedResult as Record<string, unknown>)
+			: null;
+	$: deliverableDownloadUrl =
+		isDone &&
+		!isError &&
+		typeof parsedResult === 'object' &&
+		parsedResult !== null &&
+		typeof parsedResult.download_url === 'string' &&
+		parsedResult.download_url.startsWith('/api/v1/')
+			? `${WEAI_BASE_URL}${parsedResult.download_url}`
+			: null;
+	$: deliverableFilename =
+		deliverableDownloadUrl && typeof parsedResult?.filename === 'string' && parsedResult.filename
+			? parsedResult.filename
+			: 'Download file';
 
 	const toggleOpen = () => {
 		open = !open;
@@ -310,12 +363,20 @@ export let workerStatus: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'int
 						<!-- Input -->
 						<div>
 							<div
-								class="text-[0.625rem] uppercase tracking-wider font-normal text-gray-400 dark:text-gray-500 mb-1.5 px-1"
+								class="flex items-center justify-between text-[0.625rem] uppercase tracking-wider font-normal text-gray-400 dark:text-gray-500 mb-1.5 px-1"
 							>
-								{$i18n.t('Input')}
+								<span>{isWorkspaceExecTool && execCodeLanguage ? execCodeLanguage : $i18n.t('Input')}</span>
+								{#if isWorkspaceExecTool && parsedArgs?.timeout_seconds}
+									<span>{parsedArgs.timeout_seconds}s</span>
+								{/if}
 							</div>
 
-							{#if parsedArgs}
+							{#if isWorkspaceExecTool && execCodeBody}
+								<div class="tool-call-body w-full max-w-none!">
+									<pre
+										class="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-gray-50 dark:bg-gray-900 rounded-lg p-2.5 overflow-x-auto">{execCodeBody}</pre>
+								</div>
+							{:else if parsedArgs}
 								<div class="px-1 space-y-0.5">
 									{#each Object.entries(parsedArgs) as [key, value]}
 										<div class="flex gap-2 text-xs py-0.5">
@@ -343,12 +404,86 @@ export let workerStatus: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'int
 					{#if isDone && result}
 						<div>
 							<div
-								class="text-[0.625rem] uppercase tracking-wider font-normal text-gray-400 dark:text-gray-500 mb-1.5 px-1"
+								class="flex items-center justify-between text-[0.625rem] uppercase tracking-wider font-normal text-gray-400 dark:text-gray-500 mb-1.5 px-1"
 							>
-								{$i18n.t('Output')}
+								<span>{$i18n.t('Output')}</span>
+								{#if execStructuredResult && execStructuredResult.exit_code !== undefined}
+									<span
+										class="px-1.5 py-0.5 rounded font-mono {execStructuredResult.exit_code === 0
+											? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+											: 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300'}"
+									>
+										exit {execStructuredResult.exit_code}
+									</span>
+								{/if}
 							</div>
-							<div class="w-full max-w-none!">
-								{#if typeof parsedResult === 'object' && parsedResult !== null}
+							<div class="w-full max-w-none! space-y-2">
+								{#if execStructuredResult}
+									{#if typeof execStructuredResult.error === 'string' && execStructuredResult.error}
+										<pre
+											class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-red-50/70 dark:bg-red-950/30 rounded-lg p-2 overflow-x-auto">{execStructuredResult.error}</pre>
+									{/if}
+									{#if typeof execStructuredResult.stdout === 'string' && execStructuredResult.stdout}
+										<pre
+											class="text-xs text-gray-700 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-gray-50 dark:bg-gray-900 rounded-lg p-2.5 overflow-x-auto">{execStructuredResult.stdout}</pre>
+									{/if}
+									{#if typeof execStructuredResult.stderr === 'string' && execStructuredResult.stderr}
+										<div>
+											<div
+												class="text-[0.625rem] uppercase tracking-wider font-normal text-red-500 dark:text-red-400 mb-1 px-1"
+											>
+												{$i18n.t('Errors')}
+											</div>
+											<pre
+												class="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-red-50/70 dark:bg-red-950/30 rounded-lg p-2.5 overflow-x-auto">{execStructuredResult.stderr}</pre>
+										</div>
+									{/if}
+									{#if Array.isArray(execStructuredResult.outputs) && execStructuredResult.outputs.length > 0}
+										<div class="flex flex-wrap gap-1.5 px-1 text-xs">
+											{#each execStructuredResult.outputs as outPath}
+												<span
+													class="font-mono px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+													>{outPath}</span
+												>
+											{/each}
+										</div>
+									{/if}
+									{#if !execStructuredResult.stdout && !execStructuredResult.stderr && !execStructuredResult.error}
+										<div class="px-1 text-xs text-gray-400 dark:text-gray-500">(no output)</div>
+									{/if}
+								{:else if subtasksStructuredResult}
+									<div class="flex flex-wrap items-center gap-1.5 px-1 text-xs">
+										<span class="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 font-medium">
+											{subtasksStructuredResult.status ?? 'done'}
+										</span>
+										<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+											{subtasksStructuredResult.completed ?? 0}/{subtasksStructuredResult.total ?? 0} completed
+										</span>
+										{#if Number(subtasksStructuredResult.skipped ?? 0) > 0}
+											<span class="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+												{subtasksStructuredResult.skipped} skipped
+											</span>
+										{/if}
+										{#if Number(subtasksStructuredResult.failed ?? 0) > 0}
+											<span class="px-2 py-0.5 rounded bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300">
+												{subtasksStructuredResult.failed} failed
+											</span>
+										{/if}
+										{#if typeof subtasksStructuredResult.report_path === 'string'}
+											<span class="font-mono text-gray-500 dark:text-gray-400">
+												{subtasksStructuredResult.report_path}
+											</span>
+										{/if}
+									</div>
+									{#if Array.isArray(subtasksStructuredResult.failed_items) && subtasksStructuredResult.failed_items.length > 0}
+										<pre
+											class="text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-red-50/70 dark:bg-red-950/30 rounded-lg p-2 overflow-x-auto">{JSON.stringify(
+												subtasksStructuredResult.failed_items,
+												null,
+												2
+											)}</pre>
+									{/if}
+								{:else if typeof parsedResult === 'object' && parsedResult !== null}
 									<pre
 										class="text-xs text-gray-600 dark:text-gray-300 whitespace-pre font-mono bg-gray-50 dark:bg-gray-900 rounded-lg p-2 overflow-x-auto">{JSON.stringify(
 											parsedResult,
@@ -384,8 +519,21 @@ export let workerStatus: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'int
 		{/if}
 	{/if}
 
-	<!-- Files display (images etc.) when done -->
+	<!-- Files display (images, published deliverables) when done -->
 	{#if isDone}
+		{#if deliverableDownloadUrl}
+			<div class="mt-1.5 flex items-center gap-2 text-xs">
+				<a
+					href={deliverableDownloadUrl}
+					download={deliverableFilename}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+				>
+					<span>{deliverableFilename}</span>
+				</a>
+			</div>
+		{/if}
 		{#if typeof files === 'object'}
 			{#each files ?? [] as file, idx}
 				{#if typeof file === 'string'}

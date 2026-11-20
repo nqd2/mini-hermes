@@ -200,7 +200,8 @@ async def resume_summary_task(db, task_id: str, owner_id: str, doc: Document) ->
 
 async def call_provider(messages: list[dict], *, max_tokens: int, temperature: float = 0.1,
                         target: dict | None = None, owner_id: str | None = None,
-                        logical_model_id: str | None = None, task_id: str | None = None) -> str:
+                        logical_model_id: str | None = None, task_id: str | None = None,
+                        max_response_chars: int = 2000, timeout_seconds: int = 90) -> str:
     """Call the configured OpenAI-compatible provider with the exact guarded body."""
     from weai.config import OPENAI_API_BASE_URLS, OPENAI_API_KEYS
 
@@ -275,7 +276,7 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         metrics['serialized_chars'],
         metrics['estimated_input_tokens'],
     )
-    async with httpx.AsyncClient(timeout=90) as client:
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         response = await gateway.send(
             client,
             'POST',
@@ -313,7 +314,8 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
         from weai.routers.openai import convert_responses_result
 
         data = convert_responses_result(data)
-    return str(data['choices'][0]['message'].get('content') or '').strip()[:2000]
+    text = str(data['choices'][0]['message'].get('content') or '').strip()
+    return text[:max_response_chars] if max_response_chars > 0 else text
 
 
 async def summarize_with_provider(text: str, task: ResourceTask) -> str:

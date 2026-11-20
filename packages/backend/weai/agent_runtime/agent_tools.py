@@ -15,10 +15,11 @@ class AgentTool:
 def get_agent_tools() -> list[Callable]:
     """Return registered handlers; handlers retain WeAI's user context and checks."""
     from .tools import (
-        cancel_document_task, get_document_task, list_editable_documents, propose_document_edit,
-        publish_document_output, read_document_skill, read_editable_document,
-        resume_document_task, search_editable_document, start_document_summary_task,
-        run_document_code, run_skill_script, run_workspace_command,
+        cancel_document_task, edit_workspace_file, get_document_task, list_editable_documents,
+        list_workspace_files, propose_document_edit, publish_document_output, read_document_skill,
+        read_editable_document, read_workspace_file, resume_document_task, run_document_code,
+        run_skill_script, run_workspace_command, run_workspace_subtasks, search_editable_document,
+        search_workspace_files, start_document_summary_task, write_workspace_file,
     )
 
     registry = (
@@ -30,7 +31,13 @@ def get_agent_tools() -> list[Callable]:
         AgentTool(cancel_document_task, permission='documents.read'),
         AgentTool(resume_document_task, permission='documents.read'),
         AgentTool(read_document_skill, permission='documents.read'),
+        AgentTool(list_workspace_files, permission='documents.read'),
+        AgentTool(read_workspace_file, permission='documents.read'),
+        AgentTool(search_workspace_files, permission='documents.read'),
+        AgentTool(write_workspace_file, permission='documents.write', mutates=True),
+        AgentTool(edit_workspace_file, permission='documents.write', mutates=True),
         AgentTool(run_workspace_command, permission='documents.write', mutates=True),
+        AgentTool(run_workspace_subtasks, permission='documents.write', mutates=True),
         AgentTool(run_document_code, permission='documents.write', mutates=True),
         AgentTool(run_skill_script, permission='documents.write', mutates=True),
         AgentTool(publish_document_output, permission='documents.write', mutates=True, requires_preview=True),

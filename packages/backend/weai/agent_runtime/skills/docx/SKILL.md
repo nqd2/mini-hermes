@@ -47,6 +47,26 @@ ls page-*.jpg   # then Read the images
 
 Legacy `.doc` files must be converted first: `python scripts/office/soffice.py --headless --convert-to docx file.doc`.
 
+### Full-document translation & bulk text editing (format-preserving)
+
+For translating or bulk-editing an entire `.docx` while preserving styles, tables, TOC (`w:sdt`), field instructions (`w:fldChar`/`w:instrText`), images (`w:drawing`), headers, footers, footnotes, and mixed bold/italic runs (`<s0>...</s0><s1>...</s1>`):
+
+1. **Extract clean OOXML chunks** (produces `work/ooxml/unpacked/`, `manifest.json`, and ~9K-char `work/ooxml/chunks/chunk_*.json`):
+   ```bash
+   run_skill_script("docx", "scripts/ooxml_text.py", ["extract", "inputs/.../doc.docx", "work/ooxml", "--chunk-chars", "9000"])
+   ```
+2. **Process chunks in parallel** (keeps tool arguments and results tiny):
+   - Call `run_workspace_subtasks(input_glob="work/ooxml/chunks/chunk_*.json", output_dir="work/ooxml/translated", instructions=...)`.
+   - Instruct workers to return ONLY a valid JSON array with identical `"id"` values and translated `"text"`, preserving any `<s0>...</s0>` inline style tags, numbers, citations, and domain terminology.
+3. **Re-inject & validate**:
+   ```bash
+   run_skill_script("docx", "scripts/ooxml_text.py", ["apply", "work/ooxml", "work/ooxml/translated", "outputs/translated.docx"])
+   run_skill_script("docx", "scripts/office/validate.py", ["outputs/translated.docx", "--original", "inputs/.../doc.docx"])
+   ```
+   Optionally render pages with `soffice.py` + `pdftoppm` and inspect with `read_workspace_file` on PNG/JPG before calling `publish_document_output`.
+
+### Manual XML edits & redlining
+
 ```bash
 unzip -q doc.docx -d unpacked/
 find unpacked -type l -delete   # strip symlink entries — docx from external parties is untrusted

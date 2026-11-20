@@ -53,18 +53,29 @@ async def compact_messages_for_request(
     models: dict,
     system_prompt: str = '',
     bypass_system_prompt: bool = False,
+    force_char_budget: int | None = None,
+    force_token_budget: int | None = None,
 ) -> tuple[list[dict], str | None, list[dict]]:
     config = await _load_config()
-    if not config['enable']:
-        return messages, None, []
 
     system_messages = [messages[0]] if messages and messages[0].get('role') == 'system' else []
     messages = messages[1:] if system_messages else messages
 
     messages, previous_summary = _apply_latest_summary_checkpoint(messages)
     system_prompt = system_prompt or (get_content_from_message(system_messages[0]) if system_messages else '')
+
+    char_exceeded = _exceeds_char_budget(form_data, system_messages, messages, previous_summary, force_char_budget)
+    forced_token_exceeded = _exceeds_forced_token_budget(
+        form_data, system_messages, messages, previous_summary, force_token_budget, model_id
+    )
+    if not config['enable'] and not char_exceeded and not forced_token_exceeded:
+        return [*system_messages, *messages], previous_summary, []
+
     token_threshold = _resolve_token_threshold(config['token_threshold'], config['token_cap'], metadata)
-    if not _exceeds_token_threshold(messages, system_prompt, previous_summary, token_threshold):
+    token_exceeded = config['enable'] and _exceeds_token_threshold(
+        messages, system_prompt, previous_summary, token_threshold
+    )
+    if not token_exceeded and not char_exceeded and not forced_token_exceeded:
         return [*system_messages, *messages], previous_summary, []
 
     boundary = _find_compaction_boundary(messages, config['retention_percentage'])
@@ -367,6 +378,155 @@ def _apply_latest_summary_checkpoint(messages: list[dict]) -> tuple[list[dict], 
                 ], marker['summary']
 
     return messages, None
+
+
+def _exceeds_char_budget(
+    form_data: dict | None,
+    system_messages: list[dict],
+    messages: list[dict],
+    summary: str | None,
+    force_char_budget: int | None,
+) -> bool:
+    if not force_char_budget or force_char_budget <= 0:
+        return False
+    proactive_chars = max(1, int(force_char_budget * 0.75))
+    try:
+        if isinstance(form_data, dict):
+            measured = len(JSONCodec.dumps(form_data))
+        else:
+            measured = len(JSONCodec.dumps([*system_messages, *messages])) + len(summary or '')
+    except Exception:
+        return False
+    return measured > proactive_chars
+
+
+def _exceeds_forced_token_budget(
+    form_data: dict | None,
+    system_messages: list[dict],
+    messages: list[dict],
+    summary: str | None,
+    force_token_budget: int | None,
+    model_id: str,
+) -> bool:
+    if not force_token_budget or force_token_budget <= 0:
+        return False
+    proactive_tokens = max(1, int(force_token_budget * 0.75))
+    try:
+        from weai.agent_runtime.context_budget import estimate_tokens
+
+        if isinstance(form_data, dict):
+            serialized = JSONCodec.dumps(form_data)
+        else:
+            serialized = JSONCodec.dumps([*system_messages, *messages]) + (summary or '')
+        return estimate_tokens(serialized, model_id) > proactive_tokens
+    except Exception:
+        return False
+
+
+def _within_tool_history_budget(
+    candidate: dict, max_chars: int, *, max_tokens: int | None = None, model: str = ''
+) -> bool:
+    serialized = JSONCodec.dumps(candidate)
+    if len(serialized) > max_chars:
+        return False
+    if max_tokens is not None and max_tokens > 0:
+        from weai.agent_runtime.context_budget import estimate_tokens
+
+        if estimate_tokens(serialized, model) > max_tokens:
+            return False
+    return True
+
+
+def prune_oversized_tool_history(
+    payload: dict,
+    max_chars: int,
+    *,
+    max_tokens: int | None = None,
+    model: str = '',
+) -> tuple[dict, bool]:
+    """Deterministically compact older tool outputs/arguments when a tool loop nears budget.
+
+    Preserves the system prompt, active user prompt, tool_call/tool_result pairing, and the
+    latest tool-call batch so multi-step workspace runs stay within both the 95K preparation cap
+    and the model's available input token budget.
+    """
+    if not isinstance(payload, dict) or max_chars <= 0:
+        return payload, False
+    messages = payload.get('messages')
+    if not isinstance(messages, list) or not messages:
+        return payload, False
+    try:
+        if _within_tool_history_budget(payload, max_chars, max_tokens=max_tokens, model=model):
+            return payload, False
+    except Exception:
+        return payload, False
+
+    last_tool_call_idx = -1
+    for idx in range(len(messages) - 1, -1, -1):
+        msg = messages[idx]
+        if isinstance(msg, dict) and msg.get('role') == 'assistant' and msg.get('tool_calls'):
+            last_tool_call_idx = idx
+            break
+
+    if last_tool_call_idx <= 0:
+        return payload, False
+
+    updated_messages = [copy.deepcopy(msg) for msg in messages]
+    changed = False
+
+    # Pass 1: Compact older tool results before the latest tool-call batch (oldest first).
+    for idx in range(last_tool_call_idx):
+        msg = updated_messages[idx]
+        if not isinstance(msg, dict) or msg.get('role') != 'tool':
+            continue
+        raw_content = msg.get('content')
+        content_len = len(raw_content) if isinstance(raw_content, str) else len(JSONCodec.dumps(raw_content))
+        if content_len <= 320:
+            continue
+        msg['content'] = JSONCodec.dumps(
+            {
+                'compacted': True,
+                'tool_call_id': msg.get('tool_call_id'),
+                'original_chars': content_len,
+                'note': 'Older tool output compacted to stay within request budget; files in work/ remain intact.',
+            }
+        )
+        changed = True
+        candidate = {**payload, 'messages': updated_messages}
+        if _within_tool_history_budget(candidate, max_chars, max_tokens=max_tokens, model=model):
+            return candidate, True
+
+    # Pass 2: Compact oversized older assistant tool_call arguments before the latest batch.
+    for idx in range(last_tool_call_idx):
+        msg = updated_messages[idx]
+        if not isinstance(msg, dict) or msg.get('role') != 'assistant' or not msg.get('tool_calls'):
+            continue
+        for tc in msg['tool_calls']:
+            if not isinstance(tc, dict):
+                continue
+            fn = tc.get('function')
+            if not isinstance(fn, dict):
+                continue
+            args = fn.get('arguments')
+            if not isinstance(args, str) or len(args) <= 2_000:
+                continue
+            fn['arguments'] = JSONCodec.dumps(
+                {
+                    '_compacted': True,
+                    'tool': fn.get('name', ''),
+                    'original_chars': len(args),
+                    'note': 'Older tool arguments compacted; workspace files in work/ remain intact.',
+                }
+            )
+            changed = True
+            candidate = {**payload, 'messages': updated_messages}
+            if _within_tool_history_budget(candidate, max_chars, max_tokens=max_tokens, model=model):
+                return candidate, True
+
+    if changed:
+        candidate = {**payload, 'messages': updated_messages}
+        return candidate, True
+    return payload, False
 
 
 def _exceeds_token_threshold(messages: list[dict], system_prompt: str, summary: str | None, threshold: int) -> bool:

@@ -254,6 +254,11 @@ class ResourceAnswerGate:
                 'Tôi chưa thể hoàn tất vì thao tác đọc tài liệu bị chặn. '
                 'Hãy kiểm tra quyền truy cập hoặc trạng thái tệp.'
             )
+        if reason == 'model_call_or_time_budget_exhausted':
+            return (
+                'Phiên làm việc đã đạt giới hạn số bước xử lý của một lượt, nhưng toàn bộ tệp trung gian '
+                'trong workspace đã được lưu lại. Hãy nhấn “Continue Response” để tiếp tục hoàn tất.'
+            )
         if reason == 'additional_resource_evidence_required':
             return 'Tôi chưa thu thập đủ nội dung tài liệu để xác nhận câu trả lời.'
         return 'Tôi mới kiểm tra được một phần tài liệu nên chưa thể xác nhận câu trả lời đầy đủ.'

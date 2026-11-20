@@ -215,3 +215,159 @@ async def test_project_scope_alongside_attachment(prompt, expected):
         'resource_task_prompt': prompt,
     }, None)
     assert result == expected
+
+
+@pytest.mark.asyncio
+async def test_hash_based_sync_skips_unchanged_inputs_and_resets_on_scope_narrow(tmp_path, monkeypatch):
+    import base64
+
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
+    ws = '1' * 64
+    rev_a = {'inputs/doc1/a.txt': 1, 'inputs/doc2/b.txt': 1}
+
+    # Initial manifest probe requests both files.
+    probe = await sandbox.sync_workspace(sandbox.SyncRequest(workspace_id=ws, input_revisions=rev_a))
+    assert probe == {'synced': False, 'missing_paths': ['inputs/doc1/a.txt', 'inputs/doc2/b.txt'], 'input_paths': []}
+
+    # Upload both files.
+    uploaded = await sandbox.sync_workspace(
+        sandbox.SyncRequest(
+            workspace_id=ws,
+            input_revisions=rev_a,
+            inputs={
+                'inputs/doc1/a.txt': base64.b64encode(b'alpha').decode(),
+                'inputs/doc2/b.txt': base64.b64encode(b'beta').decode(),
+            },
+        )
+    )
+    assert uploaded['synced'] is True
+    assert uploaded['missing_paths'] == []
+
+    # Write scratch file in work/ to verify persistence across synced calls.
+    await sandbox.fs_write(sandbox.FsWriteRequest(workspace_id=ws, path='work/notes.txt', content='keep-me'))
+
+    # Second probe with identical revisions transfers zero bytes and keeps work/.
+    second_probe = await sandbox.sync_workspace(sandbox.SyncRequest(workspace_id=ws, input_revisions=rev_a))
+    assert second_probe == {
+        'synced': True,
+        'missing_paths': [],
+        'input_paths': ['inputs/doc1/a.txt', 'inputs/doc2/b.txt'],
+    }
+    read_note = await sandbox.fs_read(sandbox.FsReadRequest(workspace_id=ws, path='work/notes.txt'))
+    assert 'keep-me' in read_note['content']
+
+    # Run Python without resending base64 inputs works seamlessly after sync.
+    ran = await sandbox.run_workspace(
+        sandbox.RunRequest(
+            workspace_id=ws,
+            language='python',
+            code="print(open('inputs/doc1/a.txt').read(), open('work/notes.txt').read())",
+            inputs={},
+            input_revisions=rev_a,
+        )
+    )
+    assert ran['exit_code'] == 0
+    assert ran['stdout'].strip() == 'alpha keep-me'
+
+    # Narrowing scope (dropping doc2) resets the workspace and drops scratch files.
+    narrow_probe = await sandbox.sync_workspace(
+        sandbox.SyncRequest(workspace_id=ws, input_revisions={'inputs/doc1/a.txt': 1})
+    )
+    assert narrow_probe['synced'] is False
+    assert narrow_probe['missing_paths'] == ['inputs/doc1/a.txt']
+    assert not (tmp_path / ws / 'work' / 'notes.txt').exists()
+
+
+@pytest.mark.asyncio
+async def test_workspace_fs_tools_read_write_edit_search_and_security(tmp_path, monkeypatch):
+    import base64
+
+    monkeypatch.setenv('AGENT_RUNTIME_SANDBOX_WORK_ROOT', str(tmp_path))
+    ws = '2' * 64
+    revs = {'inputs/doc1/spec.txt': 1}
+    await sandbox.sync_workspace(
+        sandbox.SyncRequest(
+            workspace_id=ws,
+            input_revisions=revs,
+            inputs={'inputs/doc1/spec.txt': base64.b64encode(b'line1\nhello world\nline3\n').decode()},
+        )
+    )
+
+    # Write and edit under work/
+    written = await sandbox.fs_write(
+        sandbox.FsWriteRequest(workspace_id=ws, path='work/app.py', content='x = 1\ny = 2\nprint(x + y)\n')
+    )
+    assert written['path'] == 'work/app.py'
+    assert written['size'] > 0
+
+    edited = await sandbox.fs_edit(
+        sandbox.FsEditRequest(workspace_id=ws, path='work/app.py', target='y = 2', replacement='y = 41')
+    )
+    assert edited['replacements'] == 1
+
+    # Read line range
+    sliced = await sandbox.fs_read(sandbox.FsReadRequest(workspace_id=ws, path='work/app.py', start_line=1, end_line=2))
+    assert sliced['total_lines'] == 3
+    assert '2: y = 41' in sliced['content']
+    assert sliced['truncated'] is True
+
+    # List and search
+    listed = await sandbox.fs_list(sandbox.FsListRequest(workspace_id=ws, path='.'))
+    paths = {entry['path'] for entry in listed['entries']}
+    assert 'inputs/doc1/spec.txt' in paths
+    assert 'work/app.py' in paths
+
+    found = await sandbox.fs_search(sandbox.FsSearchRequest(workspace_id=ws, pattern='y = 41', path='work'))
+    assert len(found['matches']) == 1
+    assert found['matches'][0]['path'] == 'work/app.py'
+    assert found['matches'][0]['line'] == 2
+
+    # Image inspection mode (1x1 transparent PNG)
+    png_bytes = base64.b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+    )
+    await sandbox.fs_write(
+        sandbox.FsWriteRequest(
+            workspace_id=ws,
+            path='work/page-01.png',
+            content=base64.b64encode(png_bytes).decode(),
+            encoding='base64',
+        )
+    )
+    img = await sandbox.fs_read(sandbox.FsReadRequest(workspace_id=ws, path='work/page-01.png', as_image=True))
+    assert img['mime_type'] == 'image/png'
+    assert base64.b64decode(img['content_b64']) == png_bytes
+
+    # Writing directly to outputs/ records valid provenance for /read
+    await sandbox.fs_write(sandbox.FsWriteRequest(workspace_id=ws, path='outputs/final.txt', content='done'))
+    out = await sandbox.read_output(sandbox.ReadRequest(workspace_id=ws, path='outputs/final.txt'))
+    assert base64.b64decode(out['content_b64']) == b'done'
+    assert out['input_revisions'] == revs
+
+    # Security boundaries: cannot write/edit inputs/ or traverse with ..
+    with pytest.raises(HTTPException) as ro_err:
+        await sandbox.fs_write(sandbox.FsWriteRequest(workspace_id=ws, path='inputs/doc1/spec.txt', content='hacked'))
+    assert ro_err.value.status_code == 400
+
+    with pytest.raises(HTTPException) as trav_err:
+        await sandbox.fs_read(sandbox.FsReadRequest(workspace_id=ws, path='work/../../etc/passwd'))
+    assert trav_err.value.status_code == 400
+
+
+def test_sandbox_resource_defaults_and_translation_intent(monkeypatch):
+    from weai.agent_runtime.agent_execution import infer_required_action
+    from weai.agent_runtime.execution.contracts import ExecutionBudget
+
+    monkeypatch.delenv('AGENT_RUNTIME_SANDBOX_MAX_OPEN_FILES', raising=False)
+    monkeypatch.delenv('AGENT_RUNTIME_SANDBOX_WORKSPACE_TTL_SECONDS', raising=False)
+    monkeypatch.delenv('AGENT_RUNTIME_MAX_MODEL_CALLS', raising=False)
+    monkeypatch.delenv('AGENT_RUNTIME_MAX_READS', raising=False)
+
+    assert sandbox._max_open_files() >= 512
+    assert sandbox._workspace_ttl_seconds() == 86_400
+    budget = ExecutionBudget()
+    assert budget.max_model_calls == 40
+    assert budget.max_reads == 80
+
+    assert infer_required_action('Dịch file docx này sang tiếng Việt') == 'create'
+    assert infer_required_action('Translate paragraph 2 of this docx to Vietnamese') == 'read'

@@ -14,12 +14,21 @@ class ModelCapabilities:
     max_output_tokens: int = 4_096
 
 
-def _profile(supports_tools: bool, parallel_tool_calls: bool = False) -> ModelCapabilities:
-    # Context and output defaults stay conservative until the provider/model
-    # owner supplies exact values through model metadata or environment config.
+def _profile(
+    supports_tools: bool,
+    parallel_tool_calls: bool = False,
+    *,
+    context_window_tokens: int = 128_000,
+    max_output_tokens: int = 16_384,
+) -> ModelCapabilities:
+    # Declared modern models get realistic windows. The hard 95K/100K-character
+    # request ceilings still apply independently; unknown models keep the
+    # conservative dataclass defaults.
     return ModelCapabilities(
         supports_tools=supports_tools,
         parallel_tool_calls=parallel_tool_calls,
+        context_window_tokens=context_window_tokens,
+        max_output_tokens=max_output_tokens,
     )
 
 

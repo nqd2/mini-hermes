@@ -14,7 +14,22 @@ def test_known_1min_models_have_explicit_tool_profiles():
 
 
 def test_unknown_model_fails_closed_for_tools():
-    assert not resolve_model_capabilities('unknown-model', 'https://example.com/v1').supports_tools
+    unknown = resolve_model_capabilities('unknown-model', 'https://example.com/v1')
+    assert not unknown.supports_tools
+    assert unknown.context_window_tokens == 16_000
+    assert unknown.max_output_tokens == 4_096
+
+
+def test_declared_modern_models_get_realistic_windows():
+    for model_id, base_url in (
+        ('gpt-6-luna', 'https://api.1min.ai/openai/v1'),
+        ('gpt-4.1', 'https://api.openai.com/v1'),
+        ('qwen3.7-plus', 'https://api.1min.ai/openai/v1'),
+    ):
+        caps = resolve_model_capabilities(model_id, base_url)
+        assert caps.supports_tools is True
+        assert caps.context_window_tokens == 128_000
+        assert caps.max_output_tokens == 16_384
 
 
 def test_explicit_model_capabilities_override_provider_profile():

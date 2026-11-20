@@ -6,16 +6,22 @@ import re
 _TOOL_ACTIONS = {
     'list_chat_files': 'discover',
     'list_editable_documents': 'discover',
+    'list_workspace_files': 'discover',
     'display_file': 'display',
     'view_file': 'read',
     'read_editable_document': 'read',
+    'read_workspace_file': 'read',
     'view_knowledge_file': 'read',
     'grep_chat_files': 'search',
     'search_editable_document': 'search',
+    'search_workspace_files': 'search',
     'search_knowledge_files': 'search',
     'query_chat_files': 'search',
     'query_knowledge_files': 'search',
+    'write_workspace_file': 'calculate',
+    'edit_workspace_file': 'calculate',
     'run_workspace_command': 'calculate',
+    'run_workspace_subtasks': 'calculate',
     'run_document_code': 'calculate',
     'run_skill_script': 'calculate',
     'get_document_task': 'read',
@@ -57,8 +63,16 @@ def infer_required_action(prompt: str) -> str:
         text,
     ):
         return 'commit'
-    if re.search(r'\b(?:translate|dịch(?!\s+(?:vụ|bệnh)))\b', text) and re.search(
-        r'preserve (?:the )?formatting|keep (?:the )?(?:original )?formatting|giữ nguyên định dạng', text
+    if re.search(r'\b(?:translate|dịch(?!\s+(?:vụ|bệnh)))\b', text) and (
+        re.search(r'preserve (?:the )?formatting|keep (?:the )?(?:original )?formatting|giữ nguyên định dạng', text)
+        or (
+            re.search(r'\b(?:docx|xlsx|pptx|word|excel|powerpoint)\b', text)
+            and not re.search(
+                r'\b(?:paragraph|section|page|slide|line|excerpt)\s+\d+|'
+                r'(?:đoạn|mục|trang|dòng|phần)\s+(?:số\s+)?\d+',
+                text,
+            )
+        )
     ):
         return 'create'
     if re.search(r'\b(edit|change|update|rewrite|fill|replace)\b|sửa|đổi|cập nhật|điền|thay thế', text):
@@ -234,7 +248,9 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
             elif isinstance(value, list):
                 evidence_ids.extend(entry for entry in value if isinstance(entry, str) and entry)
     has_content = any(
-        bool(item.get(key)) for item in records for key in ('text', 'content', 'document', 'result', 'stdout', 'output')
+        bool(item.get(key))
+        for item in records
+        for key in ('text', 'content', 'document', 'result', 'stdout', 'output', 'image_url', 'matches')
     )
     coverage_complete = isinstance(decoded, dict) and decoded.get('coverage_complete') is True
     search_complete = any(item.get('search_complete') is True for item in records)
@@ -263,7 +279,8 @@ def record_tool_result(state: dict, tool_name: str, result) -> dict:
             and (
                 isinstance(decoded, list)
                 or any(
-                    item.get('coverage_complete') is True and isinstance(item.get(key), list)
+                    isinstance(item.get('entries'), list)
+                    or (item.get('coverage_complete') is True and isinstance(item.get(key), list))
                     for item in records
                     for key in ('files', 'documents', 'resources')
                 )

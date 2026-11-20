@@ -141,7 +141,18 @@ async def _invoke_tool(
 
     scope = metadata.get('resource_scope_ids') if metadata.get('resource_execution_requested') else None
     files = metadata.get('files') or []
-    if name in {'run_workspace_command', 'run_document_code', 'run_skill_script', 'publish_document_output'}:
+    if name in {
+        'list_workspace_files',
+        'read_workspace_file',
+        'write_workspace_file',
+        'edit_workspace_file',
+        'search_workspace_files',
+        'run_workspace_command',
+        'run_workspace_subtasks',
+        'run_document_code',
+        'run_skill_script',
+        'publish_document_output',
+    }:
         history = metadata.get('resource_history_files') or []
         files = [*history, *([files] if isinstance(files, dict) else files)]
         project_files = [item for item in (metadata.get('folder_knowledge') or []) if item.get('type') == 'file']

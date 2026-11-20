@@ -32,21 +32,29 @@ class Coverage:
 
 def _default_max_model_calls() -> int:
     try:
-        return int(os.getenv('AGENT_RUNTIME_MAX_MODEL_CALLS', '8'))
+        return int(os.getenv('AGENT_RUNTIME_MAX_MODEL_CALLS', '40'))
     except (ValueError, TypeError):
-        return 8
+        return 40
 
 
 def _default_max_reads() -> int:
     try:
-        return int(os.getenv('AGENT_RUNTIME_MAX_READS', '24'))
+        return int(os.getenv('AGENT_RUNTIME_MAX_READS', '80'))
     except (ValueError, TypeError):
-        return 24
+        return 80
+
+
+def _default_deadline_seconds() -> int:
+    try:
+        value = int(os.getenv('AGENT_RUNTIME_EXECUTION_DEADLINE_SECONDS', '900'))
+        return value if value > 0 else 900
+    except (ValueError, TypeError):
+        return 900
 
 
 @dataclass
 class ExecutionBudget:
-    deadline: float = field(default_factory=lambda: time.time() + 300)
+    deadline: float = field(default_factory=lambda: time.time() + _default_deadline_seconds())
     model_calls: int = 0
     reads: int = 0
     max_model_calls: int = field(default_factory=_default_max_model_calls)

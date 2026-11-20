@@ -27,9 +27,13 @@ async def project_upload_ids(db, folder_id, user):
     return {entry['id'] for entry in entries if entry.get('type') == 'file'}
 
 
-async def raw_inputs(db, user, attachment_ids, project_ids, *, remaining_bytes, remaining_files):
-    """Use storage-backed bytes. Never accept a local path supplied by a tool or chat."""
-    inputs, revisions = {}, {}
+async def raw_input_entries(db, user, attachment_ids, project_ids, *, remaining_bytes, remaining_files):
+    """Resolve authorized raw/project file revisions lazily; read bytes only when hash is unavailable."""
+    import re
+
+    revisions = {}
+    loaders = {}
+    prefetched = {}
     for file_id in sorted(attachment_ids | project_ids):
         file = await Files.get_file_by_id_without_content(file_id, db=db)
         if not file or not file.path or (file_id not in project_ids and file.user_id != user['id']):
@@ -39,19 +43,64 @@ async def raw_inputs(db, user, attachment_ids, project_ids, *, remaining_bytes, 
             raise HTTPException(422, 'Invalid workspace input name')
         group = 'project' if file_id in project_ids else 'uploads'
         path = f'inputs/{group}/{file_id}/{name}'
-        if len(inputs) >= remaining_files:
+        if len(revisions) >= remaining_files:
             raise HTTPException(413, 'Workspace exceeds 30 input files')
 
-        def read_bytes():
-            with open(Storage.get_file(file.path), 'rb') as stream:
-                return stream.read(remaining_bytes + 1)
+        cached_hash = file.hash or (file.meta or {}).get('file_hash')
+        cached_size = (file.meta or {}).get('size')
+        if (
+            isinstance(cached_hash, str)
+            and re.fullmatch(r'[0-9a-f]{64}', cached_hash)
+            and isinstance(cached_size, int)
+            and cached_size >= 0
+        ):
+            remaining_bytes -= cached_size
+            if remaining_bytes < 0:
+                raise HTTPException(413, 'Workspace inputs exceed 40 MB')
+            revisions[path] = cached_hash
+            file_path = file.path
+            max_read = cached_size + 1
+
+            async def _load(fp=file_path, limit=max_read, expected=cached_hash):
+                def read_bytes():
+                    with open(Storage.get_file(fp), 'rb') as stream:
+                        return stream.read(limit)
+
+                data = await asyncio.to_thread(read_bytes)
+                if hashlib.sha256(data).hexdigest() != expected:
+                    raise HTTPException(409, 'Workspace input file changed on disk')
+                return base64.b64encode(data).decode()
+
+            loaders[path] = _load
+            continue
+
+        def read_bytes(fp=file.path, limit=remaining_bytes + 1):
+            with open(Storage.get_file(fp), 'rb') as stream:
+                return stream.read(limit)
 
         content = await asyncio.to_thread(read_bytes)
         remaining_bytes -= len(content)
         if remaining_bytes < 0:
             raise HTTPException(413, 'Workspace inputs exceed 40 MB')
-        inputs[path] = base64.b64encode(content).decode()
         revisions[path] = hashlib.sha256(content).hexdigest()
+        prefetched[path] = base64.b64encode(content).decode()
+
+    return revisions, loaders, prefetched
+
+
+async def raw_inputs(db, user, attachment_ids, project_ids, *, remaining_bytes, remaining_files):
+    """Use storage-backed bytes. Never accept a local path supplied by a tool or chat."""
+    revisions, loaders, prefetched = await raw_input_entries(
+        db,
+        user,
+        attachment_ids,
+        project_ids,
+        remaining_bytes=remaining_bytes,
+        remaining_files=remaining_files,
+    )
+    inputs = dict(prefetched)
+    for path, loader in loaders.items():
+        inputs[path] = await loader()
     return inputs, revisions
 
 

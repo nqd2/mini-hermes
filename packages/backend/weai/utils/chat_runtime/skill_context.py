@@ -141,14 +141,18 @@ async def prepare_chat_skill_context(
 
     if metadata.get('ar_agent_enabled') and use_builtin_tools and model_builtin_tools.get('agent_runtime_documents', True):
         form_data['messages'] = adapters.add_or_update_system_message(
-            'Use the private chat workspace for file and project tasks. run_workspace_command runs a shell '
-            'from the workspace root. Find original attachments under inputs/ and editable project files in work/. Keep scripts and '
-            'intermediate files in work/ across calls. Inspect exit_code, stdout and stderr, fix errors, '
-            'and run checks on the actual output. Read bundled docx, pdf, pptx or xlsx instructions with '
-            'read_document_skill as needed. Put the finished file (or a project archive) in outputs/. '
-            'Use publish_document_output and give the user its download_url. Pass source_document_id '
-            'only for an in-place document edit requiring an approved preview. A partial read or failed '
-            'command does not finish a file delivery.',
+            'Use the private chat workspace for file and project tasks. Originals live read-only under inputs/; '
+            'keep scripts, chunks, and editable project files in work/ across calls; save finished deliverables in outputs/. '
+            'Use list_workspace_files, read_workspace_file (supports line ranges and rendered PNG/JPG/WEBP images), '
+            'search_workspace_files, write_workspace_file, edit_workspace_file, and run_workspace_command (terminal) '
+            'to inspect, write, debug, and verify outputs. Read bundled docx, pdf, pptx, or xlsx instructions with '
+            'read_document_skill when working on Office/PDF files. For large language-heavy workloads (such as '
+            'translating a long document or processing many files), split structured ~8-10K-char chunks into work/ '
+            '(for .docx, check docx SKILL.md for ooxml_text.py) and delegate them via run_workspace_subtasks using '
+            'input_glob + output_dir (or manifest_path) so tool calls stay compact (sandbox is offline; for small jobs, '
+            'direct Python batches also work). Reassemble and validate the result, then call publish_document_output '
+            'and share its download_url. Pass source_document_id only for an in-place document edit requiring an '
+            'approved preview. A partial read or failed command does not finish a file delivery.',
             form_data['messages'],
             append=True,
         )

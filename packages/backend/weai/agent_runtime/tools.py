@@ -21,7 +21,7 @@ from weai.documents.library import (
 from weai.documents.models import Document, ResourceTask
 from weai.documents.resource_uploads import register_chat_upload
 from .sandbox import SandboxClient
-from .workspace_files import project_upload_ids, publish_workspace_file, raw_inputs
+from .workspace_files import project_upload_ids, publish_workspace_file, raw_input_entries, raw_inputs
 from weai.documents.service import build_preview, create_artifact_preview, create_preview, publish_generated_document
 from weai.documents.storage import ObjectStore
 
@@ -459,14 +459,15 @@ def _workspace_id(user: dict, chat_id: str | None) -> str:
     return hashlib.sha256(f'{user["id"]}:{chat_id}'.encode()).hexdigest()
 
 
-async def _sandbox_inputs(
+async def _sandbox_input_entries(
     db,
     user: dict,
     chat_id: str | None,
     files: list[dict] | None,
     resource_scope_ids: list[str] | None = None,
-    *, folder_id: str | None = None,
-) -> tuple[dict[str, str], dict[str, int | str]]:
+    *,
+    folder_id: str | None = None,
+) -> tuple[dict[str, int | str], dict[str, object], dict[str, str]]:
     file_ids = _file_ids(files)
     scope_ids = {str(file_id) for file_id in resource_scope_ids or []}
     scope_restricted = resource_scope_ids is not None
@@ -500,8 +501,8 @@ async def _sandbox_inputs(
     if len(docs) + len(raw_ids | project_ids) > 30:
         raise HTTPException(413, 'Workspace exceeds 30 input files')
     remaining_bytes = 40 * 1024 * 1024
-    inputs = {}
-    input_revisions = {}
+    input_revisions: dict[str, int | str] = {}
+    loaders: dict[str, object] = {}
     for doc in sorted(docs.values(), key=lambda item: item.id):
         doc = await _scoped_document(db, doc.id, user, chat_id, files, 'read', resource_scope_ids)
         from weai.documents.models import Revision
@@ -516,13 +517,104 @@ async def _sandbox_inputs(
             raise HTTPException(413, 'Workspace inputs exceed 40 MB')
         name = Path(doc.filename).name
         input_path = f'inputs/{doc.id}/{name}'
-        from weai.documents.service import get_verified_revision_content
-
-        inputs[input_path] = base64.b64encode(await get_verified_revision_content(store, revision)).decode()
         input_revisions[input_path] = revision.number
-    raw, hashes = await raw_inputs(db, user, raw_ids, project_ids, remaining_bytes=remaining_bytes,
-                                   remaining_files=30 - len(inputs))
-    return {**inputs, **raw}, {**input_revisions, **hashes}
+
+        async def _load_doc(rev=revision, s=store):
+            from weai.documents.service import get_verified_revision_content
+
+            return base64.b64encode(await get_verified_revision_content(s, rev)).decode()
+
+        loaders[input_path] = _load_doc
+
+    raw_revs, raw_loaders, prefetched = await raw_input_entries(
+        db,
+        user,
+        raw_ids,
+        project_ids,
+        remaining_bytes=remaining_bytes,
+        remaining_files=30 - len(input_revisions),
+    )
+    return {**input_revisions, **raw_revs}, {**loaders, **raw_loaders}, prefetched
+
+
+async def _sandbox_inputs(
+    db,
+    user: dict,
+    chat_id: str | None,
+    files: list[dict] | None,
+    resource_scope_ids: list[str] | None = None,
+    *,
+    folder_id: str | None = None,
+) -> tuple[dict[str, str], dict[str, int | str]]:
+    input_revisions, loaders, prefetched = await _sandbox_input_entries(
+        db, user, chat_id, files, resource_scope_ids, folder_id=folder_id
+    )
+    inputs = dict(prefetched)
+    for path, loader in loaders.items():
+        inputs[path] = await loader()
+    return inputs, input_revisions
+
+
+def _build_input_evidence(input_revisions: dict[str, int | str]) -> list[dict]:
+    from weai.documents.provenance import evidence_id
+
+    input_evidence = []
+    for input_path, revision in input_revisions.items():
+        parts = PurePosixPath(input_path).parts
+        if len(parts) < 3:
+            continue
+        document_id = parts[2] if len(parts) == 4 else parts[1]
+        identifier = evidence_id(document_id, str(revision), None, None, 'sandbox-input')
+        input_evidence.append(
+            {
+                'resource_id': document_id,
+                'revision': revision,
+                'input_path': input_path,
+                'evidence_id': identifier,
+            }
+        )
+    return input_evidence
+
+
+async def _sync_workspace_context(
+    client,
+    user: dict,
+    files: list[dict] | None,
+    chat_id: str | None,
+    resource_scope_ids: list[str] | None = None,
+    folder_id: str | None = None,
+) -> tuple[str, dict[str, int | str], dict[str, str]]:
+    """Verify chat access and synchronize only missing/changed inputs into the sandbox."""
+    workspace_id = _workspace_id(user, chat_id)
+    async with get_async_db() as db:
+        if is_saved_chat_id(chat_id):
+            from weai.models.chats import Chats
+
+            chat = await Chats.get_chat_by_id_and_user_id(chat_id, user['id'], db=db)
+            if not chat:
+                raise HTTPException(404, 'Chat not found')
+            folder_id = chat.folder_id
+        input_revisions, loaders, prefetched = await _sandbox_input_entries(
+            db, user, chat_id, files, resource_scope_ids, folder_id=folder_id
+        )
+
+    if hasattr(client, 'sync'):
+        check = await client.sync(workspace_id, input_revisions, {})
+        missing = list(check.get('missing_paths') or [])
+        if not check.get('synced') or missing:
+            delta_inputs: dict[str, str] = {}
+            for path in missing:
+                if path in prefetched:
+                    delta_inputs[path] = prefetched[path]
+                elif path in loaders:
+                    delta_inputs[path] = await loaders[path]()
+            await client.sync(workspace_id, input_revisions, delta_inputs)
+        return workspace_id, input_revisions, {}
+
+    eager_inputs = dict(prefetched)
+    for path, loader in loaders.items():
+        eager_inputs[path] = await loader()
+    return workspace_id, input_revisions, eager_inputs
 
 
 async def _execute_document(
@@ -535,38 +627,220 @@ async def _execute_document(
 ) -> dict:
     if not user or not user.get('id'):
         return {'error': 'User context unavailable'}
-    async with get_async_db() as db:
-        if is_saved_chat_id(chat_id):
-            from weai.models.chats import Chats
-
-            chat = await Chats.get_chat_by_id_and_user_id(chat_id, user['id'], db=db)
-            if not chat:
-                raise HTTPException(404, 'Chat not found')
-            folder_id = chat.folder_id
-        inputs, input_revisions = await _sandbox_inputs(db, user, chat_id, files, resource_scope_ids, folder_id=folder_id)
-    payload.update(
-        {'workspace_id': _workspace_id(user, chat_id), 'inputs': inputs, 'input_revisions': input_revisions}
+    client = SandboxClient()
+    workspace_id, input_revisions, eager_inputs = await _sync_workspace_context(
+        client, user, files, chat_id, resource_scope_ids, folder_id=folder_id
     )
-    result = await SandboxClient().run(payload)
+    payload.update(
+        {'workspace_id': workspace_id, 'inputs': eager_inputs, 'input_revisions': input_revisions}
+    )
+    result = await client.run(payload)
     if isinstance(result, dict) and not result.get('error') and result.get('status') not in {'failed', 'error'}:
-        from weai.documents.provenance import evidence_id
-
-        input_evidence = []
-        for input_path, revision in input_revisions.items():
-            parts = PurePosixPath(input_path).parts
-            if len(parts) < 3:
-                continue
-            document_id = parts[2] if len(parts) == 4 else parts[1]
-            identifier = evidence_id(document_id, str(revision), None, None, 'sandbox-input')
-            input_evidence.append(
-                {
-                    'resource_id': document_id,
-                    'revision': revision,
-                    'input_path': input_path,
-                    'evidence_id': identifier,
-                }
-            )
+        input_evidence = _build_input_evidence(input_revisions)
         result['input_evidence'] = input_evidence
+        result['evidence_ids'] = [item['evidence_id'] for item in input_evidence]
+    return result
+
+
+async def list_workspace_files(
+    path: str = '.',
+    max_depth: int = 3,
+    limit: int = 200,
+    __user__: dict = None,
+    __files__: list[dict] = None,
+    __chat_id__: str = None,
+    __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
+) -> dict:
+    """List files and directories inside the private chat workspace (inputs/, work/, outputs/)."""
+    if not __user__ or not __user__.get('id'):
+        return {'error': 'User context unavailable'}
+    client = SandboxClient()
+    workspace_id, input_revisions, _ = await _sync_workspace_context(
+        client, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
+    )
+    result = await client.fs_list(
+        workspace_id, path=path, max_depth=max(1, min(max_depth, 10)), limit=max(1, min(limit, 500))
+    )
+    result['input_paths'] = sorted(input_revisions)
+    return result
+
+
+async def read_workspace_file(
+    path: str,
+    start_line: int = 1,
+    end_line: int = 200,
+    __user__: dict = None,
+    __files__: list[dict] = None,
+    __chat_id__: str = None,
+    __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
+) -> dict:
+    """Read a bounded text slice (with line numbers) or inspect a rendered image (PNG/JPG/WEBP) in the workspace."""
+    if not __user__ or not __user__.get('id'):
+        return {'error': 'User context unavailable'}
+    client = SandboxClient()
+    workspace_id, input_revisions, _ = await _sync_workspace_context(
+        client, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
+    )
+    suffix = PurePosixPath(path).suffix.lower() if isinstance(path, str) else ''
+    if suffix in {'.png', '.jpg', '.jpeg', '.webp'}:
+        image = await client.fs_read(workspace_id, path, as_image=True)
+        mime_type = image.get('mime_type', 'image/png')
+        content_b64 = image.get('content_b64', '')
+        return {
+            'path': image.get('path', path),
+            'mime_type': mime_type,
+            'size': image.get('size', 0),
+            'image_url': f'data:{mime_type};base64,{content_b64}',
+        }
+    budget = int((__metadata__ or {}).get('resource_file_context_char_budget') or 16_000)
+    max_chars = max(1_000, min(16_000, budget // 2))
+    result = await client.fs_read(
+        workspace_id,
+        path,
+        start_line=max(1, int(start_line)),
+        end_line=max(1, int(end_line)),
+        max_chars=max_chars,
+    )
+    input_evidence = _build_input_evidence(input_revisions)
+    result['evidence_ids'] = [item['evidence_id'] for item in input_evidence]
+    return result
+
+
+async def write_workspace_file(
+    path: str,
+    content: str,
+    __user__: dict = None,
+    __files__: list[dict] = None,
+    __chat_id__: str = None,
+    __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
+) -> dict:
+    """Create or overwrite a UTF-8 text file inside work/ or outputs/ (inputs/ is read-only)."""
+    if not __user__ or not __user__.get('id'):
+        return {'error': 'User context unavailable'}
+    if not isinstance(content, str):
+        return {'error': 'content must be a UTF-8 string'}
+    client = SandboxClient()
+    workspace_id, _, _ = await _sync_workspace_context(
+        client, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
+    )
+    return await client.fs_write(workspace_id, path, content)
+
+
+async def edit_workspace_file(
+    path: str,
+    target: str,
+    replacement: str,
+    replace_all: bool = False,
+    __user__: dict = None,
+    __files__: list[dict] = None,
+    __chat_id__: str = None,
+    __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
+) -> dict:
+    """Replace an exact text block inside an existing file under work/ or outputs/."""
+    if not __user__ or not __user__.get('id'):
+        return {'error': 'User context unavailable'}
+    client = SandboxClient()
+    workspace_id, _, _ = await _sync_workspace_context(
+        client, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
+    )
+    return await client.fs_edit(workspace_id, path, target, replacement, replace_all=bool(replace_all))
+
+
+async def search_workspace_files(
+    pattern: str,
+    path: str = 'work',
+    glob: str | None = None,
+    case_insensitive: bool = False,
+    max_matches: int = 50,
+    __user__: dict = None,
+    __files__: list[dict] = None,
+    __chat_id__: str = None,
+    __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
+) -> dict:
+    """Search text files inside inputs/, work/, or outputs/ using a regex or literal pattern."""
+    if not __user__ or not __user__.get('id'):
+        return {'error': 'User context unavailable'}
+    client = SandboxClient()
+    workspace_id, input_revisions, _ = await _sync_workspace_context(
+        client, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
+    )
+    result = await client.fs_search(
+        workspace_id,
+        pattern,
+        path=path,
+        glob=glob,
+        case_insensitive=bool(case_insensitive),
+        max_matches=max(1, min(int(max_matches), 200)),
+    )
+    input_evidence = _build_input_evidence(input_revisions)
+    result['evidence_ids'] = [item['evidence_id'] for item in input_evidence]
+    result['search_complete'] = not bool(result.get('truncated'))
+    return result
+
+
+async def run_workspace_subtasks(
+    instructions: str,
+    tasks: list[dict] | None = None,
+    input_glob: str | None = None,
+    output_dir: str | None = None,
+    manifest_path: str | None = None,
+    report_path: str = 'work/subtasks_report.json',
+    context_paths: list[str] | None = None,
+    max_concurrency: int = 3,
+    max_output_tokens: int = 8192,
+    overwrite: bool = False,
+    __user__: dict = None,
+    __files__: list[dict] = None,
+    __chat_id__: str = None,
+    __resource_scope_ids__: list[str] = None,
+    __metadata__: dict | None = None,
+    __request__=None,
+    __model__: dict | None = None,
+    __event_emitter__=None,
+) -> dict:
+    """Delegate bounded LLM subtasks over chunk files in work/ (e.g., translating or transforming large documents/many files).
+    Prefer passing input_glob (e.g. "work/ooxml/chunks/chunk_*.json") + output_dir (e.g. "work/ooxml/translated"),
+    or manifest_path ("work/subtasks.json"), rather than listing dozens of items inline in tasks.
+    Skips already-written outputs unless overwrite=True. Writes full details to report_path and returns a compact summary."""
+    if not __user__ or not __user__.get('id'):
+        return {'error': 'User context unavailable'}
+    client = SandboxClient()
+    workspace_id, input_revisions, _ = await _sync_workspace_context(
+        client, __user__, __files__, __chat_id__, __resource_scope_ids__,
+        folder_id=(__metadata__ or {}).get('folder_id'),
+    )
+    from .workspace_subtasks import execute_workspace_subtasks
+
+    result = await execute_workspace_subtasks(
+        client=client,
+        workspace_id=workspace_id,
+        user=__user__,
+        instructions=instructions,
+        tasks=tasks,
+        input_glob=input_glob,
+        output_dir=output_dir,
+        manifest_path=manifest_path,
+        report_path=report_path,
+        context_paths=context_paths,
+        max_concurrency=max_concurrency,
+        max_output_tokens=max_output_tokens,
+        overwrite=bool(overwrite),
+        request=__request__,
+        model=__model__,
+        event_emitter=__event_emitter__,
+    )
+    if isinstance(result, dict) and not result.get('error'):
+        input_evidence = _build_input_evidence(input_revisions)
         result['evidence_ids'] = [item['evidence_id'] for item in input_evidence]
     return result
 

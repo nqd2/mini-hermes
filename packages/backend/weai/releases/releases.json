@@ -11,7 +11,11 @@
     "released_at": "2026-11-20",
     "sections": {
       "Added": [
-        "WeAI's first release notes!"
+        "Private workspace tools that allow agents to inspect, edit, and run multi-step tasks on project files.",
+        "Live execution cards in chat showing step-by-step progress and direct download links for generated files."
+      ],
+      "Improved": [
+        "Reliability and context management for large documents and multi-step background tasks."
       ]
     }
   }

@@ -862,7 +862,7 @@
 											<span class="flex w-full min-w-0 items-center gap-2">
 												<ProfileImage
 													src={model?.user?.id
-														? `/api/v1/users/${model.user.id}/profile/image`
+														? `${WEAI_API_BASE_URL}/users/${model.user.id}/profile/image`
 														: '/user.png'}
 													className="size-5 shrink-0 rounded-full!"
 												/>

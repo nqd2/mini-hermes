@@ -18,7 +18,7 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { WEAI_NAME, config, user, workspaceActions, workspaceCounts } from '$lib/stores';
-	import { COMMUNITY_ORIGINS } from '$lib/constants';
+	import { COMMUNITY_ORIGINS, WEAI_API_BASE_URL } from '$lib/constants';
 
 	import {
 		createNewPrompt,
@@ -625,7 +625,7 @@
 										<span class="flex w-full min-w-0 items-center gap-2">
 											<ProfileImage
 												src={prompt?.user?.id
-													? `/api/v1/users/${prompt.user.id}/profile/image`
+													? `${WEAI_API_BASE_URL}/users/${prompt.user.id}/profile/image`
 													: '/user.png'}
 												className="size-5 shrink-0 rounded-full!"
 											/>

@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { createClassComponent } from 'svelte/legacy';
 import { ySyncPluginKey } from 'y-prosemirror';
+import { WEAI_API_BASE_URL } from '$lib/constants';
 import FileItem from '../FileItem.svelte';
 
 export const fileUploadsKey = new PluginKey<DecorationSet>('fileUploads');
@@ -39,12 +40,12 @@ export default Node.create<{ context: Map<any, any> }>({
 				})
 			},
 			{
-				tag: 'a[href^="/api/v1/files/"]',
+				tag: 'a[href*="/api/v1/files/"]',
 				priority: 100,
 				getAttrs: (element) => {
 					const match = element
 						.getAttribute('href')
-						?.match(/^\/api\/v1\/files\/([\w-]+)\/content$/);
+						?.match(/\/api\/v1\/files\/([\w-]+)\/content$/);
 					return match ? { id: match[1], name: element.textContent, size: 0 } : false;
 				}
 			}
@@ -54,7 +55,7 @@ export default Node.create<{ context: Map<any, any> }>({
 		return [
 			'div',
 			{ 'data-file-id': node.attrs.id, 'data-file-size': node.attrs.size },
-			['a', { href: `/api/v1/files/${encodeURIComponent(node.attrs.id)}/content` }, node.attrs.name]
+			['a', { href: `${WEAI_API_BASE_URL}/files/${encodeURIComponent(node.attrs.id)}/content` }, node.attrs.name]
 		];
 	},
 	renderText({ node }) {

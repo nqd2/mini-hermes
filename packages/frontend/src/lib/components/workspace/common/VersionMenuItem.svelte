@@ -2,6 +2,7 @@
 	import { getContext } from 'svelte';
 	import dayjs, { getDayjsLocale } from '$lib/dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { user } from '$lib/stores';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ProfileImage from '$lib/components/chat/Messages/ProfileImage.svelte';
@@ -41,7 +42,7 @@
 	<div class="ml-2 mr-2 flex shrink-0">
 		<ProfilePreview user={{ id: authorId, name: author }}>
 			<ProfileImage
-				src={authorId ? `/api/v1/users/${authorId}/profile/image` : '/user.png'}
+				src={authorId ? `${WEAI_API_BASE_URL}/users/${authorId}/profile/image` : '/user.png'}
 				className="size-4 shrink-0 rounded-full!"
 			/>
 		</ProfilePreview>

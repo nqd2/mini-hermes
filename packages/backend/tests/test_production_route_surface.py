@@ -1,5 +1,6 @@
 """The Office Agent surface excludes retired WeAI products."""
 
+from fastapi import HTTPException
 from fastapi.routing import APIRoute
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -174,4 +175,31 @@ async def test_client_config_with_invalid_or_stale_token_cookie_returns_200_and_
     assert response.json().get('onboarding') is True
     # Verify stale token cookie is deleted
     assert 'token' in response.cookies or any('token=""' in v for k, v in response.headers.items() if k.lower() == 'set-cookie')
+
+
+@pytest.mark.asyncio
+async def test_get_verified_user_by_token_returns_none_on_401(monkeypatch):
+    from weai.utils import auth as auth_utils
+
+    monkeypatch.setattr(auth_utils, 'decode_token', lambda _: {'id': 'deleted-user'})
+    monkeypatch.setattr(auth_utils, 'is_valid_token', AsyncMock(side_effect=HTTPException(401, 'Invalid authentication request.')))
+
+    assert await auth_utils.get_verified_user_by_token('stale-token') is None
+
+
+def test_drive_callback_redirects_to_allowed_frontend_origin(monkeypatch):
+    from pathlib import Path
+    from weai import config as weai_config
+    from weai import env as weai_env
+    from weai.documents import routes as doc_routes
+
+    monkeypatch.setattr(weai_config, 'CORS_ALLOW_ORIGIN', ['http://127.0.0.1:5173', 'http://localhost:5173'])
+    monkeypatch.setattr(weai_config, 'WEAI_URL', '')
+    monkeypatch.setattr(weai_env, 'FRONTEND_BUILD_DIR', Path('/nonexistent-frontend-build'))
+
+    request = SimpleNamespace(headers={'origin': 'http://localhost:5173'})
+    origin = doc_routes._resolve_frontend_origin(request)
+    assert origin == 'http://localhost:5173'
+    assert doc_routes._drive_callback_redirect_url({'redirect_origin': origin}) == 'http://localhost:5173/'
+    assert doc_routes._drive_callback_redirect_url({}) == 'http://127.0.0.1:5173/'
 

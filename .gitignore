@@ -14,3 +14,6 @@ packages/frontend/vite.config.ts.timestamp-*.mjs
 **/.env
 **/.env.local
 /packages/backend/test-agent-runtime.db*
+scripts/gl2gh.sh
+scripts/gh2gl.sh
+scripts/_sync_remotes.sh

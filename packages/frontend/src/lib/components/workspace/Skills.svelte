@@ -18,6 +18,7 @@
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import {
 		WEAI_NAME,
 		user,
@@ -551,7 +552,7 @@
 										<span class="flex w-full min-w-0 items-center gap-2">
 											<ProfileImage
 												src={skill?.user?.id
-													? `/api/v1/users/${skill.user.id}/profile/image`
+													? `${WEAI_API_BASE_URL}/users/${skill.user.id}/profile/image`
 													: '/user.png'}
 												className="size-5 shrink-0 rounded-full!"
 											/>

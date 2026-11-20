@@ -8,6 +8,7 @@
 
 	dayjs.extend(relativeTime);
 
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import { WEAI_NAME, config, functions as _functions, models, settings, user } from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
@@ -567,7 +568,7 @@
 										<span class="flex max-w-44 items-center gap-1.75">
 											<ProfileImage
 												src={func?.user?.id
-													? `/api/v1/users/${func.user.id}/profile/image`
+													? `${WEAI_API_BASE_URL}/users/${func.user.id}/profile/image`
 													: '/user.png'}
 												className="size-4 shrink-0 rounded-full!"
 											/>

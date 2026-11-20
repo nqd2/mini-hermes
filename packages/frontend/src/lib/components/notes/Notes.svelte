@@ -19,6 +19,7 @@
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 
 	import { goto } from '$app/navigation';
+	import { WEAI_API_BASE_URL } from '$lib/constants';
 	import {
 		WEAI_NAME,
 		config,
@@ -657,7 +658,7 @@
 															<span class="flex min-w-0 max-w-44 items-center gap-1.75">
 																<ProfileImage
 																	src={note?.user?.id
-																		? `/api/v1/users/${note.user.id}/profile/image`
+																		? `${WEAI_API_BASE_URL}/users/${note.user.id}/profile/image`
 																		: '/user.png'}
 																	className="size-4 shrink-0 rounded-full!"
 																/>
@@ -856,7 +857,7 @@
 															<span class="flex min-w-0 max-w-44 items-center gap-1.75">
 																<ProfileImage
 																	src={note?.user?.id
-																		? `/api/v1/users/${note.user.id}/profile/image`
+																		? `${WEAI_API_BASE_URL}/users/${note.user.id}/profile/image`
 																		: '/user.png'}
 																	className="size-4 shrink-0 rounded-full!"
 																/>

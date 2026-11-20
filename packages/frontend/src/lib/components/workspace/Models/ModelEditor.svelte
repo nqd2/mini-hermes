@@ -14,7 +14,7 @@
 
 	import { onMount, onDestroy, getContext, tick } from 'svelte';
 	import { config, models, tools, functions, user, settings, visibleControls } from '$lib/stores';
-	import { WEAI_BASE_URL, DEFAULT_CAPABILITIES } from '$lib/constants';
+	import { WEAI_API_BASE_URL, WEAI_BASE_URL, DEFAULT_CAPABILITIES } from '$lib/constants';
 
 	import { getTools } from '$lib/apis/tools';
 	import { getSkills } from '$lib/apis/skills';
@@ -595,7 +595,7 @@
 				const uploaded = await uploadFile(localStorage.token, backgroundFile, null, false, false);
 				if (!uploaded?.id) throw new Error($i18n.t('Failed to upload background image.'));
 				uploadedId = uploaded.id;
-				info.meta.background_image_url = `/api/v1/files/${uploaded.id}/content`;
+				info.meta.background_image_url = `${WEAI_API_BASE_URL}/files/${uploaded.id}/content`;
 			}
 			if (avatarFile && info.meta.voice_avatar) {
 				const uploaded = await uploadFile(localStorage.token, avatarFile, null, false, false);

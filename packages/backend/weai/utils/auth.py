@@ -465,8 +465,15 @@ def get_verified_user(user=Depends(get_current_user)):
 async def get_verified_user_by_token(token: str, redis=None):
     """Resolve a verified user from a raw token, for WebSocket handshakes that run outside the HTTP dependency chain."""
     decoded = decode_token(token)
-    if decoded is None or 'id' not in decoded or not await is_valid_token(decoded, redis):
+    if decoded is None or 'id' not in decoded:
         return None
+    try:
+        if not await is_valid_token(decoded, redis):
+            return None
+    except HTTPException as exc:
+        if exc.status_code in (401, 403):
+            return None
+        raise
 
     user = await Users.get_user_by_id(decoded['id'])
     if user is None or user.role not in VERIFIED_USER_ROLES:

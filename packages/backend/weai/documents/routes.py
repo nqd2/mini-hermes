@@ -8,7 +8,7 @@ import os
 import re
 import secrets
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, Response, UploadFile
@@ -709,10 +709,56 @@ def _signer():
     return URLSafeTimedSerializer(secret, salt='agent-runtime-drive-oauth')
 
 
+def _allowed_frontend_origins() -> list[str]:
+    from weai.config import CORS_ALLOW_ORIGIN, WEAI_URL
+
+    origins: list[str] = []
+    for candidate in [WEAI_URL, *CORS_ALLOW_ORIGIN]:
+        value = (candidate or '').strip().rstrip('/')
+        if not value or value == '*':
+            continue
+        parsed = urlparse(value)
+        if parsed.scheme in ('http', 'https') and parsed.netloc:
+            origin = f'{parsed.scheme}://{parsed.netloc}'
+            if origin not in origins:
+                origins.append(origin)
+    return origins
+
+
+def _resolve_frontend_origin(request: Request) -> str | None:
+    allowed = _allowed_frontend_origins()
+    for header_name in ('origin', 'referer'):
+        raw = (request.headers.get(header_name) or '').strip()
+        if not raw:
+            continue
+        parsed = urlparse(raw)
+        if parsed.scheme in ('http', 'https') and parsed.netloc:
+            origin = f'{parsed.scheme}://{parsed.netloc}'
+            if origin in allowed:
+                return origin
+    return None
+
+
+def _drive_callback_redirect_url(signed: dict) -> str:
+    from weai.env import FRONTEND_BUILD_DIR
+
+    allowed = _allowed_frontend_origins()
+    origin = signed.get('redirect_origin')
+    if isinstance(origin, str) and origin in allowed:
+        return f'{origin}/'
+    if not FRONTEND_BUILD_DIR.exists() and allowed:
+        return f'{allowed[0]}/'
+    return '/'
+
+
 @router.get('/drive/connect')
 async def connect_drive(request: Request, user=Depends(get_verified_user)):
     nonce = secrets.token_urlsafe(24)
-    state = _signer().dumps({'user_id': user.id, 'nonce': nonce})
+    payload = {'user_id': user.id, 'nonce': nonce}
+    redirect_origin = _resolve_frontend_origin(request)
+    if redirect_origin:
+        payload['redirect_origin'] = redirect_origin
+    state = _signer().dumps(payload)
     from fastapi.responses import JSONResponse
 
     response = JSONResponse({'authorization_url': authorization_url(state)})
@@ -733,6 +779,6 @@ async def drive_callback(request: Request, code: str, state: str, db=Depends(get
     if not token.get('refresh_token'):
         raise HTTPException(400, 'Google did not return an offline refresh token')
     await save_refresh_token(db, signed['user_id'], token['refresh_token'])
-    response = RedirectResponse('/')
+    response = RedirectResponse(_drive_callback_redirect_url(signed))
     response.delete_cookie('ar_drive_oauth_nonce')
     return response

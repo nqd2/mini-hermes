@@ -11,10 +11,12 @@
     "released_at": "2026-11-20",
     "sections": {
       "Added": [
+        "Format-preserving Word document translation that keeps tables, images, styles, and table of contents intact.",
         "Private workspace tools that allow agents to inspect, edit, and run multi-step tasks on project files.",
         "Live execution cards in chat showing step-by-step progress and direct download links for generated files."
       ],
       "Improved": [
+        "Expanded tool-call iteration limit so agents can execute long-running multi-turn document tasks without interruption.",
         "Reliability and context management for large documents and multi-step background tasks."
       ]
     }

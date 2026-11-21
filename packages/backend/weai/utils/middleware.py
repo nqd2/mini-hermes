@@ -2291,7 +2291,12 @@ async def streaming_chat_response_handler(response, ctx):
                     CHAT_RESPONSE_MAX_TOOL_CALL_ITERATIONS,
                 )
                 if metadata.get('resource_aware_files'):
-                    max_tool_call_iterations = min(max_tool_call_iterations or 8, 8)
+                    if metadata.get('ar_agent_enabled'):
+                        budget = metadata.get('resource_budget')
+                        agent_budget_calls = getattr(budget, 'max_model_calls', 40) if budget else 40
+                        max_tool_call_iterations = max(max_tool_call_iterations or agent_budget_calls, agent_budget_calls)
+                    else:
+                        max_tool_call_iterations = min(max_tool_call_iterations or 8, 8)
                 tool_call_sources = []  # Track citation sources from tool results
                 all_tool_call_sources = []  # Accumulated sources across all iterations
                 user_message = get_last_user_message(form_data['messages'])
@@ -2893,9 +2898,15 @@ async def streaming_chat_response_handler(response, ctx):
                     and tool_calls
                     and tool_call_iterations >= max_tool_call_iterations
                 ):
-                    log.warning('Tool-call iteration limit reached (%s)', max_tool_call_iterations)
-                    error_content = f'Tool-call limit reached ({max_tool_call_iterations} iterations).'
-                    await emit_message_error(error_content)
+                    if metadata.get('ar_agent_enabled'):
+                        log.info(
+                            'Workspace agent turn reached iteration limit (%s); pausing cleanly for Continue Response',
+                            max_tool_call_iterations,
+                        )
+                    else:
+                        log.warning('Tool-call iteration limit reached (%s)', max_tool_call_iterations)
+                        error_content = f'Tool-call limit reached ({max_tool_call_iterations} iterations).'
+                        await emit_message_error(error_content)
 
                 if DETECT_CODE_INTERPRETER:
                     MAX_RETRIES = 5

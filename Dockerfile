@@ -4,13 +4,13 @@ ARG VITE_WEAI_BACKEND_URL=""
 ENV VITE_WEAI_BACKEND_URL=${VITE_WEAI_BACKEND_URL}
 WORKDIR /src/packages/frontend
 COPY packages/frontend/package.json packages/frontend/package-lock.json ./
-RUN npm ci --ignore-scripts --force
+RUN npm ci --ignore-scripts --force --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --maxsockets=4
 COPY packages/frontend/ ./
 RUN npm run build
 
 FROM node:22-bookworm-slim AS js-tools
 WORKDIR /opt/agent-runtime-js
-RUN npm install --no-audit --no-fund --omit=dev --no-save docx@9.15.2 pptxgenjs@4.0.1
+RUN npm install --no-audit --no-fund --omit=dev --no-save --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --maxsockets=4 docx@9.15.2 pptxgenjs@4.0.1
 
 FROM python:3.12-slim AS sandbox-runtime
 ARG WEAI_RELEASE_VERSION=dev

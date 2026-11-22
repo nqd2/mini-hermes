@@ -2966,15 +2966,21 @@ async def get_manifest_json():
             'background_color': '#343541',
             'icons': [
                 {
-                    'src': '/static/logo.png',
+                    'src': '/static/android-chrome-192x192.png',
                     'type': 'image/png',
-                    'sizes': '500x500',
+                    'sizes': '192x192',
                     'purpose': 'any',
                 },
                 {
                     'src': '/static/logo.png',
                     'type': 'image/png',
-                    'sizes': '500x500',
+                    'sizes': '512x512',
+                    'purpose': 'any',
+                },
+                {
+                    'src': '/static/logo.png',
+                    'type': 'image/png',
+                    'sizes': '512x512',
                     'purpose': 'maskable',
                 },
             ],

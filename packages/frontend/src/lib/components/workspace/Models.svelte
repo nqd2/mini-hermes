@@ -4,6 +4,7 @@
 	let comments: CommentsRequest | null = null;
 	import CommentButton from '$lib/components/comments/CommentButton.svelte';
 	import WorkspaceAccessModal from './common/WorkspaceAccessModal.svelte';
+	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	let accessModal: WorkspaceAccessModal;
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -783,16 +784,7 @@
 											<div
 												class="{model.is_active ? '' : 'opacity-50 dark:opacity-50'} bg-transparent"
 											>
-												<img
-													src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
-													alt=""
-													class="size-7 rounded-lg object-cover"
-													loading="lazy"
-													decoding="async"
-													on:error={(e) => {
-														e.target.src = '/favicon.png';
-													}}
-												/>
+												<ModelIcon modelId={model.id} className="size-7 rounded-lg" />
 											</div>
 										</div>
 										<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">

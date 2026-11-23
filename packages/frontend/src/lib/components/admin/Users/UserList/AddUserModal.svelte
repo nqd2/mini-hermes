@@ -21,11 +21,15 @@
 	let tab = '';
 	let inputFiles;
 
+	const MAX_MONTHLY_REQUEST_LIMIT = 2_147_483_647;
+
 	let _user = {
 		name: '',
 		email: '',
 		password: '',
-		role: 'user'
+		role: 'user',
+		tier: 'free' as 'free' | 'plus',
+		monthly_request_limit: 1000
 	};
 
 	$: if (show) {
@@ -33,7 +37,9 @@
 			name: '',
 			email: '',
 			password: '',
-			role: 'user'
+			role: 'user',
+			tier: 'free' as 'free' | 'plus',
+			monthly_request_limit: 1000
 		};
 	}
 
@@ -44,6 +50,22 @@
 		};
 
 		if (tab === '') {
+			let monthlyRequestLimit: number | null = null;
+			if (_user.tier === 'plus') {
+				const parsedLimit = Number(_user.monthly_request_limit);
+				if (
+					_user.monthly_request_limit === null ||
+					_user.monthly_request_limit === undefined ||
+					!Number.isInteger(parsedLimit) ||
+					parsedLimit < 1 ||
+					parsedLimit > MAX_MONTHLY_REQUEST_LIMIT
+				) {
+					toast.error($i18n.t('Enter a positive whole-number monthly request limit'));
+					return;
+				}
+				monthlyRequestLimit = parsedLimit;
+			}
+
 			loading = true;
 
 			const res = await addUser(
@@ -52,7 +74,9 @@
 				_user.email,
 				_user.password,
 				_user.role,
-				generateInitialsImage(_user.name)
+				generateInitialsImage(_user.name),
+				_user.tier,
+				monthlyRequestLimit
 			).catch((error) => {
 				toast.error(`${error}`);
 			});
@@ -69,21 +93,62 @@
 				const reader = new FileReader();
 
 				reader.onload = async (e) => {
-					const csv = e.target.result;
+					const csv = String(e.target?.result ?? '');
 					const rows = csv.split('\n');
 
-					const validRows = [];
+					const validRows: {
+						idx: number;
+						columns: string[];
+						tier: 'free' | 'plus';
+						monthly_request_limit: number | null;
+					}[] = [];
 
 					for (const [idx, row] of rows.entries()) {
 						const columns = row.split(',').map((col) => col.trim());
 						console.debug(idx, columns);
 
 						if (idx > 0 && !(columns.length === 1 && columns[0] === '')) {
-							if (
-								columns.length === 4 &&
-								['admin', 'user', 'pending'].includes(columns[3].toLowerCase())
-							) {
-								validRows.push({ idx, columns });
+							const roleValid =
+								columns.length >= 4 &&
+								columns.length <= 6 &&
+								['admin', 'user', 'pending'].includes(columns[3].toLowerCase());
+
+							if (!roleValid) {
+								toast.error(`Row ${idx + 1}: invalid format.`);
+								continue;
+							}
+
+							let tier: 'free' | 'plus' = 'free';
+							let monthly_request_limit: number | null = null;
+							let rowValid = true;
+
+							if (columns.length >= 5) {
+								const rawTier = columns[4].toLowerCase();
+								if (rawTier !== 'free' && rawTier !== 'plus') {
+									rowValid = false;
+								} else {
+									tier = rawTier;
+									if (columns.length === 5) {
+										monthly_request_limit = tier === 'plus' ? 1000 : null;
+									} else if (tier === 'plus') {
+										const parsed = /^\d+$/.test(columns[5]) ? Number(columns[5]) : NaN;
+										if (
+											!Number.isInteger(parsed) ||
+											parsed < 1 ||
+											parsed > MAX_MONTHLY_REQUEST_LIMIT
+										) {
+											rowValid = false;
+										} else {
+											monthly_request_limit = parsed;
+										}
+									} else if (columns[5] !== '') {
+										rowValid = false;
+									}
+								}
+							}
+
+							if (rowValid) {
+								validRows.push({ idx, columns, tier, monthly_request_limit });
 							} else {
 								toast.error(`Row ${idx + 1}: invalid format.`);
 							}
@@ -96,14 +161,16 @@
 					for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
 						const batch = validRows.slice(i, i + BATCH_SIZE);
 						const results = await Promise.allSettled(
-							batch.map(({ idx, columns }) =>
+							batch.map(({ idx, columns, tier, monthly_request_limit }) =>
 								addUser(
 									localStorage.token,
 									columns[0],
 									columns[1],
 									columns[2],
 									columns[3].toLowerCase(),
-									generateInitialsImage(columns[0])
+									generateInitialsImage(columns[0]),
+									tier,
+									monthly_request_limit
 								).catch((error) => {
 									toast.error(`Row ${idx + 1}: ${error}`);
 									return null;
@@ -208,6 +275,43 @@
 								</div>
 							</div>
 
+							<div class="flex flex-col w-full mb-3">
+								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Tier')}</div>
+
+								<div class="flex-1">
+									<select
+										class="w-full rounded-lg text-sm bg-transparent dark:disabled:text-gray-500 outline-hidden"
+										bind:value={_user.tier}
+										aria-label={$i18n.t('Tier')}
+										required
+									>
+										<option value="free">{$i18n.t('Free')}</option>
+										<option value="plus">{$i18n.t('Plus')}</option>
+									</select>
+								</div>
+							</div>
+
+							{#if _user.tier === 'plus'}
+								<div class="flex flex-col w-full mb-3">
+									<div class=" mb-1 text-xs text-gray-500">
+										{$i18n.t('Monthly Request Limit')}
+									</div>
+
+									<div class="flex-1">
+										<input
+											class="w-full text-sm bg-transparent disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
+											type="number"
+											min="1"
+											max="2147483647"
+											step="1"
+											bind:value={_user.monthly_request_limit}
+											aria-label={$i18n.t('Monthly Request Limit')}
+											required
+										/>
+									</div>
+								</div>
+							{/if}
+
 							<div class="flex flex-col w-full mt-1">
 								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Name')}</div>
 
@@ -284,7 +388,7 @@
 
 								<div class=" text-xs text-gray-500">
 									ⓘ {$i18n.t(
-										'Ensure your CSV file includes 4 columns in this order: Name, Email, Password, Role.'
+										'Ensure your CSV file includes 4 to 6 columns in this order: Name, Email, Password, Role, and optional Tier (free or plus) and Monthly Request Limit.'
 									)}
 									<a
 										class="underline dark:text-gray-200"

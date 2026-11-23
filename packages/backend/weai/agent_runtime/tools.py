@@ -1065,5 +1065,6 @@ async def publish_document_output(
         'revision': revision.number,
         'viewer_url': url,
         'download_url': url,
+        'markdown_link': f'[{doc.filename}]({url})',
         'sync_status': job.status if job else 'local_only',
     }

@@ -20,5 +20,19 @@
         "Reliability and context management for large documents and multi-step background tasks."
       ]
     }
+  },
+  "0.1.2": {
+    "released_at": "2026-11-23",
+    "sections": {
+      "Added": [
+        "Interactive file cards in chat messages with recognizable file-type icons, instant preview, and one-click download for generated and shared files.",
+        "Personalized welcome greetings on the New Chat screen."
+      ],
+      "Improved": [
+        "Fairer usage allowance: daily and monthly limits now count messages you send rather than internal multi-step tool actions or background tasks.",
+        "Smoother reliability on Free plan models with automatic recovery when a model is temporarily busy.",
+        "Consistent file-type icons across chat attachments and a cleaner model selector experience."
+      ]
+    }
   }
 }

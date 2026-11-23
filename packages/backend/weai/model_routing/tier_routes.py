@@ -11,8 +11,10 @@ from weai.model_routing.model_routing import (
     ModelRoutingConfig,
     get_connections,
     get_model_routing_config,
+    list_free_catalog_models,
     update_model_routing_config,
 )
+from weai.model_routing.provider_icons import get_openrouter_provider_icons
 from weai.model_routing.tier_service import PlanSnapshot, Tier, UsageSnapshot, tier_repository
 from weai.utils.auth import get_admin_user, get_verified_user
 
@@ -60,10 +62,21 @@ async def get_routing(_admin=Depends(get_admin_user)):
                 'id': connection.id,
                 'url': urlsplit(connection.url).netloc.rsplit('@', 1)[-1],
                 'enabled': connection.enabled,
+                'tier_scope': connection.tier_scope,
             }
             for connection in connections.values()
         ],
     }
+
+
+@router.get('/admin/model-routing/free-catalog')
+async def get_free_catalog(refresh: bool = False, _admin=Depends(get_admin_user)):
+    return {'models': await list_free_catalog_models(refresh=refresh)}
+
+
+@router.get('/admin/provider-icons')
+async def get_provider_icons(refresh: bool = False, _admin=Depends(get_admin_user)):
+    return {'icons': await get_openrouter_provider_icons(force_refresh=refresh)}
 
 
 @router.put('/admin/model-routing', response_model=ModelRoutingConfig)

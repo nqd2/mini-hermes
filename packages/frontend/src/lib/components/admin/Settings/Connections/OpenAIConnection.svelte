@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getContext, tick } from 'svelte';
-	const i18n = getContext('i18n');
+	const i18n: any = getContext('i18n');
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
@@ -20,6 +20,20 @@
 	export let config: any = {};
 
 	let showConfigModal = false;
+
+	$: tierScope = config?.tier_scope ?? 'both';
+	$: tierScopeLabel =
+		tierScope === 'free'
+			? $i18n.t('Free')
+			: tierScope === 'plus'
+				? $i18n.t('Plus')
+				: $i18n.t('Free & Plus');
+	$: tierScopeClass =
+		tierScope === 'free'
+			? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800/60'
+			: tierScope === 'plus'
+				? 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800/60'
+				: 'bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-850 dark:text-gray-300 dark:ring-gray-700';
 </script>
 
 <AddConnectionModal
@@ -93,6 +107,12 @@
 			</div>
 		</div>
 	</Tooltip>
+
+	<span
+		class="shrink-0 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset {tierScopeClass}"
+	>
+		{tierScopeLabel}
+	</span>
 
 	<div class="flex gap-1 items-center">
 		<Tooltip content={$i18n.t('Configure')} className="self-start">

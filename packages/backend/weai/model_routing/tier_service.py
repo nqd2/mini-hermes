@@ -15,6 +15,7 @@ from weai.models.users import User
 
 plans, dispatches, selections = tier_tables(Base.metadata)
 Tier = Literal['free', 'plus']
+DEFAULT_PLUS_MONTHLY_LIMIT = 1000
 SIZES = ('small', 'medium', 'large')
 GROUPS = {f'agent-runtime-{tier}-{size}': tier for tier in ('free', 'plus') for size in SIZES}
 ERROR_MESSAGES = {
@@ -38,6 +39,15 @@ def policy_error(code: str, status: int, reset_at: datetime | None = None) -> HT
         seconds = max(1, int((reset_at - datetime.now(timezone.utc)).total_seconds()) + 1)
         headers = {'Retry-After': str(seconds)}
     return HTTPException(status_code=status, detail=detail, headers=headers)
+
+
+def validate_plan_inputs(tier: Tier, limit: int | None) -> None:
+    if (
+        (tier == 'free' and limit is not None)
+        or (tier == 'plus' and (type(limit) is not int or not 0 < limit <= 2**31 - 1))
+        or tier not in {'free', 'plus'}
+    ):
+        raise policy_error('invalid_plan', 422)
 
 
 @dataclass(frozen=True)
@@ -65,6 +75,7 @@ class DispatchContext:
     free_user_daily_limit: int = 2
     free_account_daily_limit: int = 50
     free_account_minute_limit: int = 20
+    is_background_task: bool = False
 
 
 def upstream_free_reset(status, headers, now) -> datetime | None:
@@ -117,34 +128,76 @@ class TierRepository:
             await self._lock_identity(db, user_id, include_pending=include_pending)
             return await self._plan(db, user_id, datetime.now(timezone.utc))
 
-    async def set_plan(self, user_id: str, tier: Tier, limit: int | None, actor_id: str) -> PlanSnapshot:
-        if (
-            (tier == 'free' and limit is not None)
-            or (tier == 'plus' and (type(limit) is not int or not 0 < limit <= 2**31 - 1))
-            or tier not in {'free', 'plus'}
-        ):
-            raise policy_error('invalid_plan', 422)
-        async with self.session_factory() as db, db.begin():
-            await self._lock_identity(db, user_id, include_pending=True)
-            now = datetime.now(timezone.utc)
-            values = dict(tier=tier, monthly_request_limit=limit, updated_at=now, updated_by=actor_id)
-            await db.execute(
-                insert(plans)
-                .values(user_id=user_id, **values)
-                .on_conflict_do_update(index_elements=[plans.c.user_id], set_=values)
-            )
+    async def get_plans_by_user_ids(self, user_ids: list[str], db=None) -> dict[str, PlanSnapshot]:
+        if not user_ids:
+            return {}
+        unique_ids = list(dict.fromkeys(user_ids))
+        stmt = select(plans.c.user_id, plans.c.tier, plans.c.monthly_request_limit).where(
+            plans.c.user_id.in_(unique_ids)
+        )
+        if db is not None:
+            rows = (await db.execute(stmt)).all()
+        else:
+            async with self.session_factory() as session:
+                rows = (await session.execute(stmt)).all()
+        result: dict[str, PlanSnapshot] = {uid: PlanSnapshot('free', None) for uid in unique_ids}
+        for row in rows:
+            result[row.user_id] = PlanSnapshot(row.tier, row.monthly_request_limit)
+        return result
+
+    async def set_plan_in_db(
+        self, db, user_id: str, tier: Tier, limit: int | None, actor_id: str
+    ) -> PlanSnapshot:
+        validate_plan_inputs(tier, limit)
+        await db.flush()
+        await self._lock_identity(db, user_id, include_pending=True)
+        now = datetime.now(timezone.utc)
+        values = dict(tier=tier, monthly_request_limit=limit, updated_at=now, updated_by=actor_id)
+        await db.execute(
+            insert(plans)
+            .values(user_id=user_id, **values)
+            .on_conflict_do_update(index_elements=[plans.c.user_id], set_=values)
+        )
         return PlanSnapshot(tier, limit)
 
+    async def set_plan(self, user_id: str, tier: Tier, limit: int | None, actor_id: str) -> PlanSnapshot:
+        validate_plan_inputs(tier, limit)
+        async with self.session_factory() as db, db.begin():
+            return await self.set_plan_in_db(db, user_id, tier, limit, actor_id)
+
     async def _user_count(self, db, user_id, tier, start, end) -> int:
+        # Count distinct user messages (turns) rather than every internal tool-call LLM dispatch,
+        # excluding background tasks (bg:*) and upstream 429 failures.
         return await db.scalar(
-            select(func.count())
+            select(func.count(func.distinct(func.coalesce(dispatches.c.run_id, dispatches.c.dispatch_key))))
             .select_from(dispatches)
             .where(
                 dispatches.c.user_id == user_id,
                 dispatches.c.group_id.in_([group for group, group_tier in GROUPS.items() if group_tier == tier]),
+                dispatches.c.provider_status.is_distinct_from(429),
+                (dispatches.c.run_id.is_(None)) | (~dispatches.c.run_id.like('bg:%')),
                 dispatches.c.created_at >= start,
                 dispatches.c.created_at < end,
             )
+        )
+
+    async def _run_already_admitted(self, db, user_id, tier, run_id: str | None, start, end) -> bool:
+        if not run_id or run_id.startswith('bg:'):
+            return False
+        return (
+            await db.scalar(
+                select(dispatches.c.dispatch_key)
+                .where(
+                    dispatches.c.user_id == user_id,
+                    dispatches.c.group_id.in_([group for group, group_tier in GROUPS.items() if group_tier == tier]),
+                    dispatches.c.run_id == run_id,
+                    dispatches.c.provider_status.is_distinct_from(429),
+                    dispatches.c.created_at >= start,
+                    dispatches.c.created_at < end,
+                )
+                .limit(1)
+            )
+            is not None
         )
 
     async def get_usage(self, user_id: str, now: datetime, free_daily_limit: int) -> UsageSnapshot:
@@ -180,7 +233,9 @@ class TierRepository:
         minute_end = minute + timedelta(minutes=1)
         if (
             not is_admin
+            and not context.is_background_task
             and GROUPS.get(context.group_id) == 'free'
+            and not await self._run_already_admitted(db, context.user_id, 'free', context.run_id, day, day_end)
             and await self._user_count(db, context.user_id, 'free', day, day_end) >= context.free_user_daily_limit
         ):
             raise policy_error('quota_exhausted', 429, day_end)
@@ -230,10 +285,13 @@ class TierRepository:
                 plan = await self._plan(db, context.user_id, now)
                 if plan.tier != tier:
                     raise policy_error('entitlement_missing', 403)
-                if tier == 'plus':
+                if tier == 'plus' and not context.is_background_task:
                     _, _, month, next_month = utc_windows(now)
                     if (
-                        await self._user_count(db, context.user_id, tier, month, next_month)
+                        not await self._run_already_admitted(
+                            db, context.user_id, tier, context.run_id, month, next_month
+                        )
+                        and await self._user_count(db, context.user_id, tier, month, next_month)
                         >= plan.monthly_request_limit
                     ):
                         raise policy_error('quota_exhausted', 429, next_month)

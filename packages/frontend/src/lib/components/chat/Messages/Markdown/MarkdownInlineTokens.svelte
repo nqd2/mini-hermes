@@ -31,6 +31,8 @@
 	import CodespanToken from './MarkdownInlineTokens/CodespanToken.svelte';
 	import MentionToken from './MarkdownInlineTokens/MentionToken.svelte';
 	import NoteLinkToken from './MarkdownInlineTokens/NoteLinkToken.svelte';
+	import FileLinkToken from './MarkdownInlineTokens/FileLinkToken.svelte';
+	import { parseFileLinkUrl } from './MarkdownInlineTokens/fileLinkParser';
 	import SourceToken from './SourceToken.svelte';
 
 	export let id: string;
@@ -68,6 +70,7 @@
 			href,
 			safeHref: safeLinkUrl(href),
 			noteId: getNoteIdFromHref(href),
+			fileRef: parseFileLinkUrl(href),
 			text: isAutolink ? text : token.text
 		};
 	};
@@ -110,6 +113,13 @@
 		{@const linkToken = getLinkToken(token)}
 		{#if linkToken.noteId && !markdown?.document && markdown?.allowRemoteContent !== false}
 			<NoteLinkToken noteId={linkToken.noteId} href={linkToken.href} />
+		{:else if linkToken.fileRef && !markdown?.document}
+			<FileLinkToken
+				fileId={linkToken.fileRef.fileId}
+				source={linkToken.fileRef.source}
+				revision={linkToken.fileRef.revision}
+				label={linkToken.isAutolink ? '' : linkToken.text}
+			/>
 		{:else if token.tokens && !linkToken.isAutolink}
 			<a
 				href={linkToken.safeHref}

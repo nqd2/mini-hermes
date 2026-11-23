@@ -50,6 +50,7 @@
 
 	import Name from './Name.svelte';
 	import ProfileImage from './ProfileImage.svelte';
+	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	import Image from '$lib/components/common/Image.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import RateComment from './RateComment.svelte';
@@ -709,9 +710,9 @@
 		style="scroll-margin-top: 3rem;"
 	>
 		<div class={`shrink-0 ltr:mr-2 rtl:ml-2 hidden @lg:flex mt-0.5 `}>
-			<ProfileImage
-				src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model?.id ?? message.model}&lang=${$i18n.language}`}
-				className={'size-7 assistant-message-profile-image'}
+			<ModelIcon
+				modelId={model?.id ?? message.model}
+				className={'size-7 rounded-full assistant-message-profile-image'}
 			/>
 		</div>
 

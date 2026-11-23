@@ -263,6 +263,9 @@
 							{/if}
 						</button>
 					</th>
+					<th scope="col" class="px-2.5 py-1.5 font-normal select-none">
+						{$i18n.t('Tier')}
+					</th>
 					<th
 						scope="col"
 						class="font-normal select-none"
@@ -391,6 +394,21 @@
 							>
 								<span class="sr-only">{$i18n.t('Change User Role')}</span>
 								{$i18n.t(user.role)}
+							</button>
+						</td>
+						<td class="px-3 py-1 min-w-[4.5rem] w-20">
+							<button
+								type="button"
+								class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset transition {(user.tier ?? 'free') === 'plus'
+									? 'bg-indigo-50 text-indigo-700 ring-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800/60 dark:hover:bg-indigo-950/80'
+									: 'bg-gray-100 text-gray-600 ring-gray-200 hover:bg-gray-200/70 dark:bg-gray-850 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-800'}"
+								on:click={() => {
+									selectedUser = user;
+									showEditUserModal = !showEditUserModal;
+								}}
+							>
+								<span class="sr-only">{$i18n.t('Change User Tier')}</span>
+								{(user.tier ?? 'free') === 'plus' ? $i18n.t('Plus') : $i18n.t('Free')}
 							</button>
 						</td>
 						<td class=" px-3 py-1 max-w-48 truncate"> {user.email} </td>

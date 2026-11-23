@@ -7,6 +7,7 @@
 	import { resolveLocalizedModelName } from '$lib/utils/localizedContent';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	import PinSlash from './icons/PinSlash.svelte';
 
 	export let model = null;
@@ -38,14 +39,7 @@
 			draggable="false"
 		>
 			<div class="self-center shrink-0">
-				<img
-					src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
-					class=" size-4 rounded-full"
-					alt="logo"
-					on:error={(e) => {
-						e.currentTarget.src = '/favicon.png';
-					}}
-				/>
+				<ModelIcon modelId={model.id} className="size-4 rounded-full" alt="logo" />
 			</div>
 
 			<div class="flex self-center translate-y-[0.5px]">

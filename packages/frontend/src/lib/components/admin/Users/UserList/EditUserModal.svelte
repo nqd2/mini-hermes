@@ -66,6 +66,10 @@
 	let planError = '';
 	let savingPlan = false;
 
+	$: if (tier === 'plus' && (monthlyLimit === undefined || monthlyLimit === null)) {
+		monthlyLimit = 1000;
+	}
+
 	async function loadPlan(userId: string) {
 		savedPlan = null;
 		planError = '';
@@ -94,6 +98,7 @@
 				tier, monthly_request_limit: tier === 'plus' ? monthlyLimit ?? null : null
 			});
 			if (show && selectedUser.id === userId) savedPlan = plan;
+			dispatch('save');
 			toast.success($i18n.t('User plan saved'));
 		} catch {
 			if (show && selectedUser.id === userId) planError = $i18n.t('Could not save the user plan');

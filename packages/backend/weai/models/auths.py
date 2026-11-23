@@ -200,6 +200,8 @@ class SignupForm(BaseModel):
 
 class AddUserForm(SignupForm):
     role: str | None = 'pending'
+    tier: Literal['free', 'plus'] = 'free'
+    monthly_request_limit: int | None = Field(default=None, strict=True, gt=0, le=2**31 - 1)
 
 
 # Data-access layer
@@ -291,17 +293,23 @@ class AuthsTable:
         db: AsyncSession | None = None,
         *,
         bootstrap_only: bool = False,
+        commit: bool = True,
     ) -> UserModel | None:
         """Create an Auth + User pair inside a single transaction."""
-        async with get_async_db_context(db) as session:
+
+        async def _insert(session: AsyncSession) -> UserModel | None:
             log.info('insert_new_auth')
 
             if bootstrap_only:
                 if session.bind.dialect.name == 'postgresql':
-                    await session.execute(text("SELECT pg_advisory_xact_lock(hashtextextended('agent-runtime-first-admin', 0))"))
+                    await session.execute(
+                        text("SELECT pg_advisory_xact_lock(hashtextextended('agent-runtime-first-admin', 0))")
+                    )
                 if await session.scalar(select(exists().where(User.id.is_not(None)))):
                     return None
-                role = 'admin'
+                resolved_role = 'admin'
+            else:
+                resolved_role = role
 
             new_id = str(uuid.uuid4())
 
@@ -320,16 +328,26 @@ class AuthsTable:
                     name,
                     email,
                     profile_image_url,
-                    role,
+                    resolved_role,
                     oauth=oauth,
                     db=session,
                     commit=False,
                 )
-                await session.commit()
+                if commit:
+                    await session.commit()
+                else:
+                    await session.flush()
             except IntegrityError:
                 await session.rollback()
                 raise
             return created_user if credential and created_user else None
+
+        if not commit:
+            if db is None:
+                raise ValueError('An explicit session is required to insert an auth without committing')
+            return await _insert(db)
+        async with get_async_db_context(db) as session:
+            return await _insert(session)
 
     async def authenticate_user(
         self,

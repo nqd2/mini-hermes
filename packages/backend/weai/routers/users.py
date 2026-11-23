@@ -16,6 +16,7 @@ from weai.constants import ERROR_MESSAGES
 from weai.events import EVENTS, publish_event
 from weai.env import ENABLE_PROFILE_IMAGE_URL_FORWARDING, PROFILE_IMAGE_ALLOWED_MIME_TYPES, STATIC_DIR
 from weai.internal.db import get_async_session
+from weai.model_routing.tier_service import PlanSnapshot, tier_repository
 from weai.models.auths import ApiKey, Auths
 from weai.models.config import Config
 from weai.models.chat_messages import ChatMessages
@@ -107,9 +108,10 @@ async def get_users(
     users = result['users']
     total = result['total']
 
-    # Fetch groups for all users in a single query to avoid N+1
+    # Fetch groups and plans for all users in batch queries to avoid N+1
     user_ids = [user.id for user in users]
     user_groups = await Groups.get_groups_by_member_ids(user_ids, db=db)
+    user_plans = await tier_repository.get_plans_by_user_ids(user_ids, db=db)
 
     return {
         'users': [
@@ -117,6 +119,8 @@ async def get_users(
                 **{
                     **user.model_dump(),
                     'group_ids': [group.id for group in user_groups.get(user.id, [])],
+                    'tier': user_plans.get(user.id, PlanSnapshot('free', None)).tier,
+                    'monthly_request_limit': user_plans.get(user.id, PlanSnapshot('free', None)).monthly_request_limit,
                 }
             )
             for user in users

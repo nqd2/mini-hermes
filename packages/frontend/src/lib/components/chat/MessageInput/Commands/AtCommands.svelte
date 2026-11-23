@@ -23,6 +23,7 @@
 	import { isTemporaryChatId } from '$lib/utils/chatId';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	import Database from '$lib/components/icons/Database.svelte';
 	import DocumentPage from '$lib/components/icons/DocumentPage.svelte';
 	import Folder from '$lib/components/icons/Folder.svelte';
@@ -341,13 +342,10 @@
 				data-selected={itemIdx === selectedIdx}
 			>
 				<div class="flex min-w-0 items-center gap-2">
-					<img
-						src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
+					<ModelIcon
+						modelId={model.id}
 						alt={resolveLocalizedModelName(model, $i18n.language) ?? model.id}
-						class="size-4 shrink-0 rounded-full object-cover"
-						on:error={(e) => {
-							(e.currentTarget as HTMLImageElement).src = '/favicon.png';
-						}}
+						className="size-4 rounded-full"
 					/>
 					<div class="min-w-0 truncate">
 						{resolveLocalizedModelName(model, $i18n.language)}

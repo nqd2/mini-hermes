@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import random
 import time
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -31,7 +32,14 @@ from weai.utils.json_codec import JSONCodec
 CONFIG_KEY = 'weai.model_routing.v1'
 OPENROUTER_URL = 'https://openrouter.ai/api/v1'
 FREE_ACCOUNT = 'openrouter'
+FREE_429_MAX_FALLBACKS = 3
+FREE_429_MAX_SAME_MODEL_RETRIES = 2
+FREE_429_BACKOFF_BASE_SECONDS = 1.0
+FREE_429_MAX_SINGLE_WAIT_SECONDS = 5.0
+FREE_429_MAX_TOTAL_WAIT_SECONDS = 8.0
 Capability = Literal['text', 'image', 'tools', 'structured_output', 'responses']
+TierScope = Literal['free', 'plus', 'both']
+VALID_TIER_SCOPES = frozenset({'free', 'plus', 'both'})
 
 
 class ModelPoolCandidate(BaseModel):
@@ -80,6 +88,13 @@ class Connection:
     def enabled(self) -> bool:
         return self.options.get('enable', True) is not False
 
+    @property
+    def tier_scope(self) -> TierScope:
+        return self.options.get('tier_scope') or 'both'
+
+    def allows_tier(self, tier: str) -> bool:
+        return self.tier_scope in (tier, 'both')
+
 
 @dataclass(frozen=True)
 class SelectedModel:
@@ -96,20 +111,22 @@ class SelectedModel:
             'context_window_tokens': self.candidate.min_context,
         }
 
-    def dispatch(self, user_id: str) -> DispatchContext:
+    def dispatch(self, user_id: str, *, is_background_task: bool = False) -> DispatchContext:
+        dispatch_key = uuid4().hex
         return DispatchContext(
-            dispatch_key=uuid4().hex,
+            dispatch_key=dispatch_key,
             user_id=user_id,
             group_id=self.group_id,
             model_id=self.candidate.model_id,
             connection_id=self.connection.id,
-            run_id=self.run_id,
+            run_id=f'bg:{dispatch_key}' if is_background_task and self.run_id is None else self.run_id,
             free_account=(
                 FREE_ACCOUNT if self.candidate.model_id.endswith(':free') and self.connection.is_openrouter else None
             ),
             free_user_daily_limit=self.config.free_user_daily_limit,
             free_account_minute_limit=self.config.free_account_minute_limit,
             free_account_daily_limit=self.config.free_account_daily_limit,
+            is_background_task=is_background_task,
         )
 
     def apply(self, payload: dict) -> None:
@@ -124,10 +141,11 @@ class SelectedModel:
                 or any(not isinstance(tool, dict) or tool.get('type') != 'function' for tool in tools)
             ):
                 raise policy_error('model_unavailable', 400)
-            payload['provider'] = {
-                'max_price': {'prompt': 0, 'completion': 0, 'request': 0},
-                'data_collection': 'deny',
-            }
+            if self.connection.is_openrouter:
+                payload['provider'] = {
+                    'max_price': {'prompt': 0, 'completion': 0, 'request': 0},
+                    'data_collection': 'deny',
+                }
 
 
 def normalize_connections(urls: list[str], keys: list[str], configs: dict, previous=()) -> dict:
@@ -139,6 +157,12 @@ def normalize_connections(urls: list[str], keys: list[str], configs: dict, previ
         url = base_url.rstrip('/')
         key = keys[index] if index < len(keys) else ''
         options = dict(configs.get(str(index), configs.get(base_url, {})))
+        tier_scope = options.get('tier_scope')
+        if tier_scope is None:
+            tier_scope = 'both'
+        elif not isinstance(tier_scope, str) or tier_scope not in VALID_TIER_SCOPES:
+            raise policy_error('invalid_connection_tier', 422)
+        options['tier_scope'] = tier_scope
         requested_id = options.pop('connection_id', None)
         old = previous.get(requested_id)
         identity = (url, key, options.get('api_type'), options.get('auth_type'), options.get('azure'))
@@ -227,12 +251,12 @@ _catalog_expires_at = 0.0
 _catalog_lock = asyncio.Lock()
 
 
-async def _openrouter_catalog(connection: Connection) -> dict[str, dict]:
+async def _openrouter_catalog(connection: Connection, *, force_refresh: bool = False) -> dict[str, dict]:
     global _catalog, _catalog_expires_at
-    if time.monotonic() < _catalog_expires_at:
+    if not force_refresh and time.monotonic() < _catalog_expires_at:
         return _catalog
     async with _catalog_lock:
-        if time.monotonic() < _catalog_expires_at:
+        if not force_refresh and time.monotonic() < _catalog_expires_at:
             return _catalog
         from weai.utils.session_pool import get_session
 
@@ -252,6 +276,80 @@ async def _openrouter_catalog(connection: Connection) -> dict[str, dict]:
                 return _catalog
         except (ClientError, OSError, ValueError, KeyError, TypeError, asyncio.TimeoutError):
             return {}
+
+
+async def list_free_catalog_models(*, refresh: bool = False) -> list[dict]:
+    """List all `:free` models from enabled Free-tier connections for admin checklist setup."""
+    from weai.utils.session_pool import get_session
+
+    connections = await get_connections()
+    items: list[dict] = []
+    for connection in connections.values():
+        if not _usable(connection) or not connection.allows_tier('free'):
+            continue
+        host = urlsplit(connection.url).netloc.rsplit('@', 1)[-1]
+        if connection.is_openrouter:
+            catalog = await _openrouter_catalog(connection, force_refresh=refresh)
+            for model_id, entry in catalog.items():
+                if not is_free_model(model_id, entry):
+                    continue
+                caps = ['text']
+                if catalog_supports(entry, {'image'}):
+                    caps.append('image')
+                if catalog_supports(entry, {'tools'}):
+                    caps.append('tools')
+                if catalog_supports(entry, {'structured_output'}):
+                    caps.append('structured_output')
+                if connection.options.get('api_type') == 'responses':
+                    caps.append('responses')
+                raw_ctx = entry.get('context_length')
+                context_length = int(raw_ctx) if isinstance(raw_ctx, (int, float)) and raw_ctx > 0 else 8192
+                items.append(
+                    {
+                        'connection_id': connection.id,
+                        'connection_url': host,
+                        'model_id': model_id,
+                        'name': entry.get('name') or model_id,
+                        'context_length': context_length,
+                        'capabilities': caps,
+                    }
+                )
+        else:
+            try:
+                session = await get_session()
+                async with session.get(
+                    f'{connection.url.rstrip("/")}/models',
+                    timeout=ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST),
+                    headers={'Authorization': f'Bearer {connection.key}'},
+                    allow_redirects=False,
+                ) as response:
+                    if response.status != 200:
+                        continue
+                    body = await response.json()
+                    for entry in body.get('data') or []:
+                        model_id = entry.get('id') if isinstance(entry, dict) else None
+                        if not isinstance(model_id, str) or ':free' not in model_id:
+                            continue
+                        raw_ctx = entry.get('context_length')
+                        context_length = int(raw_ctx) if isinstance(raw_ctx, (int, float)) and raw_ctx > 0 else 8192
+                        items.append(
+                            {
+                                'connection_id': connection.id,
+                                'connection_url': host,
+                                'model_id': model_id,
+                                'name': entry.get('name') or model_id,
+                                'context_length': context_length,
+                                'capabilities': (
+                                    ['text', 'responses']
+                                    if connection.options.get('api_type') == 'responses'
+                                    else ['text']
+                                ),
+                            }
+                        )
+            except (ClientError, OSError, ValueError, KeyError, TypeError, asyncio.TimeoutError):
+                continue
+    items.sort(key=lambda item: (item['model_id'].lower(), item['connection_id']))
+    return items
 
 
 def is_free_model(model_id: str, entry: dict) -> bool:
@@ -300,11 +398,9 @@ async def update_model_routing_config(config: ModelRoutingConfig) -> ModelRoutin
             if not candidate.enabled:
                 continue
             connection = connections.get(candidate.connection_id)
-            if not connection or not _usable(connection):
+            if not connection or not _usable(connection) or not connection.allows_tier(GROUPS[group_id]):
                 raise policy_error('invalid_model_connection', 422)
-            if GROUPS[group_id] == 'free':
-                if not connection.is_openrouter:
-                    raise policy_error('invalid_free_model', 422)
+            if GROUPS[group_id] == 'free' and connection.is_openrouter:
                 if not is_free_model(
                     candidate.model_id, (await _openrouter_catalog(connection)).get(candidate.model_id, {})
                 ):
@@ -345,7 +441,8 @@ def request_requirements(payload: dict, *, responses: bool = False) -> tuple[set
     output_tokens = (
         payload.get('max_completion_tokens') or payload.get('max_output_tokens') or payload.get('max_tokens')
     )
-    return capabilities, estimate_tokens(JSONCodec.dumps(payload), '') + (
+    serializable_payload = {k: v for k, v in payload.items() if k != 'metadata'}
+    return capabilities, estimate_tokens(JSONCodec.dumps(serializable_payload), '') + (
         output_tokens if type(output_tokens) is int else 0
     )
 
@@ -391,22 +488,32 @@ async def select_model(
             item.model_id,
         ),
     )
+    excluded_ids: set[tuple[str, str]] = set()
+    if exclude is not None:
+        if (
+            isinstance(exclude, tuple)
+            and len(exclude) == 2
+            and isinstance(exclude[0], str)
+            and isinstance(exclude[1], str)
+        ):
+            excluded_ids.add(exclude)
+        else:
+            excluded_ids.update(exclude)
+
     selected = None
     for candidate in candidates:
-        if (candidate.connection_id, candidate.model_id) == exclude:
+        if (candidate.connection_id, candidate.model_id) in excluded_ids:
             continue
         if not candidate.enabled or not requirements <= candidate.capabilities or candidate.min_context < tokens:
             continue
         if pinned and (candidate.connection_id, candidate.model_id) != (pinned.connection_id, pinned.model_id):
             continue
         connection = connections.get(candidate.connection_id)
-        if not connection or not _usable(connection):
+        if not connection or not _usable(connection) or not connection.allows_tier(GROUPS[group_id]):
             continue
         if connection.options.get('api_type') == 'responses' and 'responses' not in candidate.capabilities:
             continue
-        if GROUPS[group_id] == 'free':
-            if not connection.is_openrouter:
-                continue
+        if GROUPS[group_id] == 'free' and connection.is_openrouter:
             metadata = (await _openrouter_catalog(connection)).get(candidate.model_id, {})
             if not is_free_model(candidate.model_id, metadata) or (metadata.get('context_length') or 0) < tokens:
                 continue
@@ -449,17 +556,47 @@ async def select_model(
     return selected
 
 
-async def select_rate_limit_fallback(user_id, request_payload, previous: SelectedModel, run_attempt):
+def compute_rate_limit_retry_delay(
+    attempt: int,
+    retry_after_header: str | None = None,
+    remaining_budget: float = FREE_429_MAX_TOTAL_WAIT_SECONDS,
+) -> float | None:
+    """Compute bounded backoff delay (seconds) for same-model 429 retry."""
+    if remaining_budget <= 0:
+        return None
+    base_delay = FREE_429_BACKOFF_BASE_SECONDS * (2 ** max(0, attempt))
+    jitter = random.uniform(0.0, 0.25)
+    delay = base_delay + jitter
+    if retry_after_header is not None:
+        try:
+            parsed = float(str(retry_after_header).strip())
+            if parsed > 0:
+                delay = max(delay, parsed)
+        except ValueError:
+            pass
+    capped = min(delay, FREE_429_MAX_SINGLE_WAIT_SECONDS, remaining_budget)
+    return capped if capped > 0 else None
+
+
+async def select_rate_limit_fallback(
+    user_id,
+    request_payload,
+    previous: SelectedModel,
+    run_attempt,
+    *,
+    excluded=None,
+):
     from weai.agent_runtime.models import AgentEvent, AgentSession, AgentToolInvocation, AgentTurn
 
     previous_id = (previous.connection.id, previous.candidate.model_id)
+    excluded_ids = set(excluded or ()) | {previous_id}
     try:
         replacement = await select_model(
             user_id,
             previous.group_id,
             request_payload,
             previous.run_id,
-            exclude=previous_id,
+            exclude=excluded_ids,
         )
     except HTTPException as error:
         if error.status_code != 503:
@@ -471,8 +608,9 @@ async def select_rate_limit_fallback(user_id, request_payload, previous: Selecte
         return None
 
     # The runtime appends events under the turn lock. Only a running attempt
-    # with one confirmed rate-limited dispatch and no output or tool operations
+    # with confirmed rate-limited dispatches and no output or tool operations
     # can replace its pinned provider.
+    max_prior = FREE_429_MAX_FALLBACKS if GROUPS.get(previous.group_id) == 'free' else 1
     async with get_async_db() as db, db.begin():
         current_attempt = await db.scalar(
             select(AgentTurn.attempts)
@@ -513,13 +651,14 @@ async def select_rate_limit_fallback(user_id, request_payload, previous: Selecte
                         dispatches.c.user_id == user_id,
                         dispatches.c.run_id == previous.run_id,
                     )
-                    .limit(2)
+                    .limit(max_prior + 1)
                 )
             )
             .scalars()
             .all()
         )
-        if prior_calls != [429]:
+        allowed_prior_statuses = {429, 404, 502, 503} if GROUPS.get(previous.group_id) == 'free' else {429}
+        if not prior_calls or len(prior_calls) > max_prior or any(status not in allowed_prior_statuses for status in prior_calls):
             return None
         changed = await db.scalar(
             update(selections)

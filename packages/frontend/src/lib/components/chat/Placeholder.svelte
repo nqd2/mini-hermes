@@ -34,8 +34,11 @@
 	import MessageInput from './MessageInput.svelte';
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
+	import { pickRandomGreeting } from './greetings';
 
 	const i18n: any = getContext('i18n');
+	const greetingSeed = Math.random();
+	$: greetingText = pickRandomGreeting($user?.name, $i18n?.language, () => greetingSeed);
 
 	export let createMessagePair: Function;
 	export let stopResponse: Function;
@@ -149,39 +152,16 @@
 					}}
 				/>
 			{:else}
-				<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
+				<div class="flex flex-row justify-center items-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-2xl">
 					<div class="flex shrink-0 justify-center">
-						<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
-							{#each models as model, modelIdx}
-								<Tooltip
-									content={(models[modelIdx]?.info?.meta?.tags ?? [])
-										.map((tag) => tag.name.toUpperCase())
-										.join(', ')}
-									placement="top"
-								>
-									<button
-										aria-hidden={models.length <= 1}
-										tabindex={models.length > 1 ? 0 : -1}
-										aria-label={$i18n.t('Get information on {{name}} in the UI', {
-											name: models[modelIdx]?.name
-										})}
-										on:click={() => {
-											selectedModelIdx = modelIdx;
-										}}
-									>
-										<img
-											src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
-											alt=""
-											class=" size-9 @sm:size-10 rounded-2xl"
-											aria-hidden="true"
-											draggable="false"
-											on:error={(e) => {
-												e.currentTarget.src = '/favicon.png';
-											}}
-										/>
-									</button>
-								</Tooltip>
-							{/each}
+						<div class="flex mb-0.5 shrink-0" in:fade={{ duration: 100 }}>
+							<img
+								src="/favicon.png"
+								alt=""
+								class="size-9 @sm:size-10 rounded-2xl"
+								aria-hidden="true"
+								draggable="false"
+							/>
 						</div>
 					</div>
 
@@ -189,20 +169,9 @@
 						class=" text-2xl @sm:text-2xl line-clamp-1 flex items-center"
 						in:fade={{ duration: 100 }}
 					>
-						{#if selectedModelName}
-							<Tooltip
-								as="span"
-								content={selectedModelName}
-								placement="top"
-								className=" flex items-center "
-							>
-								<span class="line-clamp-1">
-									{selectedModelName}
-								</span>
-							</Tooltip>
-						{:else}
-							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
-						{/if}
+						<span class="line-clamp-1">
+							{greetingText}
+						</span>
 					</h2>
 				</div>
 

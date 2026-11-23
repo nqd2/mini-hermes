@@ -7,6 +7,7 @@
 	import { models } from '$lib/stores';
 	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	import {
 		resolveLocalizedModelDescription,
 		resolveLocalizedModelName
@@ -87,13 +88,10 @@
 				data-selected={modelIdx === selectedIdx}
 			>
 				<div class="flex min-w-0 items-center text-black dark:text-gray-100">
-					<img
-						src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
+					<ModelIcon
+						modelId={model.id}
 						alt={resolveLocalizedModelName(model, $i18n.language) ?? model.id}
-						class="mr-2 size-4.5 rounded-full object-cover"
-						on:error={(e) => {
-							e.currentTarget.src = '/favicon.png';
-						}}
+						className="mr-2 size-4.5 rounded-full"
 					/>
 					<div class="min-w-0 truncate">
 						{resolveLocalizedModelName(model, $i18n.language)}

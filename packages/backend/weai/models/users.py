@@ -278,6 +278,8 @@ class UpdateProfileForm(BaseModel):
 
 class UserGroupIdsModel(UserModel):
     group_ids: list[str] = []
+    tier: Literal['free', 'plus'] = 'free'
+    monthly_request_limit: int | None = None
 
 
 class UserModelResponse(UserModel):

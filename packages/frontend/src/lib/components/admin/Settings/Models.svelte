@@ -37,6 +37,7 @@
 	import { getModelsConfig, setModelsConfig } from '$lib/apis/configs';
 	import Search from '$lib/components/icons/Search.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
@@ -1060,15 +1061,10 @@
 													? ''
 													: 'opacity-50 dark:opacity-50'} bg-transparent rounded-xl"
 											>
-												<img
-													src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model.id}&lang=${$i18n.language}`}
+												<ModelIcon
+													modelId={model.id}
 													alt={$i18n.t('modelfile profile')}
-													class=" rounded-xl size-7 object-cover"
-													loading="lazy"
-													decoding="async"
-													on:error={(e) => {
-														e.target.src = '/favicon.png';
-													}}
+													className="rounded-xl size-7"
 												/>
 											</div>
 										</div>

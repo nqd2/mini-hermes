@@ -34,7 +34,16 @@ from weai.env import (
 )
 from weai.events import EVENTS, publish_event, publish_model_provider_request_failed
 from weai.internal.db import get_async_session
-from weai.model_routing.model_routing import get_connections, normalize_connections, select_model, select_rate_limit_fallback
+from weai.model_routing.model_routing import (
+    FREE_429_MAX_FALLBACKS,
+    FREE_429_MAX_SAME_MODEL_RETRIES,
+    FREE_429_MAX_TOTAL_WAIT_SECONDS,
+    compute_rate_limit_retry_delay,
+    get_connections,
+    normalize_connections,
+    select_model,
+    select_rate_limit_fallback,
+)
 from weai.model_routing.routed_response import logical_result, logical_stream, prepare_logical_request, provider_error
 from weai.model_routing.tier_service import GROUPS, authorize_model, virtual_catalog
 from weai.models.access_grants import AccessGrants
@@ -1478,10 +1487,19 @@ def convert_responses_result(response: dict) -> dict:
 
 
 class _CandidateRateLimited(HTTPException):
-    def __init__(self, error, selection, run_attempt):
+    def __init__(
+        self,
+        error,
+        selection,
+        run_attempt,
+        retry_after: str | None = None,
+        retryable_same_model: bool = True,
+    ):
         super().__init__(error.status_code, detail=error.detail, headers=error.headers)
         self.selection = selection
         self.run_attempt = run_attempt
+        self.retry_after = retry_after
+        self.retryable_same_model = retryable_same_model
 
 
 @router.post('/chat/completions')
@@ -1490,18 +1508,66 @@ async def generate_chat_completion(
     form_data: dict,
     user=Depends(get_verified_user),
 ):
-    try:
-        return await _generate_chat_completion(request, form_data, user)
-    except _CandidateRateLimited as error:
-        replacement = await select_rate_limit_fallback(
-            user.id, form_data, error.selection, error.run_attempt,
-        )
-        if replacement is None:
+    current_replacement = None
+    tried: set[tuple[str, str]] = set()
+    fallbacks_used = 0
+    same_model_retries = 0
+    total_waited = 0.0
+    fallback_payload = {k: v for k, v in form_data.items() if k != 'metadata'}
+
+    while True:
+        try:
+            return await _generate_chat_completion(
+                request,
+                form_data,
+                user,
+                replacement=current_replacement,
+                allow_rate_limit_retry=True,
+            )
+        except _CandidateRateLimited as error:
+            selection = error.selection
+            tried.add((selection.connection.id, selection.candidate.model_id))
+            is_free = GROUPS.get(selection.group_id) == 'free'
+            max_fallbacks = FREE_429_MAX_FALLBACKS if is_free else 1
+
+            if fallbacks_used < max_fallbacks:
+                replacement = await select_rate_limit_fallback(
+                    user.id,
+                    fallback_payload,
+                    selection,
+                    error.run_attempt,
+                    excluded=tried,
+                )
+                if replacement is not None:
+                    fallbacks_used += 1
+                    same_model_retries = 0
+                    current_replacement = replacement
+                    continue
+
+            if is_free and error.retryable_same_model and same_model_retries < FREE_429_MAX_SAME_MODEL_RETRIES:
+                delay = compute_rate_limit_retry_delay(
+                    same_model_retries,
+                    retry_after_header=error.retry_after,
+                    remaining_budget=FREE_429_MAX_TOTAL_WAIT_SECONDS - total_waited,
+                )
+                if delay is not None:
+                    await asyncio.sleep(delay)
+                    total_waited += delay
+                    same_model_retries += 1
+                    current_replacement = selection
+                    continue
+
             raise
-        return await _generate_chat_completion(request, form_data, user, replacement=replacement)
 
 
-async def _generate_chat_completion(request, form_data, user, *, replacement=None):
+async def _generate_chat_completion(
+    request,
+    form_data,
+    user,
+    *,
+    replacement=None,
+    allow_rate_limit_retry: bool = False,
+):
     if not await Config.get('openai.enable'):
         raise HTTPException(status_code=503, detail='OpenAI API is disabled')
 
@@ -1721,7 +1787,16 @@ async def _generate_chat_completion(request, form_data, user, *, replacement=Non
             timeout=get_client_timeout(stream=is_streaming_request),
             provider_base_url=url,
             capability_overrides=capability_overrides,
-            **({'llm_dispatch': selected.dispatch(user.id)} if selected else {}),
+            **(
+                {
+                    'llm_dispatch': selected.dispatch(
+                        user.id,
+                        is_background_task=bool(isinstance(metadata, dict) and metadata.get('task')),
+                    )
+                }
+                if selected
+                else {}
+            ),
         )
         log.info(
             'Provider chat response: model=%s status=%s request_id=%s',
@@ -1733,11 +1808,17 @@ async def _generate_chat_completion(request, form_data, user, *, replacement=Non
         if selected:
             if r.status >= 300:
                 error = provider_error(r, selected)
-                if (
-                    replacement is None and r.status == 429
-                    and error.detail['code'] == 'provider_rate_limit'
+                if allow_rate_limit_retry and (
+                    (r.status == 429 and error.detail['code'] == 'provider_rate_limit')
+                    or (GROUPS.get(selected.group_id) == 'free' and r.status in {404, 502, 503})
                 ):
-                    raise _CandidateRateLimited(error, selected, metadata.get('agent_turn_attempt'))
+                    raise _CandidateRateLimited(
+                        error,
+                        selected,
+                        metadata.get('agent_turn_attempt') if isinstance(metadata, dict) else None,
+                        retry_after=r.headers.get('Retry-After'),
+                        retryable_same_model=(r.status == 429),
+                    )
                 raise error
             if 'text/event-stream' in r.headers.get('Content-Type', ''):
                 streaming = True
@@ -2066,7 +2147,16 @@ async def responses(
             timeout=get_client_timeout(stream=is_streaming_request),
             provider_base_url=url,
             capability_overrides=capability_overrides,
-            **({'llm_dispatch': selected.dispatch(user.id)} if selected else {}),
+            **(
+                {
+                    'llm_dispatch': selected.dispatch(
+                        user.id,
+                        is_background_task=bool(isinstance(form_data.metadata, dict) and form_data.metadata.get('task')),
+                    )
+                }
+                if selected
+                else {}
+            ),
         )
         log.info(
             'Provider responses response: model=%s status=%s request_id=%s',

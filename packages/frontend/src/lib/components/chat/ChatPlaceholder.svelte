@@ -17,6 +17,7 @@
 		resolveLocalizedPromptSuggestions
 	} from '$lib/utils/localizedContent';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	import EyeSlash from '$lib/components/icons/EyeSlash.svelte';
 
 	const i18n: any = getContext('i18n');
@@ -81,14 +82,9 @@
 							allowHTML={true}
 							placement="right"
 						>
-							<img
-								src={`${WEAI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
-								class=" size-[2.7rem] rounded-full"
-								alt=""
-								draggable="false"
-								on:error={(e) => {
-									e.currentTarget.src = '/favicon.png';
-								}}
+							<ModelIcon
+								modelId={model?.id}
+								className="size-[2.7rem] rounded-full"
 							/>
 						</Tooltip>
 					</button>

@@ -36,6 +36,7 @@ from weai.env import (
 )
 from weai.events import EVENTS, publish_event
 from weai.internal.db import get_async_session
+from weai.model_routing.tier_service import DEFAULT_PLUS_MONTHLY_LIMIT, tier_repository, validate_plan_inputs
 from weai.models.auths import (
     AddUserForm,
     AddUserResponse,
@@ -695,6 +696,13 @@ async def add_user(
     db: AsyncSession = Depends(get_async_session),
 ):
     admin_user = user
+    resolved_limit = (
+        DEFAULT_PLUS_MONTHLY_LIMIT
+        if form_data.tier == 'plus' and form_data.monthly_request_limit is None
+        else form_data.monthly_request_limit
+    )
+    validate_plan_inputs(form_data.tier, resolved_limit)
+
     if not validate_email_format(form_data.email.lower()):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=ERROR_MESSAGES.INVALID_EMAIL_FORMAT)
 
@@ -715,9 +723,23 @@ async def add_user(
             form_data.profile_image_url,
             form_data.role,
             db=db,
+            commit=False,
         )
 
         if user:
+            try:
+                await tier_repository.set_plan_in_db(
+                    db,
+                    user.id,
+                    form_data.tier,
+                    resolved_limit,
+                    admin_user.id,
+                )
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
+
             await apply_default_group_assignment(
                 await Config.get('ui.default_group_id'),
                 user.id,
@@ -729,7 +751,11 @@ async def add_user(
                 actor=admin_user,
                 subject_id=user.id,
                 source='admin',
-                data={'role': user.role},
+                data={
+                    'role': user.role,
+                    'tier': form_data.tier,
+                    'monthly_request_limit': resolved_limit,
+                },
             )
 
             expires_delta = parse_duration(await Config.get('auth.jwt_expiry'))

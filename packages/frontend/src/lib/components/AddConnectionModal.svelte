@@ -40,6 +40,7 @@
 	let enable = true;
 	let apiVersion = '';
 	let apiType = ''; // '' = chat completions (default), 'responses' = Responses API
+	let tierScope: 'free' | 'plus' | 'both' = 'both';
 
 	let headers = '';
 	let passthroughParams = '';
@@ -196,7 +197,7 @@
 				model_ids: modelIds,
 				connection_type: connectionType,
 				auth_type,
-				...(!direct ? { forward_cookies: forwardCookies } : {}),
+				...(!direct ? { forward_cookies: forwardCookies, tier_scope: tierScope } : {}),
 				headers: headers ? JSON.parse(headers) : undefined,
 				passthrough_params: parsePassthroughParams(passthroughParams),
 				...(provider ? { provider } : {}),
@@ -226,11 +227,13 @@
 		provider = '';
 		apiVersion = '';
 		apiType = '';
+		tierScope = 'both';
 	};
 
 	const init = () => {
 		availableModelIds = [];
 		forwardCookies = connection?.config?.forward_cookies ?? false;
+		tierScope = connection?.config?.tier_scope ?? 'both';
 		if (connection) {
 			url = connection.url;
 			key = connection.key;
@@ -473,6 +476,26 @@
 											{$i18n.t('Chat Completions')}
 										{/if}
 									</button>
+								</div>
+							</div>
+
+							<div class="flex flex-row justify-between items-center w-full mt-1.5">
+								<label
+									for="tier-scope-select"
+									class={`mb-0.5 text-xs text-gray-500
+							`}>{$i18n.t('Tier')}</label
+								>
+
+								<div>
+									<select
+										id="tier-scope-select"
+										bind:value={tierScope}
+										class="text-xs text-gray-700 dark:text-gray-300 bg-transparent pr-5 outline-hidden"
+									>
+										<option value="free">{$i18n.t('Free')}</option>
+										<option value="plus">{$i18n.t('Plus')}</option>
+										<option value="both">{$i18n.t('Free & Plus')}</option>
+									</select>
 								</div>
 							</div>
 						{/if}

@@ -56,6 +56,7 @@
   import { getModels } from "$lib/apis";
 
   import ChevronDown from "$lib/components/icons/ChevronDown.svelte";
+  import ModelIcon from "$lib/components/common/ModelIcon.svelte";
   import Check from "$lib/components/icons/Check.svelte";
   import Download from "$lib/components/icons/Download.svelte";
   import Search from "$lib/components/icons/Search.svelte";
@@ -829,11 +830,17 @@
     }}
   >
     <div
-      class="flex w-full min-w-0 text-left px-0.5 bg-transparent {triggerClassName} justify-between {($settings?.highContrastMode ??
+      class="flex w-full min-w-0 items-center text-left px-0.5 bg-transparent {triggerClassName} justify-between {($settings?.highContrastMode ??
       false)
         ? 'dark:placeholder-gray-100 placeholder-gray-800'
         : 'placeholder-gray-400'}"
     >
+      {#if primaryValue || value}
+        <ModelIcon
+          modelId={primaryValue || value}
+          className="mr-1.5 size-4 rounded-full self-center"
+        />
+      {/if}
       <span class="min-w-0 flex-1 truncate">{triggerLabel}</span>
       <ChevronDown
         className="ml-1 size-2.5 shrink-0 self-center"

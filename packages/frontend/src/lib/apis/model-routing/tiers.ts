@@ -1,6 +1,7 @@
 import { WEAI_API_BASE_URL } from '$lib/constants';
 
 export type Tier = 'free' | 'plus';
+export type TierScope = 'free' | 'plus' | 'both';
 export type Plan = { tier: Tier; monthly_request_limit: number | null };
 export type Allowance = Plan & { used: number; remaining: number; reset_at: string };
 export type Capability = 'text' | 'image' | 'tools' | 'structured_output' | 'responses';
@@ -21,7 +22,15 @@ export type RoutingConfig = {
 };
 export type RoutingSettings = {
 	config: RoutingConfig;
-	connections: { id: string; url: string; enabled: boolean }[];
+	connections: { id: string; url: string; enabled: boolean; tier_scope?: TierScope }[];
+};
+export type FreeCatalogModel = {
+	connection_id: string;
+	connection_url: string;
+	model_id: string;
+	name: string;
+	context_length: number;
+	capabilities: Capability[];
 };
 
 async function tierRequest<T>(token: string, path: string, data?: object): Promise<T> {
@@ -55,4 +64,9 @@ export function getRouting(token: string) {
 
 export function saveRouting(token: string, config: RoutingConfig) {
 	return tierRequest<RoutingConfig>(token, '/admin/model-routing', config);
+}
+
+export function getFreeCatalog(token: string, refresh = false) {
+	const query = refresh ? '?refresh=true' : '';
+	return tierRequest<{ models: FreeCatalogModel[] }>(token, `/admin/model-routing/free-catalog${query}`);
 }

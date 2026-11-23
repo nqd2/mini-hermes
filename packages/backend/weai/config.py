@@ -1555,6 +1555,8 @@ AUDIO_TTS_MISTRAL_API_BASE_URL = os.getenv('AUDIO_TTS_MISTRAL_API_BASE_URL', 'ht
 
 WEAI_URL = os.getenv('WEAI_URL', '')
 
+WEAI_SYSTEM_PROMPT_APPEND = os.getenv('WEAI_SYSTEM_PROMPT_APPEND', '')
+
 
 ENABLE_SIGNUP = False if not WEAI_AUTH else os.getenv('ENABLE_SIGNUP', 'False').lower() == 'true'
 
@@ -2836,6 +2838,7 @@ DEFAULT_CONFIG = {
     'audio.tts.mistral.api_key': AUDIO_TTS_MISTRAL_API_KEY,
     'audio.tts.mistral.api_base_url': AUDIO_TTS_MISTRAL_API_BASE_URL,
     'weai.url': WEAI_URL,
+    'weai.system_prompt_append': WEAI_SYSTEM_PROMPT_APPEND,
     'ui.enable_signup': ENABLE_SIGNUP,
     'ui.enable_login_form': ENABLE_LOGIN_FORM,
     'ui.enable_password_change_form': ENABLE_PASSWORD_CHANGE_FORM,

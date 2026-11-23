@@ -41,6 +41,10 @@ from weai.utils.payload import (
     apply_model_params_to_body_openai,
     apply_system_prompt_to_body,
 )
+from weai.utils.platform_prompt import (
+    get_platform_system_prompt,
+    prepend_platform_system_prompt,
+)
 from weai.utils.plugin import (
     get_function_module_from_cache,
     load_function_module_by_id,
@@ -276,6 +280,12 @@ async def generate_function_chat_completion(request, form_data, user, models: di
             form_data = apply_model_params_to_body_openai(params, form_data)
             if not bypass_system_prompt:
                 form_data = await apply_system_prompt_to_body(system, form_data, metadata, user)
+
+    if not bypass_system_prompt:
+        form_data['messages'] = prepend_platform_system_prompt(
+            form_data.get('messages', []),
+            await get_platform_system_prompt(),
+        )
 
     pipe_id = get_pipe_id(form_data)
     function_module = await get_function_module_by_id(request, pipe_id)

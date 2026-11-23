@@ -63,6 +63,11 @@ from weai.utils.payload import (
     apply_model_params_to_body_openai,
     apply_system_prompt_to_body,
 )
+from weai.utils.platform_prompt import (
+    get_platform_system_prompt,
+    prepend_platform_system_prompt,
+    sanitize_client_system_messages,
+)
 from weai.utils.response import convert_responses_usage_to_chat_completions, get_responses_finish_reason
 from weai.utils.session_pool import (
     cleanup_response,
@@ -1589,6 +1594,17 @@ async def _generate_chat_completion(
     if not hasattr(request.state, 'model_id'):
         request.state.model_id = model_id
     await authorize_model(user, model_id)
+    if not bypass_system_prompt and not getattr(request.state, 'metadata', None):
+        allow_system_prompt = (
+            user is None
+            or getattr(user, 'role', None) == 'admin'
+            or await has_permission(user.id, 'chat.system_prompt', await Config.get('user.permissions'))
+        )
+        payload['messages'] = sanitize_client_system_messages(
+            payload.get('messages', []),
+            allow_system_prompt=allow_system_prompt,
+        )
+
     selected = None
     if isinstance(model_id, str) and model_id in GROUPS:
         server_metadata = getattr(request.state, 'metadata', None) or {}
@@ -1655,6 +1671,12 @@ async def _generate_chat_completion(
                 'email': user.email,
                 'role': user.role,
             }
+
+    if not bypass_system_prompt:
+        payload['messages'] = prepend_platform_system_prompt(
+            payload.get('messages', []),
+            await get_platform_system_prompt(),
+        )
 
     # Check if model is a reasoning model that needs special handling
     if is_openai_new_model(payload['model']):
@@ -2068,6 +2090,17 @@ async def responses(
     request.state.model_id = model_id
 
     await authorize_model(user, model_id)
+    if not bypass_system_prompt and not getattr(request.state, 'metadata', None):
+        allow_system_prompt = (
+            user is None
+            or getattr(user, 'role', None) == 'admin'
+            or await has_permission(user.id, 'chat.system_prompt', await Config.get('user.permissions'))
+        )
+        payload['messages'] = sanitize_client_system_messages(
+            payload.get('messages', []),
+            allow_system_prompt=allow_system_prompt,
+        )
+
     selected = None
     if model_id in GROUPS:
         # Provider-owned continuation state can reference another user's data.

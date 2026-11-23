@@ -202,6 +202,12 @@ from weai.utils.misc import (
 )
 from weai.utils.oauth import get_system_oauth_token
 from weai.utils.payload import apply_params_to_form_data, apply_system_prompt_to_body, resolve_system_prompt
+from weai.utils.platform_prompt import (
+    get_platform_system_prompt,
+    prepend_platform_prompt_text,
+    prepend_platform_system_prompt,
+    sanitize_client_system_messages,
+)
 from weai.utils.plugin import load_function_module_by_id
 from weai.utils.response import (
     convert_responses_stream_to_chat_completions,
@@ -593,6 +599,16 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
     if regeneration_prompt:
         form_data['messages'].append({'role': 'user', 'content': regeneration_prompt})
+
+    allow_system_prompt = (
+        user is None
+        or getattr(user, 'role', None) == 'admin'
+        or await has_permission(user.id, 'chat.system_prompt', await Config.get('user.permissions'))
+    )
+    form_data['messages'] = sanitize_client_system_messages(
+        form_data.get('messages', []),
+        allow_system_prompt=allow_system_prompt,
+    )
 
     # Decide from the un-compacted user history so /tool and /stop-tool remain
     # effective even when older turns are summarized for the model.
@@ -1110,6 +1126,12 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             metadata['base_system_prompt'] = (
                 f'{base_system_prompt}\n{summary_content}' if base_system_prompt else summary_content
             )
+
+    platform_prompt = await get_platform_system_prompt()
+    form_data['messages'] = prepend_platform_system_prompt(form_data.get('messages', []), platform_prompt)
+    metadata['base_system_prompt'] = prepend_platform_prompt_text(
+        metadata.get('base_system_prompt'), platform_prompt
+    )
 
     return form_data, metadata, events, False
 

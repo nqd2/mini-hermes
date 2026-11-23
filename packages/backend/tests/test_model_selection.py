@@ -321,8 +321,22 @@ async def test_list_free_catalog_models_filters_free_and_extracts_capabilities(m
                     'name': 'Llama 3.3 70B Free',
                     'context_length': 131072,
                     'pricing': {'prompt': '0', 'completion': '0'},
-                    'architecture': {'input_modalities': ['text', 'image']},
+                    'architecture': {'input_modalities': ['text', 'image'], 'output_modalities': ['text']},
                     'supported_parameters': ['tools', 'structured_outputs'],
+                },
+                'nvidia/llama-nemotron-embed-vl-1b-v2:free': {
+                    'id': 'nvidia/llama-nemotron-embed-vl-1b-v2:free',
+                    'name': 'Nemotron Embed VL Free',
+                    'context_length': 8192,
+                    'pricing': {'prompt': '0', 'completion': '0'},
+                    'architecture': {'input_modalities': ['text', 'image'], 'output_modalities': ['embeddings']},
+                },
+                'google/lyria-3-pro:free': {
+                    'id': 'google/lyria-3-pro:free',
+                    'name': 'Lyria 3 Pro Free',
+                    'context_length': 8192,
+                    'pricing': {'prompt': '0', 'completion': '0'},
+                    'architecture': {'input_modalities': ['text'], 'output_modalities': ['audio']},
                 },
                 'openai/gpt-4o': {
                     'id': 'openai/gpt-4o',
@@ -372,3 +386,58 @@ def test_parse_openrouter_all_providers_icons():
         'openai': {'url': 'https://openrouter.ai/images/icons/OpenAI.svg', 'invert_dark': True},
         'deepseek': {'url': 'https://openrouter.ai/images/icons/DeepSeek.png', 'invert_dark': False},
     }
+
+
+def test_is_text_generation_model_filters_non_text_models_and_respects_manual_override():
+    from weai.utils.model_ids import is_text_generation_model
+
+    for valid in (
+        'gpt-4o',
+        'gpt-4.1-mini',
+        'gpt-5.4',
+        'o3-mini',
+        'claude-sonnet-4-20250514',
+        'google/gemini-2.5-pro',
+        'meta-llama/llama-3.2-11b-vision-instruct:free',
+        'qwen/qwen-2.5-vl-72b-instruct:free',
+        {'id': 'org/chat:free', 'architecture': {'modality': 'text+image->text', 'output_modalities': ['text']}},
+        {'id': 'local/vlm', 'type': 'vlm'},
+    ):
+        assert is_text_generation_model(valid) is True, valid
+
+    for invalid in (
+        'text-embedding-3-small',
+        'nvidia/llama-nemotron-embed-vl-1b-v2:free',
+        'baai/bge-large-en-v1.5',
+        'bge-reranker-v2-m3',
+        'omni-moderation-latest',
+        'whisper-1',
+        'tts-1-hd',
+        'gpt-4o-mini-tts',
+        'gpt-4o-transcribe',
+        'gpt-4o-realtime-preview',
+        'gpt-4o-audio-preview',
+        'dall-e-3',
+        'gpt-image-1',
+        'chatgpt-image-latest',
+        'black-forest-labs/flux-1-schnell:free',
+        'google/imagen-3',
+        'gemini-2.5-flash-image-preview',
+        'gemini-2.5-flash-image',
+        'sora-2',
+        'babbage-002',
+        'davinci-002',
+        {'id': 'custom/model:free', 'architecture': {'output_modalities': ['embeddings']}},
+        {'id': 'custom/image:free', 'architecture': {'modality': 'text->image'}},
+        {'id': 'local/embedder', 'type': 'embeddings'},
+    ):
+        assert is_text_generation_model(invalid) is False, invalid
+
+    assert is_text_generation_model({'id': 'custom-tts-alias'}, allow_manual_override=True) is True
+    assert (
+        is_text_generation_model(
+            {'id': 'custom-embed', 'architecture': {'output_modalities': ['embeddings']}},
+            allow_manual_override=True,
+        )
+        is False
+    )

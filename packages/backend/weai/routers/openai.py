@@ -58,7 +58,7 @@ from weai.utils.headers import get_headers_and_cookies, get_json_bearer_headers,
 from weai.utils.dev_wire_log import log_llm_json_response
 from weai.utils.json_codec import JSONCodec
 from weai.utils.misc import convert_logit_bias_input_to_json, get_provider_function
-from weai.utils.model_ids import strip_provider_model_prefix
+from weai.utils.model_ids import is_text_generation_model, strip_provider_model_prefix
 from weai.utils.payload import (
     apply_model_params_to_body_openai,
     apply_system_prompt_to_body,
@@ -808,9 +808,6 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
             return response
         return None
 
-    def is_supported_openai_models(model_id):
-        return not any(name in model_id for name in _UNSUPPORTED_OPENAI_MODEL_KEYWORDS)
-
     def get_merged_models(model_lists):
         log.debug('merge_models_lists %s', model_lists)
         models = {}
@@ -818,14 +815,13 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
         for idx, model_list in enumerate(model_lists):
             if model_list is not None and 'error' not in model_list:
                 base_url = api_base_urls[idx]
-                hostname = urlparse(base_url).hostname if base_url else None
                 api_config = api_configs.get(str(idx), api_configs.get(base_url, {}))
+                manual_model_ids = bool(api_config.get('model_ids'))
 
                 for model in model_list:
                     model_id = model.get('id') or model.get('name')
 
-                    if hostname == 'api.openai.com' and not is_supported_openai_models(model_id):
-                        # Skip unwanted OpenAI models
+                    if not is_text_generation_model(model, allow_manual_override=manual_model_ids):
                         continue
 
                     if model_id and model_id not in models:
@@ -838,12 +834,13 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
                             'connection_type': model.get('connection_type', 'external'),
                             'provider': provider,
                             'urlIdx': idx,
+                            **({'manual_model_id': True} if manual_model_ids else {}),
                         }
 
                         loaded = get_provider_model_loaded_state(
                             model,
                             provider,
-                            manual_model_ids=bool(api_config.get('model_ids')),
+                            manual_model_ids=manual_model_ids,
                         )
                         if loaded is not None:
                             merged['loaded'] = loaded
@@ -915,11 +912,11 @@ async def get_models(request: Request, url_idx: int | None = None, user=Depends(
 
                         response_data = await r.json(loads=JSONCodec.loads)
 
-                        if 'api.openai.com' in url:
+                        if isinstance(response_data, dict) and isinstance(response_data.get('data'), list):
                             response_data['data'] = [
                                 model
-                                for model in response_data.get('data', [])
-                                if not any(name in model['id'] for name in _UNSUPPORTED_OPENAI_MODEL_KEYWORDS)
+                                for model in response_data['data']
+                                if is_text_generation_model(model)
                             ]
 
                         models = response_data

@@ -21,6 +21,7 @@ from weai.socket.utils import RedisDict
 from weai.utils.access_control import has_access, has_base_model_access
 from weai.utils.chat_variables import get_chat_variables_schema
 from weai.utils.json_codec import JSONCodec
+from weai.utils.model_ids import is_text_generation_model
 from weai.utils.plugin import (
     get_function_module_from_cache,
     get_functions_cache,
@@ -110,7 +111,16 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
             base_models = request.app.state.BASE_MODELS
 
     # deep copy the base models to avoid modifying the original list
-    models = [model.copy() for model in base_models]
+    models = [
+        model.copy()
+        for model in base_models
+        if is_text_generation_model(
+            model,
+            allow_manual_override=bool(
+                isinstance(model, dict) and (model.get('manual_model_id') or 'pipe' in model)
+            ),
+        )
+    ]
 
     # If there are no models, return an empty list
     if len(models) == 0:

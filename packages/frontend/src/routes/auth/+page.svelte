@@ -151,6 +151,36 @@
 	};
 
 	let onboarding = false;
+	let videoElement: HTMLVideoElement | null = null;
+	let playOnInteractionRegistered = false;
+
+	function playBackgroundVideo() {
+		if (!videoElement) {
+			return;
+		}
+
+		videoElement.play().catch(() => {
+			if (playOnInteractionRegistered) {
+				return;
+			}
+
+			playOnInteractionRegistered = true;
+
+			const playOnInteraction = () => {
+				videoElement?.play().catch(() => {});
+				document.removeEventListener('click', playOnInteraction);
+				document.removeEventListener('touchstart', playOnInteraction);
+				playOnInteractionRegistered = false;
+			};
+
+			document.addEventListener('click', playOnInteraction);
+			document.addEventListener('touchstart', playOnInteraction);
+		});
+	}
+
+	$: if (loaded && !onboarding && videoElement) {
+		playBackgroundVideo();
+	}
 
 	onMount(async () => {
 		const redirectPath = $page.url.searchParams.get('redirect');
@@ -231,19 +261,34 @@
 	}}
 />
 
-<div class="w-full h-dvh text-white relative" id="auth-page">
-	<div class="w-full h-full absolute top-0 left-0 bg-white dark:bg-black"></div>
+<div class="w-full h-dvh text-white relative overflow-hidden" id="auth-page">
+	<video
+		bind:this={videoElement}
+		class="absolute inset-0 h-full w-full object-cover"
+		src="/assets/welcome.mp4"
+		autoplay
+		muted
+		loop
+		playsinline
+		preload="auto"
+		poster="/assets/welcome.webp"
+		aria-hidden="true"
+	></video>
+	<div class="absolute inset-0 bg-black/25"></div>
+	<div class="absolute inset-0 bg-linear-to-b from-black/35 via-black/15 to-black/60"></div>
 
 	<div class="w-full absolute top-0 left-0 right-0 h-8 drag-region"></div>
 
 	{#if loaded && !onboarding}
 		<div
-			class="fixed inset-0 h-dvh overflow-y-auto bg-transparent w-full z-50 text-black dark:text-white"
+			class="fixed inset-0 h-dvh overflow-y-auto bg-transparent w-full z-50 text-white"
 			id="auth-container"
 		>
 			<div class="w-full p-6 min-h-full flex flex-col text-center">
 				{#if mfaChallenge}
-					<div class="my-auto mx-auto w-full sm:max-w-md shrink-0">
+					<div
+						class="dark my-auto mx-auto w-full sm:max-w-[400px] shrink-0 rounded-2xl border border-white/15 bg-neutral-950/75 p-7 text-white shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65)] backdrop-blur-2xl sm:p-8"
+					>
 						<MfaChallengeForm
 							challenge={mfaChallenge}
 							onComplete={setSessionUser}
@@ -254,13 +299,19 @@
 						/>
 					</div>
 				{:else if pendingApproval}
-					<p class="my-auto text-sm text-gray-500 dark:text-gray-400">
-						{$i18n.t('Your account is awaiting administrator approval.')}
-					</p>
+					<div
+						class="dark my-auto mx-auto w-full sm:max-w-[400px] rounded-2xl border border-white/15 bg-neutral-950/75 p-7 text-white shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65)] backdrop-blur-2xl sm:p-8"
+					>
+						<p class="text-sm text-white/80">
+							{$i18n.t('Your account is awaiting administrator approval.')}
+						</p>
+					</div>
 				{:else if ($config?.features.auth_trusted_header ?? false) || $config?.features.auth === false}
-					<div class=" my-auto pb-10 w-full sm:max-w-md">
+					<div
+						class="dark my-auto mx-auto w-full sm:max-w-[400px] rounded-2xl border border-white/15 bg-neutral-950/75 p-7 text-white shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65)] backdrop-blur-2xl sm:p-8"
+					>
 						<div
-							class="flex items-center justify-center gap-3 text-xl sm:text-2xl text-center font-normal dark:text-gray-200"
+							class="flex items-center justify-center gap-3 text-lg sm:text-xl text-center font-medium text-white"
 						>
 							<div>
 								{$i18n.t('Signing in to {{WEAI_NAME}}', { WEAI_NAME: $WEAI_NAME })}
@@ -275,17 +326,29 @@
 					<div class="my-auto flex flex-col justify-center items-center">
 						<div
 							id="auth-login-card"
-							class=" sm:max-w-md my-auto sm:pb-10 w-full dark:text-gray-100"
+							class="dark my-auto w-full sm:max-w-[400px] rounded-2xl border border-white/15 bg-neutral-950/75 p-7 text-white shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65)] backdrop-blur-2xl sm:p-8"
 						>
 							<form
-								class=" flex flex-col justify-center"
+								class="flex flex-col justify-center"
 								on:submit={(e) => {
 									e.preventDefault();
 									submitHandler();
 								}}
 							>
-								<div class="mb-1">
-									<div class=" text-2xl font-normal">
+								<div class="mb-6 flex flex-col items-center">
+									<div
+										class="mb-4 flex size-11 items-center justify-center rounded-xl bg-white/95 p-1.5 shadow-md ring-1 ring-white/20"
+									>
+										<img
+											id="logo"
+											crossorigin="anonymous"
+											src="{WEAI_BASE_URL}/static/favicon.png"
+											class="size-full object-contain"
+											alt={$WEAI_NAME}
+										/>
+									</div>
+
+									<h1 class="text-xl font-medium tracking-tight text-white sm:text-2xl">
 										{#if $config?.onboarding ?? false}
 											{$i18n.t(`Get started with {{WEAI_NAME}}`, { WEAI_NAME: $WEAI_NAME })}
 
@@ -294,10 +357,10 @@
 										{:else}
 											{$i18n.t(`Sign up to {{WEAI_NAME}}`, { WEAI_NAME: $WEAI_NAME })}
 										{/if}
-									</div>
+									</h1>
 
 									{#if $config?.onboarding ?? false}
-										<div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
+										<div class="mt-2 text-xs font-normal leading-relaxed text-white/60">
 											ⓘ {$WEAI_NAME}
 											{$i18n.t(
 												'does not make any external connections, and your data stays securely on your locally hosted server.'
@@ -307,19 +370,19 @@
 								</div>
 
 								{#if $config?.features.enable_login_form || form}
-									<div class="flex flex-col mt-4">
+									<div class="flex flex-col gap-3.5 text-left">
 										{#if mode === 'signup'}
-											<div class="mb-2">
+											<div>
 												<label
 													for="name"
-													class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+													class="mb-1.5 block text-xs font-medium text-white/75"
 													>{$i18n.t('Name')}</label
 												>
 												<input
 													bind:value={name}
 													type="text"
 													id="name"
-													class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+													class="h-10 w-full rounded-xl border border-white/15 bg-[#18181b]/90 px-3.5 text-sm text-white outline-hidden transition placeholder:text-white/35 focus:border-white/40 focus:bg-[#18181b]"
 													autocomplete="name"
 													placeholder={$i18n.t('Enter Your Full Name')}
 													required
@@ -327,37 +390,37 @@
 											</div>
 										{/if}
 
-
-											<div class="mb-2">
-												<label
-													for="email"
-													class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
-													>{$i18n.t('Email')}</label
-												>
-												<input
-													bind:value={email}
-													type="email"
-													id="email"
-													class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
-													autocomplete="email"
-													name="email"
-													placeholder={$i18n.t('Enter Your Email')}
-													required
-												/>
-											</div>
-
+										<div>
+											<label
+												for="email"
+												class="mb-1.5 block text-xs font-medium text-white/75"
+												>{$i18n.t('Email')}</label
+											>
+											<input
+												bind:value={email}
+												type="email"
+												id="email"
+												class="h-10 w-full rounded-xl border border-white/15 bg-[#18181b]/90 px-3.5 text-sm text-white outline-hidden transition placeholder:text-white/35 focus:border-white/40 focus:bg-[#18181b]"
+												autocomplete="email"
+												name="email"
+												placeholder={$i18n.t('Enter Your Email')}
+												required
+											/>
+										</div>
 
 										<div>
 											<label
 												for="password"
-												class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+												class="mb-1.5 block text-xs font-medium text-white/75"
 												>{$i18n.t('Password')}</label
 											>
 											<SensitiveInput
 												bind:value={password}
 												type="password"
 												id="password"
-												class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+												outerClassName="flex h-10 w-full items-center overflow-hidden rounded-xl border border-white/15 bg-[#18181b]/90 transition focus-within:border-white/40 focus-within:bg-[#18181b]"
+												inputClassName="h-full min-w-0 flex-1 bg-transparent pl-3.5 pr-1 text-sm text-white placeholder:text-white/35 outline-hidden"
+												showButtonClassName="flex h-full items-center !px-3 text-white/50 hover:text-white"
 												placeholder={$i18n.t('Enter Your Password')}
 												autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
 												name="password"
@@ -367,17 +430,19 @@
 										</div>
 
 										{#if mode === 'signup' && $config?.features?.enable_signup_password_confirmation}
-											<div class="mt-2">
+											<div>
 												<label
 													for="confirm-password"
-													class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+													class="mb-1.5 block text-xs font-medium text-white/75"
 													>{$i18n.t('Confirm Password')}</label
 												>
 												<SensitiveInput
 													bind:value={confirmPassword}
 													type="password"
 													id="confirm-password"
-													class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent"
+													outerClassName="flex h-10 w-full items-center overflow-hidden rounded-xl border border-white/15 bg-[#18181b]/90 transition focus-within:border-white/40 focus-within:bg-[#18181b]"
+													inputClassName="h-full min-w-0 flex-1 bg-transparent pl-3.5 pr-1 text-sm text-white placeholder:text-white/35 outline-hidden"
+													showButtonClassName="flex h-full items-center !px-3 text-white/50 hover:text-white"
 													placeholder={$i18n.t('Confirm Your Password')}
 													autocomplete="new-password"
 													name="confirm-password"
@@ -387,71 +452,69 @@
 										{/if}
 									</div>
 								{/if}
-								<div class="mt-5">
+								<div class="mt-6">
 									{#if $config?.features.enable_login_form || form}
+										<button
+											class="flex h-10 w-full items-center justify-center rounded-xl bg-white text-sm font-medium text-neutral-950 shadow-sm transition hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50"
+											type="submit"
+											disabled={submitting}
+										>
+											<span class="self-center">
+												{mode === 'signin'
+													? $i18n.t('Sign in')
+													: ($config?.onboarding ?? false)
+														? $i18n.t('Create Admin Account')
+														: $i18n.t('Create Account')}
+											</span>
 
-											<button
-												class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-[0.8125rem] leading-5 py-2.5 disabled:opacity-50 flex justify-center"
-												type="submit"
-												disabled={submitting}
-											>
-												<div class="self-center">
-													{mode === 'signin'
-														? $i18n.t('Sign in')
-														: ($config?.onboarding ?? false)
-															? $i18n.t('Create Admin Account')
-															: $i18n.t('Create Account')}
-												</div>
-
-												{#if submitting}
-													<div class="ml-1.5 self-center">
-														<Spinner />
-													</div>
-												{/if}
-											</button>
-
-											{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
-												<div class=" mt-4 text-[0.8125rem] leading-5 text-center">
-													{mode === 'signin'
-														? $i18n.t("Don't have an account?")
-														: $i18n.t('Already have an account?')}
-
-													<button
-														class=" font-normal underline"
-														type="button"
-														on:click={() => {
-															if (mode === 'signin') {
-																mode = 'signup';
-															} else {
-																mode = 'signin';
-															}
-														}}
-													>
-														{mode === 'signin' ? $i18n.t('Sign up') : $i18n.t('Sign in')}
-													</button>
-												</div>
+											{#if submitting}
+												<span class="ml-2 self-center">
+													<Spinner className="size-4" />
+												</span>
 											{/if}
+										</button>
 
+										{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
+											<div class="mt-4 text-center text-xs text-white/65">
+												{mode === 'signin'
+													? $i18n.t("Don't have an account?")
+													: $i18n.t('Already have an account?')}
+
+												<button
+													class="ml-1 font-medium text-white underline-offset-4 hover:underline"
+													type="button"
+													on:click={() => {
+														if (mode === 'signin') {
+															mode = 'signup';
+														} else {
+															mode = 'signin';
+														}
+													}}
+												>
+													{mode === 'signin' ? $i18n.t('Sign up') : $i18n.t('Sign in')}
+												</button>
+											</div>
+										{/if}
 									{/if}
 								</div>
 							</form>
 
 							{#if Object.keys($config?.oauth?.providers ?? {}).length > 0}
-								<div class="inline-flex items-center justify-center w-full">
-									<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+								<div class="my-5 flex items-center justify-center w-full gap-3">
+									<hr class="h-px flex-1 border-0 bg-white/15" />
 									{#if $config?.features.enable_login_form || form}
-										<span
-											class="px-3 text-sm font-normal text-gray-900 dark:text-white bg-transparent"
+										<span class="text-xs font-normal text-white/55 bg-transparent"
 											>{$i18n.t('or')}</span
 										>
 									{/if}
 
-									<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+									<hr class="h-px flex-1 border-0 bg-white/15" />
 								</div>
 								<div class="flex flex-col space-y-2">
 									{#if $config?.oauth?.providers?.google}
 										<button
-											class="flex justify-center items-center bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-normal text-[0.8125rem] leading-5 py-2.5"
+											type="button"
+											class="flex h-10 w-full items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] text-sm font-medium text-white transition hover:bg-white/[0.12]"
 											on:click={() => {
 												window.location.href = `${WEAI_BASE_URL}/oauth/google/login`;
 											}}
@@ -459,7 +522,7 @@
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
 												viewBox="0 0 48 48"
-												class="size-6 mr-3"
+												class="size-5 mr-2.5"
 												aria-hidden="true"
 											>
 												<path
@@ -479,32 +542,29 @@
 											<span>{$i18n.t('Continue with {{provider}}', { provider: 'Google' })}</span>
 										</button>
 									{/if}
-
-
-
-
 								</div>
 							{/if}
-
-
 						</div>
 					</div>
 				{/if}
 			</div>
 		</div>
-
-			<div class="fixed top-0 left-0 m-10 z-50">
-				<div class="flex space-x-2">
-					<div class=" self-center">
-						<img
-							id="logo"
-							crossorigin="anonymous"
-							src="{WEAI_BASE_URL}/static/favicon.png"
-							class=" w-6 rounded-full"
-							alt=""
-						/>
-					</div>
-				</div>
-			</div>
 	{/if}
 </div>
+
+<style>
+	:global(#auth-page input) {
+		color-scheme: dark;
+	}
+
+	:global(#auth-page input:-webkit-autofill),
+	:global(#auth-page input:-webkit-autofill:hover),
+	:global(#auth-page input:-webkit-autofill:focus),
+	:global(#auth-page input:-webkit-autofill:active) {
+		-webkit-text-fill-color: #ffffff !important;
+		caret-color: #ffffff;
+		-webkit-box-shadow: 0 0 0 1000px #18181b inset !important;
+		box-shadow: 0 0 0 1000px #18181b inset !important;
+		transition: background-color 9999s ease-out 0s;
+	}
+</style>

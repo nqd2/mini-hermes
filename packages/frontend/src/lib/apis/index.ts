@@ -3,6 +3,7 @@ import { config } from '$lib/stores';
 import { WEAI_BASE_URL } from '$lib/constants';
 import { convertOpenApiToToolPayload, resolveSchema } from '$lib/utils';
 import { normalizeTags } from '$lib/utils/tags';
+import { isTextGenerationModel } from '$lib/utils/textModels';
 import { getOpenAIModelsDirect } from './openai';
 
 const TOOL_SERVER_FETCH_TIMEOUT = 10000;
@@ -59,7 +60,7 @@ export const getModels = async (
 		throw error;
 	}
 
-	let models = res?.data ?? [];
+	let models = (res?.data ?? []).filter((model) => isTextGenerationModel(model));
 
 	if (connections && !base) {
 		let localModels = [];
@@ -134,8 +135,18 @@ export const getModels = async (
 				const response = responses[idx];
 				const apiConfig = OPENAI_API_CONFIGS[idx.toString()] ?? {};
 
+				const manualModelIds = (apiConfig?.model_ids ?? []).length > 0;
 				let models = Array.isArray(response) ? response : (response?.data ?? []);
-				models = models.map((model) => ({ ...model, openai: { id: model.id }, urlIdx: idx }));
+				models = models
+					.filter((model) =>
+						isTextGenerationModel(model, { allowManualOverride: manualModelIds })
+					)
+					.map((model) => ({
+						...model,
+						openai: { id: model.id },
+						urlIdx: idx,
+						...(manualModelIds ? { manual_model_id: true } : {})
+					}));
 
 				const prefixId = apiConfig.prefix_id;
 				if (prefixId) {

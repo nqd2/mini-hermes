@@ -28,6 +28,7 @@ from weai.model_routing.tier_service import (
 )
 from weai.models.config import Config
 from weai.utils.json_codec import JSONCodec
+from weai.utils.model_ids import is_text_generation_model
 
 CONFIG_KEY = 'weai.model_routing.v1'
 OPENROUTER_URL = 'https://openrouter.ai/api/v1'
@@ -328,7 +329,11 @@ async def list_free_catalog_models(*, refresh: bool = False) -> list[dict]:
                     body = await response.json()
                     for entry in body.get('data') or []:
                         model_id = entry.get('id') if isinstance(entry, dict) else None
-                        if not isinstance(model_id, str) or ':free' not in model_id:
+                        if (
+                            not isinstance(model_id, str)
+                            or ':free' not in model_id
+                            or not is_text_generation_model(entry)
+                        ):
                             continue
                         raw_ctx = entry.get('context_length')
                         context_length = int(raw_ctx) if isinstance(raw_ctx, (int, float)) and raw_ctx > 0 else 8192
@@ -354,6 +359,8 @@ async def list_free_catalog_models(*, refresh: bool = False) -> list[dict]:
 
 def is_free_model(model_id: str, entry: dict) -> bool:
     if not model_id.endswith(':free'):
+        return False
+    if not is_text_generation_model({**(entry if isinstance(entry, dict) else {}), 'id': model_id}):
         return False
     pricing = entry.get('pricing') or {}
     try:

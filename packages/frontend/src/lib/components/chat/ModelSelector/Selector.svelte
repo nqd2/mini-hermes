@@ -53,6 +53,7 @@
     resolveLocalizedModelDescription,
     resolveLocalizedModelName,
   } from "$lib/utils/localizedContent";
+  import { isTextGenerationModel } from "$lib/utils/textModels";
   import { getModels } from "$lib/apis";
 
   import ChevronDown from "$lib/components/icons/ChevronDown.svelte";
@@ -317,7 +318,9 @@
             }
           })
   ).filter(
-    (item) => includeHidden || !(item.model?.info?.meta?.hidden ?? false),
+    (item) =>
+      isTextGenerationModel(item.model ?? item.value) &&
+      (includeHidden || !(item.model?.info?.meta?.hidden ?? false)),
   );
 
   $: sanitizedSearchValue = searchValue.trim();
@@ -642,7 +645,9 @@
     if (items) {
       tags = items
         .filter(
-          (item) => includeHidden || !(item.model?.info?.meta?.hidden ?? false),
+          (item) =>
+            isTextGenerationModel(item.model ?? item.value) &&
+            (includeHidden || !(item.model?.info?.meta?.hidden ?? false)),
         )
         .flatMap((item) => item.model?.tags ?? [])
         .map((tag) => tag.name.toLowerCase());

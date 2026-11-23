@@ -35,6 +35,7 @@
 
 	import { getModels } from '$lib/apis';
 	import { getModelsConfig, setModelsConfig } from '$lib/apis/configs';
+	import { isTextGenerationModel } from '$lib/utils/textModels';
 	import Search from '$lib/components/icons/Search.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
@@ -308,7 +309,13 @@
 			...providerModels.filter((model: ModelListItem) => !allModelIds.has(model.id))
 		];
 		availableModelIds = new Set(allModels.map((model) => model.id));
-		allModels.push(...savedModels.filter((model) => !availableModelIds.has(model.id)));
+		allModels.push(
+			...savedModels.filter(
+				(model) =>
+					!availableModelIds.has(model.id) &&
+					(isPresetModel(model) || isTextGenerationModel(model))
+			)
+		);
 
 		models = allModels.map((m: ModelListItem) => {
 			const savedModel = savedModels.find((model: ModelListItem) => model.id === m.id);

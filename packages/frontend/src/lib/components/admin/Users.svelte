@@ -117,7 +117,7 @@
 			</a>
 		</div>
 
-		<div class="flex-1 px-3.5 lg:pr-[1rem] lg:pl-0 overflow-y-scroll">
+		<div class="flex-1 px-3.5 lg:pr-[1rem] lg:pl-0 overflow-y-auto">
 			{#if selectedTab === 'overview'}
 				<UserList />
 			{:else if selectedTab === 'groups'}

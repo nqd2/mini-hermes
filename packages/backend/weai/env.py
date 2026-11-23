@@ -136,7 +136,7 @@ else:
     try:
         PACKAGE_DATA = json.loads((FRONTEND_DIR / 'package.json').read_text())
     except Exception:
-        PACKAGE_DATA = {'version': '0.13.0'}
+        PACKAGE_DATA = {'version': '0.1.2'}
 
 VERSION = PACKAGE_DATA['version']
 

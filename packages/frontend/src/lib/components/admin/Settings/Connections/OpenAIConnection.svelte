@@ -21,6 +21,7 @@
 
 	let showConfigModal = false;
 
+	$: apiType = config?.api_type ?? 'responses';
 	$: tierScope = config?.tier_scope ?? 'both';
 	$: tierScopeLabel =
 		tierScope === 'free'
@@ -59,9 +60,14 @@
 <div class="group/setting-row flex w-full gap-2 items-center">
 	<Tooltip
 		className="w-full relative"
-		content={$i18n.t(`WebUI will make requests to "{{url}}/chat/completions"`, {
-			url
-		})}
+		content={$i18n.t(
+			apiType === 'responses'
+				? `WebUI will make requests to "{{url}}/responses"`
+				: `WebUI will make requests to "{{url}}/chat/completions"`,
+			{
+				url
+			}
+		)}
 		placement="top-start"
 	>
 		{#if !(config?.enable ?? true)}

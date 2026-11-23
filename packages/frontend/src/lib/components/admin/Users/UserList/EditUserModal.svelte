@@ -84,31 +84,51 @@
 		}
 	}
 
-	async function savePlan() {
-		if (!savedPlan || savingPlan) return;
-		if (tier === 'plus' && (!monthlyLimit || !Number.isInteger(monthlyLimit) || monthlyLimit > 2_147_483_647 || monthlyLimit < 1)) {
+	async function savePlan(notify = true): Promise<boolean> {
+		if (!savedPlan || savingPlan) return true;
+		const parsedLimit = Number(monthlyLimit);
+		if (
+			tier === 'plus' &&
+			(!monthlyLimit ||
+				!Number.isInteger(parsedLimit) ||
+				parsedLimit > 2_147_483_647 ||
+				parsedLimit < 1)
+		) {
 			planError = $i18n.t('Enter a positive whole-number monthly request limit');
-			return;
+			return false;
 		}
 		const userId = selectedUser.id;
 		savingPlan = true;
 		planError = '';
 		try {
 			const plan = await saveUserPlan(localStorage.token, userId, {
-				tier, monthly_request_limit: tier === 'plus' ? monthlyLimit ?? null : null
+				tier,
+				monthly_request_limit: tier === 'plus' ? parsedLimit : null
 			});
 			if (show && selectedUser.id === userId) savedPlan = plan;
-			dispatch('save');
-			toast.success($i18n.t('User plan saved'));
+			if (notify) {
+				dispatch('save');
+				toast.success($i18n.t('User plan saved'));
+			}
+			return true;
 		} catch {
 			if (show && selectedUser.id === userId) planError = $i18n.t('Could not save the user plan');
+			return false;
 		} finally {
 			savingPlan = false;
 		}
 	}
 
-
 	const submitHandler = async () => {
+		if (
+			savedPlan &&
+			(tier !== savedPlan.tier ||
+				(tier === 'plus' && Number(monthlyLimit) !== savedPlan.monthly_request_limit))
+		) {
+			const planSaved = await savePlan(false);
+			if (!planSaved) return;
+		}
+
 		const res = await updateUserById(localStorage.token, selectedUser.id, _user).catch((error) => {
 			toast.error(`${error}`);
 		});
@@ -227,15 +247,15 @@
 									</div>
 								</div>
 
-								<div class=" flex flex-col space-y-1.5">
+								<div class="flex flex-col space-y-2.5">
 									{#if (userGroups ?? []).length > 0}
 										<div class="flex flex-col w-full text-sm">
-											<div class="mb-1 text-xs text-gray-500">{$i18n.t('User Groups')}</div>
+											<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('User Groups')}</div>
 
 											<div class="flex flex-wrap gap-1 my-0.5 -mx-1">
 												{#each userGroups as userGroup}
 													<span
-														class="px-1.5 py-0.5 rounded-xl bg-gray-100 dark:bg-gray-850 text-xs"
+														class="px-2 py-0.5 rounded-xl bg-gray-100 dark:bg-gray-850 text-xs"
 													>
 														<a
 															href={'/admin/users/groups?id=' + userGroup.id}
@@ -251,55 +271,69 @@
 									{/if}
 
 									<div class="flex flex-col w-full">
-										<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Role')}</div>
+										<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Role')}</div>
 
 										<div class="flex-1">
 											<select
-												class="w-full text-sm bg-transparent disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
+												class="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/70 px-3 pr-8 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 disabled:opacity-60 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600"
 												bind:value={_user.role}
 												aria-label={$i18n.t('Role')}
 												disabled={_user.id == sessionUser.id}
 												required
 											>
-												<option value="admin">{$i18n.t('Admin')}</option>
-												<option value="user">{$i18n.t('User')}</option>
-												<option value="pending">{$i18n.t('Pending')}</option>
+												<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="admin">{$i18n.t('Admin')}</option>
+												<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="user">{$i18n.t('User')}</option>
+												<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="pending">{$i18n.t('Pending')}</option>
 											</select>
 										</div>
 									</div>
 
-									{#if savedPlan && _user.role !== 'admin'}
-										<div class="flex flex-col gap-2 text-xs">
-											<label>
-												{$i18n.t('WeAI plan')}
-												<select class="bg-transparent" bind:value={tier} disabled={savingPlan}>
-													<option value="free">Free</option>
-													<option value="plus">Plus</option>
+									{#if savedPlan}
+										<div class="flex flex-col w-full">
+											<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Tier')}</div>
+
+											<div class="flex-1">
+												<select
+													class="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/70 px-3 pr-8 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 disabled:opacity-60 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600"
+													aria-label={$i18n.t('WeAI plan')}
+													bind:value={tier}
+													disabled={savingPlan}
+												>
+													<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="free">{$i18n.t('Free')}</option>
+													<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="plus">{$i18n.t('Plus')}</option>
 												</select>
-											</label>
-											{#if tier === 'plus'}
-												<label>
-													{$i18n.t('Monthly LLM request limit')}
-													<input class="rounded border border-gray-300 bg-transparent px-2 py-1 dark:border-gray-700"
-														type="number" min="1" max="2147483647" bind:value={monthlyLimit} disabled={savingPlan} />
-												</label>
-											{/if}
-											<button type="button" class="self-start underline disabled:opacity-50" on:click={savePlan}
-												disabled={savingPlan || (tier === savedPlan.tier && (tier === 'free' || monthlyLimit === savedPlan.monthly_request_limit))}>
-												{$i18n.t('Save plan')}
-											</button>
+											</div>
 										</div>
+
+										{#if tier === 'plus'}
+											<div class="flex flex-col w-full">
+												<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+													{$i18n.t('Monthly LLM request limit')}
+												</div>
+												<div class="flex-1">
+													<input
+														class="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 disabled:opacity-60 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600"
+														aria-label={$i18n.t('Monthly LLM request limit')}
+														type="number"
+														min="1"
+														max="2147483647"
+														bind:value={monthlyLimit}
+														disabled={savingPlan}
+													/>
+												</div>
+											</div>
+										{/if}
 									{/if}
 									{#if planError}
 										<p class="text-xs text-red-600 dark:text-red-400" role="alert">{planError}</p>
 									{/if}
 
 									<div class="flex flex-col w-full">
-										<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Name')}</div>
+										<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Name')}</div>
 
 										<div class="flex-1">
 											<input
-												class="w-full text-sm bg-transparent outline-hidden"
+												class="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600"
 												type="text"
 												bind:value={_user.name}
 												aria-label={$i18n.t('Name')}
@@ -311,11 +345,11 @@
 									</div>
 
 									<div class="flex flex-col w-full">
-										<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Email')}</div>
+										<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Email')}</div>
 
 										<div class="flex-1">
 											<input
-												class="w-full text-sm bg-transparent disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
+												class="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 disabled:text-gray-500 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600 dark:disabled:text-gray-500"
 												type="email"
 												bind:value={_user.email}
 												aria-label={$i18n.t('Email')}
@@ -328,7 +362,7 @@
 
 									{#if _user?.oauth}
 										<div class="flex flex-col w-full">
-											<div class=" mb-1 text-xs text-gray-500">{$i18n.t('OAuth ID')}</div>
+											<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('OAuth ID')}</div>
 
 											<div class="flex-1 text-sm break-all mb-1 flex flex-col space-y-1">
 												{#each Object.keys(_user.oauth) as key}
@@ -342,9 +376,9 @@
 									{/if}
 
 									<div class="flex flex-col w-full">
-										<div class=" mb-1 text-xs text-gray-500">{$i18n.t('New Password')}</div>
+										<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('New Password')}</div>
 
-										<div class="flex-1">
+										<div class="flex-1 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 transition focus-within:border-gray-400 dark:border-gray-800 dark:bg-gray-850 dark:focus-within:border-gray-600">
 											<SensitiveInput
 												class="w-full text-sm bg-transparent outline-hidden"
 												type="password"

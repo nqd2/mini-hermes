@@ -258,48 +258,48 @@
 					<div class="px-1">
 						{#if tab === ''}
 							<div class="flex flex-col w-full mb-3">
-								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Role')}</div>
+								<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Role')}</div>
 
 								<div class="flex-1">
 									<select
-										class="w-full capitalize rounded-lg text-sm bg-transparent dark:disabled:text-gray-500 outline-hidden"
+										class="w-full appearance-none capitalize rounded-xl border border-gray-200 bg-gray-50/70 px-3 pr-8 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600 dark:disabled:text-gray-500"
 										bind:value={_user.role}
 										aria-label={$i18n.t('Role')}
 										placeholder={$i18n.t('Enter Your Role')}
 										required
 									>
-										<option value="pending"> {$i18n.t('pending')} </option>
-										<option value="user"> {$i18n.t('user')} </option>
-										<option value="admin"> {$i18n.t('admin')} </option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="pending"> {$i18n.t('pending')} </option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="user"> {$i18n.t('user')} </option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="admin"> {$i18n.t('admin')} </option>
 									</select>
 								</div>
 							</div>
 
 							<div class="flex flex-col w-full mb-3">
-								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Tier')}</div>
+								<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Tier')}</div>
 
 								<div class="flex-1">
 									<select
-										class="w-full rounded-lg text-sm bg-transparent dark:disabled:text-gray-500 outline-hidden"
+										class="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/70 px-3 pr-8 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600 dark:disabled:text-gray-500"
 										bind:value={_user.tier}
 										aria-label={$i18n.t('Tier')}
 										required
 									>
-										<option value="free">{$i18n.t('Free')}</option>
-										<option value="plus">{$i18n.t('Plus')}</option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="free">{$i18n.t('Free')}</option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="plus">{$i18n.t('Plus')}</option>
 									</select>
 								</div>
 							</div>
 
 							{#if _user.tier === 'plus'}
 								<div class="flex flex-col w-full mb-3">
-									<div class=" mb-1 text-xs text-gray-500">
+									<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">
 										{$i18n.t('Monthly Request Limit')}
 									</div>
 
 									<div class="flex-1">
 										<input
-											class="w-full text-sm bg-transparent disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
+											class="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 disabled:text-gray-500 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600 dark:disabled:text-gray-500"
 											type="number"
 											min="1"
 											max="2147483647"
@@ -312,12 +312,12 @@
 								</div>
 							{/if}
 
-							<div class="flex flex-col w-full mt-1">
-								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Name')}</div>
+							<div class="flex flex-col w-full mb-3">
+								<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Name')}</div>
 
 								<div class="flex-1">
 									<input
-										class="w-full text-sm bg-transparent disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
+										class="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 disabled:text-gray-500 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600 dark:disabled:text-gray-500"
 										type="text"
 										bind:value={_user.name}
 										aria-label={$i18n.t('Name')}
@@ -328,14 +328,14 @@
 								</div>
 							</div>
 
-							<hr class=" border-gray-100/30 dark:border-gray-850/30 my-2.5 w-full" />
+							<hr class="border-gray-100 dark:border-gray-850 my-2.5 w-full" />
 
-							<div class="flex flex-col w-full">
-								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Email')}</div>
+							<div class="flex flex-col w-full mb-3">
+								<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Email')}</div>
 
 								<div class="flex-1">
 									<input
-										class="w-full text-sm bg-transparent disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
+										class="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 text-sm text-gray-900 outline-hidden transition focus:border-gray-400 disabled:text-gray-500 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-100 dark:focus:border-gray-600 dark:disabled:text-gray-500"
 										type="email"
 										bind:value={_user.email}
 										aria-label={$i18n.t('Email')}
@@ -345,10 +345,10 @@
 								</div>
 							</div>
 
-							<div class="flex flex-col w-full mt-1">
-								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Password')}</div>
+							<div class="flex flex-col w-full">
+								<div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">{$i18n.t('Password')}</div>
 
-								<div class="flex-1">
+								<div class="flex-1 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-1.5 transition focus-within:border-gray-400 dark:border-gray-800 dark:bg-gray-850 dark:focus-within:border-gray-600">
 									<SensitiveInput
 										class="w-full text-sm bg-transparent disabled:text-gray-500 dark:disabled:text-gray-500 outline-hidden"
 										type="password"

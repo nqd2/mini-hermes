@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
+	import ModelSettingsLabel from '$lib/components/workspace/Models/ModelSettingsLabel.svelte';
 	import {
 		getFreeCatalog,
 		getRouting,
@@ -34,7 +36,10 @@
 		'agent-runtime-plus-medium': 'Plus — Medium',
 		'agent-runtime-plus-large': 'Plus — Large'
 	};
-	const inputClass = 'rounded-lg border border-gray-200 bg-transparent px-2 py-1 dark:border-gray-700';
+	const inputClass =
+		'w-full appearance-none rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-hidden transition focus:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-600';
+	const selectClass = `${inputClass} pr-7`;
+	const optionClass = 'bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100';
 
 	let routing: RoutingSettings | null = null;
 	let freeCatalog: FreeCatalogModel[] = [];
@@ -43,6 +48,7 @@
 	let catalogQuery = '';
 	let error = '';
 	let saving = false;
+	let isOpen = false;
 
 	async function loadCatalog(refresh = false) {
 		loadingCatalog = true;
@@ -106,9 +112,9 @@
 					model_id: item.model_id,
 					priority: 0,
 					min_context: Math.max(1, item.context_length || 8192),
-					capabilities: item.capabilities.includes('text')
-						? [...item.capabilities]
-						: ['text', ...item.capabilities],
+					capabilities: Array.from(
+						new Set<Capability>(['text', 'responses', ...item.capabilities])
+					),
 					enabled: true
 				};
 				routing.config.groups[group] = [...current, candidate];
@@ -141,7 +147,7 @@
 			model_id: '',
 			priority: 0,
 			min_context: 8192,
-			capabilities: ['text'],
+			capabilities: ['text', 'responses'],
 			enabled: true
 		};
 		routing.config.groups[group] = [...routing.config.groups[group], candidate];
@@ -169,229 +175,304 @@
 	}
 </script>
 
-<details class="mb-4 rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-800">
-	<summary class="cursor-pointer font-medium">{$i18n.t('Tier model routing')}</summary>
-	{#if error}
-		<p class="my-2 text-red-600 dark:text-red-400" role="alert">{error}</p>
-	{/if}
-	{#if routing}
-		<form class="mt-3 flex flex-col gap-3" on:submit|preventDefault={save}>
-			<fieldset disabled={saving} class="flex flex-wrap gap-3">
-				<label class="flex flex-col text-xs">
-					{$i18n.t('Free messages per user per day')}
-					<input
-						type="number"
-						class={inputClass}
-						min="1"
-						required
-						bind:value={routing.config.free_user_daily_limit}
-					/>
-				</label>
-				<label class="flex flex-col text-xs">
-					{$i18n.t('Shared Free requests per day')}
-					<input
-						type="number"
-						class={inputClass}
-						min="1"
-						required
-						bind:value={routing.config.free_account_daily_limit}
-					/>
-				</label>
-				<label class="flex flex-col text-xs">
-					{$i18n.t('Shared Free requests per minute')}
-					<input
-						type="number"
-						class={inputClass}
-						min="1"
-						required
-						bind:value={routing.config.free_account_minute_limit}
-					/>
-				</label>
-			</fieldset>
+<details class="group shrink-0 -mx-1" bind:open={isOpen}>
+	<summary
+		class="flex w-full cursor-pointer list-none items-center justify-between gap-2 rounded-md px-1 py-1.5 text-left text-xs font-normal text-gray-600 select-none focus-visible:outline focus-visible:outline-2 dark:text-gray-400 [&::-webkit-details-marker]:hidden"
+	>
+		<ModelSettingsLabel
+			label={$i18n.t('Tier model routing')}
+			description={$i18n.t(
+				'Configure daily Free-tier quotas, OpenRouter :free model checklist, and fallback pools for Free and Plus model tiers.'
+			)}
+		/>
+		<ChevronRight
+			className="size-3 text-gray-400 transition-transform group-open:rotate-90"
+		/>
+	</summary>
 
-			<fieldset
-				disabled={saving}
-				class="flex flex-col gap-2 rounded-lg border border-gray-200 p-2.5 dark:border-gray-800"
+	{#if isOpen}
+	<div class="mt-2 rounded-2xl border border-gray-100 bg-gray-50/40 p-3.5 text-sm dark:border-gray-850 dark:bg-gray-900/40">
+		{#if error}
+			<p
+				class="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
+				role="alert"
 			>
-				<legend class="px-1 text-xs font-medium">
-					{$i18n.t('Free tier :free models checklist')}
-					{#if freeCatalog.length > 0}
-						<span class="ml-1 text-gray-500">({freeCatalog.length})</span>
-					{/if}
-				</legend>
-				<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-					<input
-						type="search"
-						class="{inputClass} min-w-52 flex-1"
-						placeholder={$i18n.t('Filter :free models...')}
-						bind:value={catalogQuery}
-					/>
-					<button
-						type="button"
-						class="{inputClass} text-xs disabled:opacity-50"
-						disabled={loadingCatalog}
-						on:click={() => loadCatalog(true)}
-					>
-						{loadingCatalog ? $i18n.t('Loading...') : $i18n.t('Refresh :free list')}
-					</button>
-				</div>
+				{error}
+			</p>
+		{/if}
+		{#if routing}
+			<form class="flex flex-col gap-3.5" on:submit|preventDefault={save}>
+				<fieldset disabled={saving} class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+					<label class="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+						<span>{$i18n.t('Free messages per user per day')}</span>
+						<input
+							type="number"
+							class={inputClass}
+							min="1"
+							required
+							bind:value={routing.config.free_user_daily_limit}
+						/>
+					</label>
+					<label class="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+						<span>{$i18n.t('Shared Free requests per day')}</span>
+						<input
+							type="number"
+							class={inputClass}
+							min="1"
+							required
+							bind:value={routing.config.free_account_daily_limit}
+						/>
+					</label>
+					<label class="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+						<span>{$i18n.t('Shared Free requests per minute')}</span>
+						<input
+							type="number"
+							class={inputClass}
+							min="1"
+							required
+							bind:value={routing.config.free_account_minute_limit}
+						/>
+					</label>
+				</fieldset>
 
-				{#if catalogError}
-					<p class="text-xs text-red-600 dark:text-red-400">{catalogError}</p>
-				{:else if loadingCatalog && freeCatalog.length === 0}
-					<p class="py-2 text-xs text-gray-500">{$i18n.t('Loading :free models...')}</p>
-				{:else if filteredFreeCatalog.length === 0}
-					<p class="py-2 text-xs text-gray-500">
-						{freeCatalog.length === 0
-							? $i18n.t(
-									'No :free models found. Configure an enabled Free-tier connection (e.g. OpenRouter) in Connections.'
-								)
-							: $i18n.t('No :free models match your search.')}
-					</p>
-				{:else}
-					<div class="max-h-72 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-850">
-						<table class="w-full text-left text-xs">
-							<thead class="sticky top-0 bg-gray-50 text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-								<tr>
-									<th class="px-2.5 py-1.5 font-medium">{$i18n.t('Model')}</th>
-									{#each freeGroupColumns as col (col.id)}
-										<th class="w-24 px-2 py-1.5 text-center font-medium">
-											{$i18n.t(col.label)}
-										</th>
-									{/each}
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-gray-100 dark:divide-gray-850">
-								{#each filteredFreeCatalog as item (`${item.connection_id}:${item.model_id}`)}
-									<tr class="hover:bg-gray-50/70 dark:hover:bg-gray-850/50">
-										<td class="px-2.5 py-1.5">
-											<div class="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
-											<div class="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500">
-												<span class="font-mono">{item.model_id}</span>
-												<span class="rounded bg-gray-100 px-1 py-0.5 dark:bg-gray-800">
-													{formatContext(item.context_length)}
-												</span>
-												{#each item.capabilities.filter((c) => c !== 'text') as cap (cap)}
-													<span class="rounded bg-blue-500/10 px-1 py-0.5 text-blue-600 dark:text-blue-400">
-														{$i18n.t(capabilityLabels[cap])}
-													</span>
-												{/each}
-											</div>
-										</td>
-										{#each freeGroupColumns as col (col.id)}
-											<td class="px-2 py-1.5 text-center">
-												<input
-													type="checkbox"
-													aria-label={`${item.model_id} ${col.label}`}
-													checked={isAssigned(col.id, item)}
-													on:change={(e) =>
-														toggleAssigned(col.id, item, e.currentTarget.checked)}
-												/>
-											</td>
-										{/each}
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				{/if}
-			</fieldset>
-
-			{#each Object.keys(routing.config.groups) as group (group)}
 				<fieldset
 					disabled={saving}
-					class="flex flex-col gap-2 rounded-lg border border-gray-200 p-2 dark:border-gray-800"
+					class="flex flex-col gap-2.5 rounded-xl border border-gray-200/80 bg-white p-3 dark:border-gray-800 dark:bg-gray-900/70"
 				>
-					<legend class="px-1 text-xs font-medium">
-						{$i18n.t(groupLabels[group] ?? group)}
-					</legend>
-					{#each routing.config.groups[group] as candidate, index}
-						<div class="flex flex-wrap items-end gap-2 text-xs">
-							<label class="flex min-w-36 flex-col">
-								{$i18n.t('Connection')}
-								<select class={inputClass} bind:value={candidate.connection_id} required>
-									{#if !connectionsForGroup(group).some((connection) => connection.id === candidate.connection_id)}
-										<option value={candidate.connection_id}
-											>{$i18n.t('Unavailable connection')}</option
-										>
-									{/if}
-									{#each connectionsForGroup(group) as connection (connection.id)}
-										<option value={connection.id}
-											>{connection.url} · {connection.id.slice(0, 8)}</option
-										>
-									{/each}
-								</select>
-							</label>
-							<label class="flex flex-col">
-								{$i18n.t('Model ID')}
-								<input class={inputClass} bind:value={candidate.model_id} required />
-							</label>
-							<label class="flex w-20 flex-col">
-								{$i18n.t('Priority')}
-								<input
-									type="number"
-									class={inputClass}
-									min="0"
-									required
-									bind:value={candidate.priority}
-								/>
-							</label>
-							<label class="flex w-28 flex-col">
-								{$i18n.t('Context tokens')}
-								<input
-									type="number"
-									class={inputClass}
-									min="1"
-									required
-									bind:value={candidate.min_context}
-								/>
-							</label>
-							<label class="pb-1">
-								<input type="checkbox" bind:checked={candidate.enabled} />
-								{$i18n.t('Enabled')}
-							</label>
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<div class="flex items-center gap-1.5 text-xs font-medium text-gray-800 dark:text-gray-200">
+							<span>{$i18n.t('Free tier :free models checklist')}</span>
+							{#if freeCatalog.length > 0}
+								<span
+									class="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
+								>
+									{freeCatalog.length}
+								</span>
+							{/if}
+						</div>
+
+						<div class="flex flex-wrap items-center gap-2 text-xs">
+							<input
+								type="search"
+								class="{inputClass} min-w-48 sm:w-60"
+								placeholder={$i18n.t('Filter :free models...')}
+								bind:value={catalogQuery}
+							/>
 							<button
 								type="button"
-								class="pb-1 text-red-600 dark:text-red-400"
-								on:click={() => {
-									routing.config.groups[group] = routing.config.groups[group].filter(
-										(_, i) => i !== index
-									);
-								}}>{$i18n.t('Remove')}</button
+								class="shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-200 dark:hover:bg-gray-800"
+								disabled={loadingCatalog}
+								on:click={() => loadCatalog(true)}
 							>
-							<div class="flex w-full flex-wrap gap-2">
-								{#each capabilities as capability (capability)}
-									<label>
-										<input
-											type="checkbox"
-											bind:group={candidate.capabilities}
-											value={capability}
-											disabled={capability === 'text'}
-										/>
-										{$i18n.t(capabilityLabels[capability])}
-									</label>
-								{/each}
-							</div>
+								{loadingCatalog ? $i18n.t('Loading...') : $i18n.t('Refresh :free list')}
+							</button>
 						</div>
-					{/each}
-					<button
-						type="button"
-						class="self-start text-xs underline disabled:opacity-50"
-						disabled={!connectionsForGroup(group).some((item) => item.enabled)}
-						on:click={() => addCandidate(group)}
-					>
-						{$i18n.t('Add model')}
-					</button>
+					</div>
+
+					{#if catalogError}
+						<p class="text-xs text-red-600 dark:text-red-400">{catalogError}</p>
+					{:else if loadingCatalog && freeCatalog.length === 0}
+						<p class="py-2 text-xs text-gray-500">{$i18n.t('Loading :free models...')}</p>
+					{:else if filteredFreeCatalog.length === 0}
+						<p class="py-2 text-xs text-gray-500">
+							{freeCatalog.length === 0
+								? $i18n.t(
+										'No :free models found. Configure an enabled Free-tier connection (e.g. OpenRouter) in Connections.'
+									)
+								: $i18n.t('No :free models match your search.')}
+						</p>
+					{:else}
+						<div class="max-h-64 overflow-y-auto rounded-xl border border-gray-100 scrollbar-hover dark:border-gray-850">
+							<table class="w-full text-left text-xs">
+								<thead class="sticky top-0 z-10 bg-gray-50/95 text-gray-600 backdrop-blur-xs dark:bg-gray-850/95 dark:text-gray-300">
+									<tr>
+										<th class="px-3 py-2 font-medium">{$i18n.t('Model')}</th>
+										{#each freeGroupColumns as col (col.id)}
+											<th class="w-24 px-2 py-2 text-center font-medium">
+												{$i18n.t(col.label)}
+											</th>
+										{/each}
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-100 dark:divide-gray-850">
+									{#each filteredFreeCatalog as item (`${item.connection_id}:${item.model_id}`)}
+										<tr class="transition hover:bg-gray-50/80 dark:hover:bg-gray-850/50">
+											<td class="px-3 py-2">
+												<div class="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+												<div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500">
+													<span class="font-mono">{item.model_id}</span>
+													<span class="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+														{formatContext(item.context_length)}
+													</span>
+													{#each item.capabilities.filter((c) => c !== 'text') as cap (cap)}
+														<span class="rounded-md bg-blue-500/10 px-1.5 py-0.5 text-blue-600 dark:text-blue-400">
+															{$i18n.t(capabilityLabels[cap])}
+														</span>
+													{/each}
+												</div>
+											</td>
+											{#each freeGroupColumns as col (col.id)}
+												<td class="px-2 py-2 text-center">
+													<input
+														type="checkbox"
+														class="size-4 cursor-pointer rounded border-gray-300 accent-gray-900 dark:border-gray-700 dark:accent-white"
+														aria-label={`${item.model_id} ${col.label}`}
+														checked={isAssigned(col.id, item)}
+														on:change={(e) =>
+															toggleAssigned(col.id, item, e.currentTarget.checked)}
+													/>
+												</td>
+											{/each}
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
 				</fieldset>
-			{/each}
-			<div class="flex gap-3">
-				<button type="submit" class={inputClass} disabled={saving}>{$i18n.t('Save routing')}</button>
-				{#if error}
-					<button type="button" class="text-xs underline" on:click={load}>{$i18n.t('Reload')}</button>
-				{/if}
-			</div>
-		</form>
-	{:else if error}
-		<button type="button" class="mt-2 text-xs underline" on:click={load}>{$i18n.t('Retry')}</button>
+
+				<div class="grid grid-cols-1 gap-3">
+					{#each Object.keys(routing.config.groups) as group (group)}
+						<fieldset
+							disabled={saving}
+							class="flex flex-col gap-2.5 rounded-xl border border-gray-200/80 bg-white p-3 dark:border-gray-800 dark:bg-gray-900/70"
+						>
+							<div class="flex items-center justify-between gap-2">
+								<div class="flex items-center gap-1.5 text-xs font-medium text-gray-800 dark:text-gray-200">
+									<span>{$i18n.t(groupLabels[group] ?? group)}</span>
+									<span
+										class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-normal text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+									>
+										{routing.config.groups[group].length}
+									</span>
+								</div>
+								<button
+									type="button"
+									class="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-200 dark:hover:bg-gray-800"
+									disabled={!connectionsForGroup(group).some((item) => item.enabled)}
+									on:click={() => addCandidate(group)}
+								>
+									+ {$i18n.t('Add model')}
+								</button>
+							</div>
+
+							{#if routing.config.groups[group].length === 0}
+								<p class="text-xs text-gray-400 dark:text-gray-500">
+									{$i18n.t('No models assigned to this tier group yet.')}
+								</p>
+							{/if}
+
+							{#each routing.config.groups[group] as candidate, index}
+								<div class="flex flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50/60 p-2.5 text-xs dark:border-gray-850 dark:bg-gray-850/40">
+									<div class="flex flex-wrap items-end gap-2">
+										<label class="flex min-w-40 flex-1 flex-col gap-1 text-gray-600 dark:text-gray-400">
+											<span>{$i18n.t('Connection')}</span>
+											<select class={selectClass} bind:value={candidate.connection_id} required>
+												{#if !connectionsForGroup(group).some((connection) => connection.id === candidate.connection_id)}
+													<option class={optionClass} value={candidate.connection_id}
+														>{$i18n.t('Unavailable connection')}</option
+													>
+												{/if}
+												{#each connectionsForGroup(group) as connection (connection.id)}
+													<option class={optionClass} value={connection.id}
+														>{connection.url} · {connection.id.slice(0, 8)}</option
+													>
+												{/each}
+											</select>
+										</label>
+										<label class="flex min-w-44 flex-[1.5] flex-col gap-1 text-gray-600 dark:text-gray-400">
+											<span>{$i18n.t('Model ID')}</span>
+											<input class={inputClass} bind:value={candidate.model_id} required />
+										</label>
+										<label class="flex w-20 flex-col gap-1 text-gray-600 dark:text-gray-400">
+											<span>{$i18n.t('Priority')}</span>
+											<input
+												type="number"
+												class={inputClass}
+												min="0"
+												required
+												bind:value={candidate.priority}
+											/>
+										</label>
+										<label class="flex w-28 flex-col gap-1 text-gray-600 dark:text-gray-400">
+											<span>{$i18n.t('Context tokens')}</span>
+											<input
+												type="number"
+												class={inputClass}
+												min="1"
+												required
+												bind:value={candidate.min_context}
+											/>
+										</label>
+										<div class="flex items-center gap-2 pb-1">
+											<label class="inline-flex cursor-pointer items-center gap-1.5 text-gray-700 dark:text-gray-300">
+												<input
+													type="checkbox"
+													class="size-3.5 rounded border-gray-300 accent-gray-900 dark:border-gray-700 dark:accent-white"
+													bind:checked={candidate.enabled}
+												/>
+												<span>{$i18n.t('Enabled')}</span>
+											</label>
+											<button
+												type="button"
+												class="rounded-lg px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-500/10 dark:text-red-400"
+												on:click={() => {
+													routing.config.groups[group] = routing.config.groups[group].filter(
+														(_, i) => i !== index
+													);
+												}}>{$i18n.t('Remove')}</button
+											>
+										</div>
+									</div>
+
+									<div class="flex flex-wrap items-center gap-3 pt-0.5 text-[11px] text-gray-600 dark:text-gray-400">
+										{#each capabilities as capability (capability)}
+											<label class="inline-flex cursor-pointer items-center gap-1">
+												<input
+													type="checkbox"
+													class="size-3.5 rounded border-gray-300 accent-gray-900 dark:border-gray-700 dark:accent-white"
+													bind:group={candidate.capabilities}
+													value={capability}
+													disabled={capability === 'text'}
+												/>
+												<span>{$i18n.t(capabilityLabels[capability])}</span>
+											</label>
+										{/each}
+									</div>
+								</div>
+							{/each}
+						</fieldset>
+					{/each}
+				</div>
+
+				<div class="flex items-center justify-end gap-3 pt-1">
+					{#if error}
+						<button
+							type="button"
+							class="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+							on:click={load}
+						>
+							{$i18n.t('Reload')}
+						</button>
+					{/if}
+					<button
+						type="submit"
+						class="flex h-8 items-center justify-center gap-1.5 rounded-xl bg-gray-900 px-3.5 text-xs font-medium text-white transition hover:bg-black disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+						disabled={saving}
+					>
+						{$i18n.t('Save routing')}
+					</button>
+				</div>
+			</form>
+		{:else if error}
+			<button
+				type="button"
+				class="mt-1 rounded-lg px-2.5 py-1 text-xs font-medium underline"
+				on:click={load}
+			>
+				{$i18n.t('Retry')}
+			</button>
+		{/if}
+	</div>
 	{/if}
 </details>

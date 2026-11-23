@@ -1,6 +1,6 @@
 {
 	"name": "weai",
-	"version": "0.13.0",
+	"version": "0.1.2",
 	"private": true,
 	"scripts": {
 		"crypto:verify": "node scripts/encryption/artifact.mjs",

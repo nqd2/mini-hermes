@@ -161,7 +161,10 @@
         }
 
         OPENAI_API_BASE_URLS.forEach(async (url, idx) => {
-          OPENAI_API_CONFIGS[idx] = OPENAI_API_CONFIGS[idx] || {};
+          OPENAI_API_CONFIGS[idx] = {
+            api_type: "responses",
+            ...(OPENAI_API_CONFIGS[idx] || {}),
+          };
           if (!(OPENAI_API_CONFIGS[idx]?.enable ?? true)) {
             return;
           }

@@ -122,7 +122,7 @@ dependencies = [
 ]
 readme = "README.md"
 requires-python = ">= 3.11, < 3.13.0a1"
-version = "0.13.0"
+version = "0.1.2"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",

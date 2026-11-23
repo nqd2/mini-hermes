@@ -53,7 +53,7 @@ export function isLogicalTierModel(modelId: string | null | undefined): boolean 
 
 export function extractProviderSlug(modelId: string | null | undefined): string | null {
 	if (!modelId || typeof modelId !== 'string') return null;
-	const trimmed = modelId.trim().toLowerCase();
+	const trimmed = modelId.trim().toLowerCase().replace(/^~+/, '');
 	if (!trimmed || isLogicalTierModel(trimmed)) return null;
 
 	// Strip optional prefix or `:free` suffix before checking slash
@@ -63,7 +63,11 @@ export function extractProviderSlug(modelId: string | null | undefined): string 
 	}
 
 	// Unprefixed direct model IDs
-	if (/^(gpt-|o1\b|o3\b|o4\b|chatgpt-|dall-e|whisper-|tts-|text-embedding-)/.test(trimmed)) {
+	if (
+		/^(gpt-|o1\b|o3\b|o4\b|chatgpt-|dall-e|whisper-|tts-|text-embedding-|omni-moderation|codex-|babbage-|davinci-)/.test(
+			trimmed
+		)
+	) {
 		return 'openai';
 	}
 	if (trimmed.startsWith('claude-')) return 'anthropic';

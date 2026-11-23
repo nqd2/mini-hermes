@@ -1,6 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv } from 'vite';
 import { resolveBuildInfo } from './scripts/build-info.js';
+import pkg from './package.json' with { type: 'json' };
 
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
@@ -37,7 +38,7 @@ export default defineConfig(({ mode }) => {
 		})
 	],
 	define: {
-		APP_VERSION: JSON.stringify(process.env.npm_package_version),
+		APP_VERSION: JSON.stringify(process.env.npm_package_version || pkg.version),
 		APP_BUILD_HASH: JSON.stringify(buildInfo.hash),
 		APP_BUILD_CHANNEL: JSON.stringify(buildInfo.channel)
 	},

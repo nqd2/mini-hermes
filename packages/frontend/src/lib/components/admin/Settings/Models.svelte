@@ -194,6 +194,13 @@
 	}
 
 	let searchValue = '';
+	const INITIAL_VISIBLE_MODELS = 60;
+	const VISIBLE_MODELS_STEP = 60;
+	let visibleModelCount = INITIAL_VISIBLE_MODELS;
+	$: if (searchValue !== undefined || viewOption !== undefined || selectedTag !== undefined) {
+		visibleModelCount = INITIAL_VISIBLE_MODELS;
+	}
+	$: visibleModels = filteredModels.slice(0, visibleModelCount);
 
 	const enableAllHandler = async () => {
 		const modelsToEnable = filteredModels.filter((m) => !(m.is_active ?? true));
@@ -781,12 +788,25 @@
 />
 
 <ManageModelsModal bind:show={showManageModal} />
-<ModelRoutingPanel />
 
 {#if models !== null}
 	{#if selectedModelId === null}
-		<div class="flex h-full min-h-0 flex-col text-sm">
-			<div class="mb-0.5 flex items-center justify-between">
+		<div
+			class="flex h-full min-h-0 flex-col overflow-y-auto scrollbar-hover pr-1.5 text-sm"
+			on:scroll={(e) => {
+				const el = e.currentTarget;
+				if (
+					visibleModelCount < filteredModels.length &&
+					el.scrollTop + el.clientHeight >= el.scrollHeight - 240
+				) {
+					visibleModelCount = Math.min(
+						filteredModels.length,
+						visibleModelCount + VISIBLE_MODELS_STEP
+					);
+				}
+			}}
+		>
+			<div class="mb-1 flex shrink-0 items-center justify-between">
 				<h2 class="text-sm font-medium text-gray-900 dark:text-white">
 					{$i18n.t('settings.admin.models.title')}
 					<span class="ml-2 font-normal text-gray-500 dark:text-gray-500">
@@ -832,7 +852,11 @@
 				/>
 			{/if}
 
-			<div class="flex min-h-0 flex-1 flex-col space-y-1">
+			<div class="flex flex-1 flex-col space-y-2">
+				{#if $user?.role === 'admin'}
+					<ModelRoutingPanel />
+				{/if}
+
 				<ModelDefaultsPanel
 					bind:this={modelDefaultsPanel}
 					bind:dirty={modelDefaultsDirty}
@@ -1026,14 +1050,12 @@
 				</div>
 
 				<div
-					class="my-0.5 min-h-0 flex-1 space-y-px {filteredModels.length > 0
-						? 'overflow-y-auto scrollbar-hover pr-1.5'
-						: 'overflow-hidden'}"
+					class="my-0.5 flex-1 space-y-px"
 					id="model-list"
 					bind:this={modelListElement}
 				>
 					{#if filteredModels.length > 0}
-						{#each filteredModels as model, modelIdx (`${model.id}-${modelIdx}`)}
+						{#each visibleModels as model, modelIdx (`${model.id}-${modelIdx}`)}
 							<div
 								class="group/setting-row flex cursor-pointer transition w-full px-2 py-1 rounded-xl hover:bg-gray-50/70 dark:hover:bg-gray-850/50 {model
 									?.meta?.hidden
@@ -1316,7 +1338,24 @@
 					{/if}
 				</div>
 
-				<div class="flex justify-end pt-6 text-sm font-normal">
+				{#if visibleModelCount < filteredModels.length}
+					<div class="flex items-center justify-center py-2 text-xs text-gray-500">
+						<button
+							type="button"
+							class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-200 dark:hover:bg-gray-800"
+							on:click={() => {
+								visibleModelCount = Math.min(
+									filteredModels.length,
+									visibleModelCount + VISIBLE_MODELS_STEP
+								);
+							}}
+						>
+							{$i18n.t('Show more')} ({filteredModels.length - visibleModelCount})
+						</button>
+					</div>
+				{/if}
+
+				<div class="flex justify-end pt-4 pb-1 text-sm font-normal">
 					<button
 						class="flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-2.5 text-xs font-normal text-white transition hover:bg-black disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white disabled:cursor-not-allowed"
 						type="button"

@@ -39,7 +39,7 @@
 	let prefixId = '';
 	let enable = true;
 	let apiVersion = '';
-	let apiType = ''; // '' = chat completions (default), 'responses' = Responses API
+	let apiType = 'responses'; // 'responses' = Responses API (default), '' = Chat Completions
 	let tierScope: 'free' | 'plus' | 'both' = 'both';
 
 	let headers = '';
@@ -203,7 +203,7 @@
 				...(provider ? { provider } : {}),
 				...(azure ? { azure: true } : {}),
 				...(azure ? { api_version: apiVersion } : {}),
-				...(apiType ? { api_type: apiType } : {})
+				api_type: apiType
 			}
 		};
 
@@ -226,7 +226,7 @@
 		connectionType = 'external';
 		provider = '';
 		apiVersion = '';
-		apiType = '';
+		apiType = 'responses';
 		tierScope = 'both';
 	};
 
@@ -234,6 +234,7 @@
 		availableModelIds = [];
 		forwardCookies = connection?.config?.forward_cookies ?? false;
 		tierScope = connection?.config?.tier_scope ?? 'both';
+		apiType = connection?.config?.api_type ?? 'responses';
 		if (connection) {
 			url = connection.url;
 			key = connection.key;
@@ -254,7 +255,7 @@
 			connectionType = connection.config?.connection_type ?? 'external';
 			provider = connection.config?.provider ?? (connection.config?.azure ? 'azure' : '');
 			apiVersion = connection.config?.api_version ?? '';
-			apiType = connection.config?.api_type ?? '';
+			apiType = connection.config?.api_type ?? 'responses';
 		}
 	};
 
@@ -413,13 +414,13 @@
 											class={`w-full text-sm ${selectClass}`}
 											bind:value={auth_type}
 										>
-											<option value="none">{$i18n.t('None')}</option>
-											<option value="bearer">{$i18n.t('Bearer')}</option>
+											<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="none">{$i18n.t('None')}</option>
+											<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="bearer">{$i18n.t('Bearer')}</option>
 
-												<option value="session">{$i18n.t('Session')}</option>
+												<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="session">{$i18n.t('Session')}</option>
 												{#if !direct}
-													<option value="system_oauth">{$i18n.t('OAuth')}</option>
-													<option value="microsoft_entra_id">{$i18n.t('Entra ID')}</option>
+													<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="system_oauth">{$i18n.t('OAuth')}</option>
+													<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="microsoft_entra_id">{$i18n.t('Entra ID')}</option>
 												{/if}
 										</select>
 									</div>
@@ -490,11 +491,11 @@
 									<select
 										id="tier-scope-select"
 										bind:value={tierScope}
-										class="text-xs text-gray-700 dark:text-gray-300 bg-transparent pr-5 outline-hidden"
+										class="appearance-none rounded-lg border border-gray-200 bg-gray-50/70 px-2.5 pr-7 py-1 text-xs text-gray-800 outline-hidden transition focus:border-gray-400 dark:border-gray-800 dark:bg-gray-850 dark:text-gray-200 dark:focus:border-gray-600"
 									>
-										<option value="free">{$i18n.t('Free')}</option>
-										<option value="plus">{$i18n.t('Plus')}</option>
-										<option value="both">{$i18n.t('Free & Plus')}</option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="free">{$i18n.t('Free')}</option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="plus">{$i18n.t('Plus')}</option>
+										<option class="bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100" value="both">{$i18n.t('Free & Plus')}</option>
 									</select>
 								</div>
 							</div>

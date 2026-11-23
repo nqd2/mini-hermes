@@ -22,7 +22,11 @@ describe('providerIcons', () => {
 	it('extracts provider slugs for both namespaced and direct model IDs', () => {
 		expect(extractProviderSlug('google/gemma-4-31b-it:free')).toBe('google');
 		expect(extractProviderSlug('anthropic/claude-3.5-sonnet')).toBe('anthropic');
+		expect(extractProviderSlug('~anthropic/claude-fable-latest')).toBe('anthropic');
+		expect(extractProviderSlug('~deepseek/deepseek-flash-latest')).toBe('deepseek');
+		expect(extractProviderSlug('~moonshotai/kimi-latest')).toBe('moonshotai');
 		expect(extractProviderSlug('gpt-4o-mini')).toBe('openai');
+		expect(extractProviderSlug('omni-moderation-latest')).toBe('openai');
 		expect(extractProviderSlug('claude-3-opus')).toBe('anthropic');
 		expect(extractProviderSlug('deepseek-r1')).toBe('deepseek');
 		expect(extractProviderSlug('qwen/qwen-2.5-72b')).toBe('qwen');

@@ -455,7 +455,7 @@
 
 			{#if filteredItems === null || loading}
 				<div class="w-full h-full flex justify-center items-center my-16 mb-24">
-					<Spinner className="size-5" />
+					<Spinner variant="brand" />
 				</div>
 			{:else if (filteredItems ?? []).length !== 0}
 				<div class="@container">
@@ -740,7 +740,7 @@
 		{/if}
 	{:else}
 		<div class="w-full h-full flex justify-center items-center">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{/if}
 </Comments>

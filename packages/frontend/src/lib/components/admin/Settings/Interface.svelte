@@ -677,6 +677,6 @@
 	</form>
 {:else}
 	<div class="flex h-full w-full items-center justify-center">
-		<Spinner className="size-5" />
+		<Spinner variant="brand" />
 	</div>
 {/if}

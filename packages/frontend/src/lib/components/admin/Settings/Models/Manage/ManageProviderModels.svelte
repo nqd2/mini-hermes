@@ -227,7 +227,7 @@
 
 	{#if loading}
 		<div class="py-5">
-			<Spinner />
+			<Spinner variant="brand" />
 		</div>
 	{:else if providerModels.length === 0}
 		<div class="py-5 text-center text-xs text-gray-400">

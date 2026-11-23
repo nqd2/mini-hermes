@@ -56,6 +56,6 @@
 	<Chat />
 {:else}
 	<div class="w-full h-screen flex items-center justify-center">
-		<Spinner />
+		<Spinner variant="brand" size="page" />
 	</div>
 {/if}

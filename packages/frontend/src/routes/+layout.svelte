@@ -1475,7 +1475,7 @@
 
 {#if showRefresh}
 	<div class=" py-5">
-		<Spinner className="size-5" />
+		<Spinner variant="brand" size="page" />
 	</div>
 {/if}
 

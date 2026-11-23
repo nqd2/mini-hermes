@@ -63,7 +63,7 @@
 	{#if loading}<div
 			class="flex h-full min-h-20 items-center justify-center text-gray-500 dark:text-gray-400"
 		>
-			<Spinner className="size-4" />
+			<Spinner variant="brand" />
 		</div>
 	{:else if error}<div class="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
 			<p>{$i18n.t('Failed to load chat preview')}</p>

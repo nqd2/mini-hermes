@@ -644,7 +644,7 @@
 						class="flex flex-1 items-center justify-center text-gray-400"
 						aria-label={$i18n.t('Searching')}
 					>
-						<Spinner className="size-4" />
+						<Spinner variant="brand" />
 					</div>{/if}
 				{#if error}<div
 						class="m-auto px-5 py-6 text-center text-xs text-gray-500 dark:text-gray-400"

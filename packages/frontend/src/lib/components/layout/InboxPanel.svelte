@@ -232,7 +232,7 @@
 		{#if loading && !loaded}<div
 				class="flex flex-1 items-center justify-center px-4 py-6 text-gray-500 dark:text-gray-400"
 			>
-				<Spinner className="size-4" />
+				<Spinner variant="brand" />
 			</div>{:else if !error && !items.length}<p
 				class="flex flex-1 items-center justify-center px-4 py-6 text-center text-xs text-gray-500 dark:text-gray-400"
 			>

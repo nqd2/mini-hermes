@@ -361,7 +361,7 @@
 
 	{#if users === null || total === null}
 		<div class="my-10">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:else}
 		{#if users.length > 0}

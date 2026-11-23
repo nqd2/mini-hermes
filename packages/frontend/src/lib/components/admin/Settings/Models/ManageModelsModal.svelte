@@ -103,7 +103,7 @@
           </div>
         {:else}
           <div class=" py-5">
-            <Spinner />
+            <Spinner variant="brand" />
           </div>
         {/if}
       </div>

@@ -719,7 +719,7 @@
 <div class="relative {className}">
 	{#if loading}
 		<div class="absolute inset-0 flex items-center justify-center">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:else if error}
 		<div class="absolute inset-0 flex items-center justify-center text-sm text-red-500">

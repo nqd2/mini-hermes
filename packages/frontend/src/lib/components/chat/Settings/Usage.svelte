@@ -310,7 +310,7 @@
 
 	{#if loading}
 		<div class="flex flex-1 items-center justify-center">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:else if !usage}
 		<div class="flex flex-1 items-center justify-center text-xs text-gray-500">

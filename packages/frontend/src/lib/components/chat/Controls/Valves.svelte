@@ -235,14 +235,14 @@
 							/>
 						</div>
 					{:else}
-						<Spinner className="size-5" />
+						<Spinner variant="brand" />
 					{/if}
 				</div>
 			{/if}
 		</div>
 	</form>
 {:else}
-	<Spinner className="size-4" />
+	<Spinner variant="brand" />
 {/if}
 
 <style>

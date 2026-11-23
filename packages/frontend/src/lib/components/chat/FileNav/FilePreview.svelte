@@ -294,7 +294,7 @@
 >
 	<!-- File preview -->
 	{#if fileLoading}
-		<div class="flex items-center justify-center h-full"><Spinner className="size-4" /></div>
+		<div class="flex items-center justify-center h-full"><Spinner variant="brand" /></div>
 	{:else if fileImageUrl !== null}
 		<PanzoomContainer
 			bind:this={panzoomRef}
@@ -336,7 +336,7 @@
 	{:else if fileModelData !== null}
 		{#key fileModelData}
 			{#await import('../../common/ModelPreview.svelte')}
-				<div class="flex h-full items-center justify-center"><Spinner className="size-4" /></div>
+				<div class="flex h-full items-center justify-center"><Spinner variant="brand" /></div>
 			{:then { default: ModelPreview }}
 				<ModelPreview
 					data={fileModelData}

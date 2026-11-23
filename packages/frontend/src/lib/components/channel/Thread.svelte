@@ -293,7 +293,7 @@
 					/>
 				{:else}
 					<div class="w-full flex justify-center pt-5 pb-10">
-						<Spinner />
+						<Spinner variant="brand" />
 					</div>
 				{/if}
 			</div>

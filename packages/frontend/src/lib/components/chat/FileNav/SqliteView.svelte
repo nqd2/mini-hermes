@@ -127,7 +127,7 @@
 
 <div class="sqlite-view flex flex-col h-full">
 	{#if loading}
-		<div class="flex items-center justify-center h-full"><Spinner className="size-4" /></div>
+		<div class="flex items-center justify-center h-full"><Spinner variant="brand" /></div>
 	{:else if error}
 		<div class="p-3 text-xs text-gray-500 dark:text-gray-400">{error}</div>
 	{:else}

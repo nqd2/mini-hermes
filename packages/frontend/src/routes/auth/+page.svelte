@@ -318,7 +318,7 @@
 							</div>
 
 							<div>
-								<Spinner className="size-5" />
+								<Spinner variant="brand" className="h-8 w-auto" />
 							</div>
 						</div>
 					</div>

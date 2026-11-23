@@ -159,7 +159,7 @@
 	>
 		{#if thumbsLoading && thumbnails.length === 0}
 			<div class="flex h-full items-center justify-center">
-				<Spinner className="size-4" />
+				<Spinner variant="brand" className="h-8 w-auto" />
 			</div>
 		{:else}
 			{#each thumbnails as thumbnail, index}
@@ -212,7 +212,7 @@
 			/>
 		{:else}
 			<div class="flex h-full items-center justify-center">
-				<Spinner className="size-5" />
+				<Spinner variant="brand" />
 			</div>
 		{/if}
 	</section>

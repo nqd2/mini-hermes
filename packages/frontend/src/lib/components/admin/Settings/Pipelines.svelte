@@ -459,7 +459,7 @@
 									{/each}
 								{:else}
 									<div class="flex justify-center py-2">
-										<Spinner className="size-4" />
+										<Spinner variant="brand" />
 									</div>
 								{/if}
 							{:else}
@@ -475,7 +475,7 @@
 					{/if}
 				{:else}
 					<div class="flex justify-center py-4">
-						<Spinner className="size-4" />
+						<Spinner variant="brand" />
 					</div>
 				{/if}
 			{:else}
@@ -489,7 +489,7 @@
 		{:else}
 			<div class="flex justify-center h-full">
 				<div class="my-auto">
-					<Spinner className="size-6" />
+					<Spinner variant="brand" />
 				</div>
 			</div>
 		{/if}

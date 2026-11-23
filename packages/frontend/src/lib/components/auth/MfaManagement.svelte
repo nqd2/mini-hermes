@@ -69,9 +69,9 @@
 				{reauthenticate || !$user ? $i18n.t('Sign in again') : $i18n.t('Back')}
 			</button>
 		{:else}
-			<div role="status" class="flex items-center justify-center gap-2 text-xs text-gray-500">
-				<Spinner />
-				{$i18n.t('Loading...')}
+			<div role="status" class="flex flex-col items-center justify-center gap-3 py-4 text-xs text-gray-500">
+				<Spinner variant="brand" />
+				<span>{$i18n.t('Loading...')}</span>
 			</div>
 		{/if}
 	</div>

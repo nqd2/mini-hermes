@@ -720,7 +720,7 @@
 					{/if}
 				{:else}
 					<div class="flex items-center justify-center py-6">
-						<Spinner className="size-5" />
+						<Spinner variant="brand" />
 					</div>
 				{/if}
 			</div>

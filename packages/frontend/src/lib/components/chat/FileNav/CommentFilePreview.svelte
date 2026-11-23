@@ -287,7 +287,7 @@
 	}}
 	on:click={(e) => reveal(e, touchInteraction || e.detail === 0)}
 >
-	{#if loading}<div class="flex h-full items-center justify-center"><Spinner /></div>
+	{#if loading}<div class="flex h-full items-center justify-center"><Spinner variant="brand" /></div>
 	{:else if pdf}
 		<PdfPagesPreview
 			bind:currentSlide

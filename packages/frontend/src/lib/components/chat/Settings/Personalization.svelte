@@ -154,7 +154,7 @@
 
 					{#if loadingMemories}
 						<div class="flex min-h-16 w-full items-center justify-center">
-							<Spinner className="size-4" />
+							<Spinner variant="brand" />
 						</div>
 					{:else}
 						<div class="mb-2 flex min-w-0 items-center justify-between gap-3">

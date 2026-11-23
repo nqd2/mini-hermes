@@ -298,7 +298,7 @@
 	<div class="mt-3 flex-1 min-h-24 overflow-y-auto scrollbar-hover pr-1.5">
 		{#if chatList === null}
 			<div class="flex min-h-20 items-center justify-center">
-				<Spinner className="size-5" />
+				<Spinner variant="brand" />
 			</div>
 		{:else if chatList.length === 0}
 			<div

@@ -937,7 +937,7 @@
 			</div>
 
 			{#if selectingVersion}
-				<div class="flex flex-1 justify-center py-8"><Spinner className="size-5" /></div>
+				<div class="flex flex-1 justify-center py-8"><Spinner variant="brand" /></div>
 			{:else if selectedVersion}
 				<section aria-label={$i18n.t('Model version preview')} class="min-h-0 flex-1">
 					{#key selectedVersion.id}
@@ -1912,7 +1912,7 @@
 		</div>
 	{:else}
 		<div class="flex h-full w-full items-center justify-center" role="status">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 			<span class="sr-only">{$i18n.t('Loading...')}</span>
 		</div>
 	{/if}

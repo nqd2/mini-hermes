@@ -314,7 +314,7 @@
 		</div>
 	{:else}
 		<form class="px-5 pb-4 text-sm dark:text-gray-200" on:submit|preventDefault={submit}>
-			{#if loading}<div class="flex justify-center py-4"><Spinner className="size-5" /></div>
+			{#if loading}<div class="flex justify-center py-4"><Spinner variant="brand" /></div>
 			{:else}
 				{#if !manifest}<AdminSettingField
 						label={$i18n.t('App URL')}

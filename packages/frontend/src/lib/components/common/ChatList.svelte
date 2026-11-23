@@ -116,7 +116,7 @@
 	<div class="max-h-[22rem] overflow-y-scroll">
 		{#if loading && (!chatList || chatList.length === 0)}
 			<div class="flex justify-center py-8">
-				<Spinner />
+				<Spinner variant="brand" />
 			</div>
 		{:else if !chatList || chatList.length === 0}
 			<div class="text-center text-gray-500 text-sm py-8">

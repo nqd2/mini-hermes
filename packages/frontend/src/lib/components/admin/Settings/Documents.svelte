@@ -2140,7 +2140,7 @@
     </div>
   {:else}
     <div class="flex items-center justify-center h-full">
-      <Spinner className="size-5" />
+      <Spinner variant="brand" />
     </div>
   {/if}
 </form>

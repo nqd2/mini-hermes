@@ -544,7 +544,7 @@
 				{/if}
 			</div>
 		{:else}
-			<div class="flex min-h-20 items-center justify-center"><Spinner className="size-4" /></div>
+			<div class="flex min-h-20 items-center justify-center"><Spinner variant="brand" /></div>
 		{/if}
 	</div>
 </Modal>

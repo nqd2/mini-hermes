@@ -1129,7 +1129,7 @@
 					/>
 				{/if}
 			</div>
-		{:else}<Spinner className="size-5" />{/if}
+		{:else}<Spinner variant="brand" />{/if}
 	</div>
 
 <Modal bind:show={showSettings} size="md" ariaLabel={$i18n.t('Settings')}>

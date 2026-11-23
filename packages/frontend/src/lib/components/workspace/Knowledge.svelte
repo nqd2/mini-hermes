@@ -591,12 +591,12 @@
 				{/if}
 			{:else}
 				<div class="w-full h-full flex justify-center items-center py-10">
-					<Spinner className="size-4" />
+					<Spinner variant="brand" />
 				</div>
 			{/if}
 		</div>
 	{:else}
 		<div class="w-full h-full flex justify-center items-center">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{/if}

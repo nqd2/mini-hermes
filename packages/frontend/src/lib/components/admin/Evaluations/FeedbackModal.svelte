@@ -146,7 +146,7 @@
 					</div>
 				{:else}
 					<div class="flex items-center justify-center w-full h-32">
-						<Spinner className={'size-5'} />
+						<Spinner variant="brand" />
 					</div>
 				{/if}
 			</div>

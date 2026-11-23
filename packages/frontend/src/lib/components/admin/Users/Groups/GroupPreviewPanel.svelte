@@ -31,7 +31,7 @@
 <div class="space-y-2">
 	{#if loading}
 		<div class="flex justify-center items-center py-8">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:else if error}
 		<div class="text-red-500 text-xs text-center py-4">{error}</div>

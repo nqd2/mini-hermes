@@ -521,7 +521,7 @@
 			{:else}
 				<div class=" flex items-center justify-center h-full w-full">
 					<div class="m-auto">
-						<Spinner className="size-5" />
+						<Spinner variant="brand" size="page" />
 					</div>
 				</div>
 			{/if}

@@ -34,7 +34,7 @@
 	</div>
 	{#await members}
 		<div class="my-10" role="status" aria-label={$i18n.t('Loading...')}>
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:then result}
 		<p class="my-2 text-xs text-gray-500 dark:text-gray-400">

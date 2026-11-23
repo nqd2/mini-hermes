@@ -493,7 +493,7 @@
 							? '  md:max-w-[calc(100%-var(--sidebar-width))]'
 							: ' '}"
 					>
-						<Spinner className="size-5" />
+						<Spinner variant="brand" size="page" />
 					</div>
 				{/if}
 			{/if}

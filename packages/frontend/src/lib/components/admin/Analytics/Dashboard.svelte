@@ -533,7 +533,7 @@
 		</div>
 	{:else if loading}
 		<div class="my-10 flex justify-center">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:else}
 		<div class="mt-4 min-w-0">

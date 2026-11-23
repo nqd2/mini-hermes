@@ -2069,7 +2069,7 @@
 			{:else}
 				{#if isSearching}
 					{#if matchLoading}
-						<div class="flex justify-center pt-8"><Spinner className="size-4" /></div>
+						<div class="flex justify-center pt-8"><Spinner variant="brand" /></div>
 					{:else if matchError}
 						<div class="flex items-center justify-center py-12">
 							<div class="text-xs text-gray-400 dark:text-gray-500">{matchError}</div>
@@ -2191,7 +2191,7 @@
 						{$i18n.t('Uploading...')}
 					</div>
 				{:else if loading || (effectiveTerminalId && $terminalServers === null)}
-					<div class="flex justify-center pt-8"><Spinner className="size-4" /></div>
+					<div class="flex justify-center pt-8"><Spinner variant="brand" /></div>
 				{:else if error}
 					<div class="p-4 text-xs">{error}</div>
 				{:else if visibleEntries.length === 0 && !creatingFolder && !creatingFile}

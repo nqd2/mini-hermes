@@ -116,9 +116,7 @@
 					metaThemeColorTag.setAttribute('content', '#171717');
 				}
 
-				const preloadHref = document.documentElement.classList.contains('dark')
-					? '/static/splash-dark.png'
-					: '/static/splash.png';
+				const preloadHref = '/static/splash-loading.svg';
 				const preload = document.createElement('link');
 				preload.rel = 'preload';
 				preload.as = 'image';
@@ -139,7 +137,6 @@
 						}
 					}
 				});
-				const isDarkMode = document.documentElement.classList.contains('dark');
 
 				const logo = document.createElement('img');
 				logo.id = 'logo';
@@ -147,7 +144,7 @@
 					'position: absolute; width: auto; height: 6rem; top: 44%; left: 50%; transform: translateX(-50%); display:block;';
 				logo.loading = 'eager';
 				logo.fetchPriority = 'high';
-				logo.src = isDarkMode ? '/static/splash-dark.png' : '/static/splash.png';
+				logo.src = '/static/splash-loading.svg';
 				logo.alt = '';
 
 				document.addEventListener('DOMContentLoaded', function () {
@@ -196,11 +193,10 @@
 				<img
 					id="logo-her"
 					alt=""
-					style="width: auto; height: 13rem"
-					src="/static/splash.png"
+					style="width: auto; height: 7.5rem"
+					src="/static/splash-loading.svg"
 					loading="eager"
 					fetchpriority="high"
-					class="animate-pulse-fast"
 				/>
 
 				<div style="position: relative; width: 24rem; margin-top: 0.5rem">
@@ -250,6 +246,11 @@
 			background: #000;
 		}
 
+		html.dark #logo {
+			filter: drop-shadow(0 0 14px rgba(0, 150, 255, 0.3))
+				drop-shadow(0 0 6px rgba(231, 187, 124, 0.16));
+		}
+
 		html.her #splash-screen {
 			background: #983724;
 		}
@@ -272,7 +273,7 @@
 
 		html.her #logo-her {
 			display: block;
-			filter: invert(1);
+			filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.2));
 		}
 
 		html.her #progress-background {

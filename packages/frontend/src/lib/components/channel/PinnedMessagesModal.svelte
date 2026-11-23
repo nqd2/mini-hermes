@@ -91,7 +91,7 @@
 					<div class="flex flex-col w-full h-full pb-2 gap-1">
 						{#if pinnedMessages === null}
 							<div class="my-10">
-								<Spinner className="size-5" />
+								<Spinner variant="brand" />
 							</div>
 						{:else}
 							<div

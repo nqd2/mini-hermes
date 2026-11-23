@@ -136,7 +136,7 @@
 				>
 					{#if isLoading}
 						<div class="flex justify-center py-10">
-							<Spinner className="size-5" />
+							<Spinner variant="brand" />
 						</div>
 					{:else if webhooks.length > 0}
 						<div class="w-full py-2">

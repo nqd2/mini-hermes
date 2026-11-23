@@ -215,7 +215,7 @@
 				/>
 			{:else}
 				<div class="py-10">
-					<Spinner />
+					<Spinner variant="brand" />
 				</div>
 			{/if}
 		{/if}

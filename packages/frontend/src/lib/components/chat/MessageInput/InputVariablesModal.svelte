@@ -396,7 +396,7 @@
 								{/each}
 							</div>
 						{:else}
-							<Spinner className="size-5" />
+							<Spinner variant="brand" />
 						{/if}
 					</div>
 

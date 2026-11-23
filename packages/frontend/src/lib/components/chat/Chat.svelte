@@ -4619,7 +4619,7 @@
 			>
 				{#if loading}
 					<div class="flex items-center justify-center h-full w-full">
-						<Spinner className="size-5" />
+						<Spinner variant="brand" size="page" />
 					</div>
 				{:else}
 					<FilesOverlay show={dragged} />

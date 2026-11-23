@@ -53,7 +53,7 @@
 </script>
 
 {#if loading}<div class="flex justify-center py-6 text-gray-400">
-		<Spinner className="size-4" />
+		<Spinner variant="brand" />
 	</div>
 {:else if error}<div class="py-4 text-xs text-gray-500 dark:text-gray-400">
 		<p>{$i18n.t('Failed to load note preview')}</p>

@@ -342,7 +342,7 @@
 		<div class="overflow-y-auto scrollbar-hidden" on:scroll={onScroll}>
 			{#if runsLoading && visibleRuns.length === 0}
 				<div class="flex justify-center py-8">
-					<Spinner className="size-4" />
+					<Spinner variant="brand" />
 				</div>
 			{:else if visibleRuns.length === 0}
 				<div class="py-2 text-[0.6875rem] text-gray-400 dark:text-gray-600">

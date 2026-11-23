@@ -1411,7 +1411,7 @@
 	{/if}
 {:else}
 	<div class=" h-full w-full flex justify-center items-center">
-		<Spinner className="size-5" />
+		<Spinner variant="brand" />
 	</div>
 {/if}
 

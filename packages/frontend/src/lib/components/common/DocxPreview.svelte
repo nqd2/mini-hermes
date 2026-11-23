@@ -295,7 +295,7 @@
 
 	{#if loading}
 		<div class="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-gray-950/60">
-			<Spinner className="size-4" />
+			<Spinner variant="brand" />
 		</div>
 	{/if}
 

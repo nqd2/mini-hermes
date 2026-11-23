@@ -467,7 +467,7 @@
 	></canvas>
 	{#if loading}
 		<div class="absolute inset-0 flex items-center justify-center">
-			<Spinner className="size-4" />
+			<Spinner variant="brand" />
 		</div>
 	{:else if error}
 		<div

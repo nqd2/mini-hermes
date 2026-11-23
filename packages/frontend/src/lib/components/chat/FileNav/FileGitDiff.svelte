@@ -75,7 +75,7 @@
 			>
 		</div>
 	{:else if loading && !diff}<div class="flex h-full items-center justify-center">
-			<Spinner className="size-4" />
+			<Spinner variant="brand" />
 		</div>
 	{:else if file?.binary}<div
 			class="flex h-full items-center justify-center p-3 text-xs text-gray-400"

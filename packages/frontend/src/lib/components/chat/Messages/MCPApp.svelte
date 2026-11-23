@@ -207,7 +207,7 @@
 			role="status"
 			aria-label={$i18n.t('Loading')}
 		>
-			<Spinner />
+			<Spinner variant="brand" />
 		</div>
 	{/if}
 	<iframe

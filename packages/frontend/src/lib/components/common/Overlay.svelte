@@ -17,7 +17,7 @@
 
 			<div class="flex w-full flex-col justify-center">
 				<div class=" py-3">
-					<Spinner className="ml-2" />
+					<Spinner variant="brand" />
 				</div>
 
 				{#if content !== ''}

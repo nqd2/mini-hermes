@@ -242,7 +242,7 @@
 					role="status"
 					aria-label={$i18n.t('Loading sessions')}
 				>
-					<Spinner className="size-5" />
+					<Spinner variant="brand" />
 				</div>
 			{:else if error}
 				<div role="alert" class="py-12 text-center">

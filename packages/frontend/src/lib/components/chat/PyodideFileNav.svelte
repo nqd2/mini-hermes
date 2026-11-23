@@ -443,7 +443,7 @@
 			<FilePreview {selectedFile} {fileLoading} {fileImageUrl} {fileContent} {overlay} />
 		{:else if loading}
 			<div class="flex items-center justify-center flex-1 p-6">
-				<Spinner className="size-4" />
+				<Spinner variant="brand" />
 			</div>
 		{:else if error}
 			<div class="flex items-center justify-center flex-1 p-6">

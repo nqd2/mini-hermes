@@ -1115,7 +1115,7 @@ ${content}
 			{#if loading}
 				<div class=" absolute top-0 bottom-0 left-0 right-0 flex">
 					<div class="m-auto">
-						<Spinner className="size-5" />
+						<Spinner variant="brand" />
 					</div>
 				</div>
 			{:else if note && activePage}
@@ -1702,7 +1702,7 @@ ${content}
 		<div class="flex-1 min-h-0" class:hidden={!!currentNoteComments}>
 			{#if noteChatLoading}
 				<div class="flex h-full items-center justify-center">
-					<Spinner className="size-5" />
+					<Spinner variant="brand" />
 				</div>
 			{:else if note && (noteChatId || noteChatDraftKey)}
 				<Chat

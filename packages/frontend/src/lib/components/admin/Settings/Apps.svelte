@@ -74,7 +74,7 @@
 					>
 				</div>
 				{#if apps === null}<div class="flex justify-center py-4">
-						<Spinner className="size-5" />
+						<Spinner variant="brand" />
 					</div>
 				{:else}<div class="flex flex-col gap-1.5">
 						{#each apps as app (app.id)}

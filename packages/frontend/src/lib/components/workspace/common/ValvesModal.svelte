@@ -186,7 +186,7 @@
 						{#if !loading}
 							<Valves {valvesSpec} bind:valves meta={resourceMeta} {userValves} />
 						{:else}
-							<Spinner className="size-5" />
+							<Spinner variant="brand" />
 						{/if}
 					</div>
 

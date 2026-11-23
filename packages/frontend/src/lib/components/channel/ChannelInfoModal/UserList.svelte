@@ -109,7 +109,7 @@
 <div class="flex min-h-0 flex-col">
 	{#if users === null || total === null}
 		<div class="my-10">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:else}
 		<div class="flex shrink-0 items-center justify-between px-2 mb-1">

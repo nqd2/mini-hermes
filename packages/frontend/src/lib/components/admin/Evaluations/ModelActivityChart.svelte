@@ -181,7 +181,7 @@
 <div class="w-full">
 	{#if loading}
 		<div class="flex items-center justify-center h-40">
-			<Spinner className="size-5" />
+			<Spinner variant="brand" />
 		</div>
 	{:else if !history.length || history.every((h) => h.won === 0 && h.lost === 0)}
 		<div class="flex items-center justify-center h-40 text-gray-500 text-sm">

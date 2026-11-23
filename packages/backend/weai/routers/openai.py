@@ -759,6 +759,9 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
                 if provider:
                     model['provider'] = provider
 
+                if url:
+                    model['url'] = url
+
     log.debug('get_all_models:responses() %s', responses)
     return responses
 
@@ -839,6 +842,7 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
                             'connection_type': model.get('connection_type', 'external'),
                             'provider': provider,
                             'urlIdx': idx,
+                            'url': base_url,
                             **({'manual_model_id': True} if manual_model_ids else {}),
                         }
 

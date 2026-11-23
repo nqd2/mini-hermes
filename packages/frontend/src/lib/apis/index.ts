@@ -145,6 +145,7 @@ export const getModels = async (
 						...model,
 						openai: { id: model.id },
 						urlIdx: idx,
+						url: OPENAI_API_BASE_URLS?.[idx] ?? model?.url,
 						...(manualModelIds ? { manual_model_id: true } : {})
 					}));
 

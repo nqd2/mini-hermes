@@ -46,6 +46,7 @@
 	} from '$lib/utils';
 	import { WEAI_API_BASE_URL, WEAI_BASE_URL } from '$lib/constants';
 	import { resolveLocalizedModelName } from '$lib/utils/localizedContent';
+	import { formatModelNameWithProvider } from '$lib/utils/providerTag';
 	import equal from 'fast-deep-equal';
 
 	import Name from './Name.svelte';
@@ -206,8 +207,12 @@
 	let showDeleteConfirm = false;
 
 	let model = null;
-	$: localizedModelName = model ? resolveLocalizedModelName(model, $i18n.language) : message.model;
 	$: model = $models.find((m) => m.id === message.model);
+	$: localizedModelName = formatModelNameWithProvider(
+		model ? resolveLocalizedModelName(model, $i18n.language) : message.model,
+		model,
+		message.model
+	);
 
 	$: statusEntries = message?.statusHistory ?? [...(message?.status ? [message?.status] : [])];
 	$: hasVisibleStatus =

@@ -53,6 +53,10 @@
     resolveLocalizedModelDescription,
     resolveLocalizedModelName,
   } from "$lib/utils/localizedContent";
+  import {
+    formatModelNameWithProvider,
+    getProviderTag,
+  } from "$lib/utils/providerTag";
   import { isTextGenerationModel } from "$lib/utils/textModels";
   import { getModels } from "$lib/apis";
 
@@ -220,10 +224,17 @@
   $: primaryValue = selectedValues[0] ?? "";
   $: selectedModel = items.find((item) => item.value === primaryValue) ?? null;
   $: selectedCount = selectedValues.filter(Boolean).length;
+  $: selectedModelLabel = selectedModel
+    ? formatModelNameWithProvider(
+        selectedModel.label,
+        selectedModel.model,
+        selectedModel.value,
+      )
+    : "";
   $: triggerLabel = selectedModel
     ? compareEnabled && selectedCount > 1
-      ? `${selectedModel.label} +${selectedCount - 1}`
-      : selectedModel.label
+      ? `${selectedModelLabel} +${selectedCount - 1}`
+      : selectedModelLabel
     : (placeholder ?? $i18n.t("Select a model"));
 
   let searchValue = "";
@@ -258,6 +269,7 @@
     items.map((item) => {
       const _item = {
         ...item,
+        providerTag: getProviderTag(item.model, item.value),
         modelName: resolveLocalizedModelName(item.model, $i18n.language),
         tags: (item.model?.tags ?? []).map((tag) => tag.name).join(" "),
         desc: resolveLocalizedModelDescription(item.model, $i18n.language),
@@ -265,7 +277,7 @@
       return _item;
     }),
     {
-      keys: ["value", "tags", "modelName"],
+      keys: ["value", "tags", "modelName", "providerTag"],
       threshold: 0.4,
     },
   );

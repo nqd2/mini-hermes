@@ -12,6 +12,7 @@
 	import ModelIcon from '$lib/components/common/ModelIcon.svelte';
 	import { copyToClipboard, removeFormattings, sanitizeResponseContent } from '$lib/utils';
 	import { resolveLocalizedModelDescription } from '$lib/utils/localizedContent';
+	import { formatModelNameWithProvider } from '$lib/utils/providerTag';
 	import ArrowUpTray from '$lib/components/icons/ArrowUpTray.svelte';
 	import Check from '$lib/components/icons/Check.svelte';
 	import ModelItemMenu from './ModelItemMenu.svelte';
@@ -38,6 +39,7 @@
 	export let onEdit: () => void = () => {};
 
 	$: localizedDescription = resolveLocalizedModelDescription(item.model, $i18n.language);
+	$: displayLabel = formatModelNameWithProvider(item.label, item.model, item.value);
 
 	const copyLinkHandler = async (model) => {
 		const baseUrl = window.location.origin;
@@ -113,9 +115,9 @@
 			</div>
 
 			<div class="flex min-w-0 items-center">
-				<Tooltip content={`${item.label} (${item.value})`} placement="top-start">
+				<Tooltip content={`${displayLabel} (${item.value})`} placement="top-start">
 					<div class="line-clamp-1">
-						{item.label}
+						{displayLabel}
 					</div>
 				</Tooltip>
 			</div>

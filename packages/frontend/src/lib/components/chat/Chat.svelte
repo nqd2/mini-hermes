@@ -28,6 +28,7 @@
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
 	import { mergeChatHistoryMessages } from './chatHistoryMerge';
+	import { recoverChatSnapshot } from './chatSnapshotRecovery';
 	import { reconcileLoadedChatTasks } from './chatLoadTaskReconciliation';
 	import { reduceChatMessageEvent } from './chatMessageEventReducer';
 	import { createChatInteractionQueue, type ChatInteraction } from './chatInteractionQueue';
@@ -1241,7 +1242,12 @@
 	let joinedChatId = '';
 	let liveParticipants: { id: string; name: string }[] = [];
 	const clearPresence = () => (liveParticipants = []);
-	let chatRefresh: { id: string; promise: Promise<void> } | null = null;
+	let chatRefresh: {
+		id: string;
+		connectionId: string | undefined;
+		signal: AbortSignal;
+		promise: Promise<void>;
+	} | null = null;
 	let typingUsers: { id: string; name: string }[] = [];
 	let typingUsersTimeout: Record<string, ReturnType<typeof setTimeout>> = {};
 	let lastTypingEmit = 0;
@@ -1295,27 +1301,61 @@
 	const refreshChat = () => {
 		const id = $chatId;
 		if (!id || $temporaryChatEnabled) return Promise.resolve();
-		if (chatRefresh?.id === id) return chatRefresh.promise;
-		const baseline = { ...history.messages };
+		const connectionSocket = $socket;
+		const connectionId = connectionSocket?.id;
 		const signal = chatLoadLifecycle.signal;
+		if (
+			chatRefresh?.id === id &&
+			chatRefresh.connectionId === connectionId &&
+			chatRefresh.signal === signal
+		) return chatRefresh.promise;
+		const baseline = { ...history.messages };
+		const taskState = chatTaskState;
+		const wasGenerating = generating;
+		const isCurrent = () =>
+			$chatId === id && joinedChatId === id && !signal.aborted &&
+			$socket === connectionSocket && connectionSocket?.id === connectionId && connectionSocket?.connected;
 		const promise = (async () => {
 			try {
+				// Read tasks first so a task that finishes during recovery is followed by
+				// a newer message snapshot. A failed task lookup is not an empty task list.
+				const pendingTaskIds = await getTaskIdsByChatId(localStorage.token, id, signal)
+					.then((result) => result?.task_ids ?? null)
+					.catch(() => null);
+				if (!isCurrent()) return;
 				const fresh = await getChatById(localStorage.token, id, signal);
-				if ($chatId !== id || joinedChatId !== id || signal.aborted) return;
+				if (!isCurrent() || !fresh) return;
 				chat = fresh;
-				mergeChatMessages(fresh.chat.history, baseline);
+				const recovered = recoverChatSnapshot(
+					history, fresh.chat.history, baseline,
+					{
+						generating,
+						taskIds: chatTaskState.taskIds,
+						currentUserId: $user?.id,
+						fallbackOwnerId: fresh.user_id,
+						recoverActive: !wasGenerating && chatTaskState === taskState
+					},
+					pendingTaskIds
+				);
+				history = recovered.history;
+				if (recovered.taskIds !== undefined) chatTaskLifecycle.setTaskIds(recovered.taskIds);
+				autoScrollToBottom();
+				if (recovered.processQueue) {
+					await tick();
+					if (isCurrent() && !generating) await processNextInQueue(id);
+				}
 			} catch (error) {
-				if ($chatId === id && joinedChatId === id && !signal.aborted) {
+				if (isCurrent()) {
 					clearPresence();
 					chat = null;
 					history = { messages: {}, currentId: null };
 					if (!embedded) await goto('/');
 				}
 			} finally {
-				if (chatRefresh?.id === id) chatRefresh = null;
+				if (chatRefresh?.promise === promise) chatRefresh = null;
 			}
 		})();
-		chatRefresh = { id, promise };
+		chatRefresh = { id, connectionId, signal, promise };
 		return promise;
 	};
 
@@ -1732,16 +1772,8 @@
 		}
 		joinedChatId = '';
 		syncChatRoom($socket, $chatId, $temporaryChatEnabled);
-		const id = $chatId;
-		const taskTicket = chatTaskLifecycle.begin(id);
-		const tasks = await getTaskIdsByChatId(localStorage.token, id).catch(() => null);
-		if ($chatId !== id || !tasks || !chatTaskLifecycle.isCurrent(taskTicket)) return;
-		chatTaskLifecycle.setTaskIds(tasks.task_ids, taskTicket);
-		if (!taskIds && hasPendingAssistantLeaf()) {
-			// A server restart can leave unfinished messages without a completion event.
-			const loaded = await loadChat();
-			if (loaded && $chatId === id) await processNextInQueue(id);
-		}
+		// The room-join acknowledgement refreshes both history and tasks, even
+		// when the response task is still running follow-up/title generation.
 	};
 
 	onMount(() => {

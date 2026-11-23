@@ -10,6 +10,8 @@ export type ChatHistoryMergeOptions = {
   taskIds: readonly string[] | null | undefined;
   currentUserId: string | null | undefined;
   fallbackOwnerId: string | null | undefined;
+  /** HTTP recovery may replace an unchanged active message with its server snapshot. */
+  recoverActive?: boolean;
 };
 
 export type ChatHistoryMergeResult = {
@@ -57,7 +59,15 @@ export const mergeChatHistoryMessages = (
       local?.done === false &&
       (local.user_id ?? options.fallbackOwnerId) === options.currentUserId &&
       (Boolean(options.taskIds?.length) || options.generating);
-    if (!local || (!ownActive && (!baseline || baseline[id] === local))) {
+    const recoverActive =
+      options.recoverActive &&
+      !options.generating &&
+      baseline?.[id] === local &&
+      (!local?.meta?.task_id || local.meta.task_id === message.meta?.task_id);
+    if (
+      !local ||
+      ((!ownActive || recoverActive) && (!baseline || baseline[id] === local))
+    ) {
       messages[id] = { ...local, ...message };
       if (
         local?.done === true &&

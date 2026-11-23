@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import logging
 import mimetypes
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -276,7 +278,51 @@ async def emit_chat_list_event(metadata: dict, chat_id: str):
         await event_emitter({'type': 'chat:list', 'data': {'chat_id': chat_id, 'folder_id': folder_id}})
 
 
+_VALID_HOST_RE = re.compile(r'^[A-Za-z0-9.\-:\[\]]+$')
+
+
+def _resolve_request_origin(scope: dict) -> str | None:
+    """Resolve a sanitized ``scheme://host`` origin from request scope headers."""
+    headers = Headers(scope=scope)
+    host = (headers.get('x-forwarded-host') or headers.get('host') or '').split(',')[0].strip()
+    if not host or host.startswith('.') or not _VALID_HOST_RE.match(host):
+        return None
+
+    scheme = headers.get('x-forwarded-proto', '').split(',')[0].strip().lower()
+    if scheme not in ('http', 'https'):
+        cf_visitor = headers.get('cf-visitor', '')
+        if cf_visitor:
+            try:
+                cf_scheme = str(json.loads(cf_visitor).get('scheme', '')).lower()
+                if cf_scheme in ('http', 'https'):
+                    scheme = cf_scheme
+            except (ValueError, TypeError, AttributeError):
+                pass
+    if scheme not in ('http', 'https'):
+        scheme = str(scope.get('scheme', 'http')).lower()
+    if scheme not in ('http', 'https'):
+        return None
+    return f'{scheme}://{host}'
+
+
+def _inject_absolute_og_urls(html: str, origin: str) -> str:
+    """Rewrite relative Open Graph and Twitter image/url tags to absolute URLs."""
+    html = html.replace(
+        '<meta property="og:url" content="/" />',
+        f'<meta property="og:url" content="{origin}/" />',
+    )
+    html = html.replace(
+        'content="/static/og-image.jpeg"',
+        f'content="{origin}/static/og-image.jpeg"',
+    )
+    return html
+
+
 class SPAStaticFiles(StaticFiles):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._html_cache: dict[tuple[str, int, int], str] = {}
+
     async def get_response(self, path: str, scope):
         try:
             return await super().get_response(path, scope)
@@ -290,6 +336,17 @@ class SPAStaticFiles(StaticFiles):
             else:
                 raise ex
 
+    def _read_html_cached(self, full_path: str, stat_result: os.stat_result) -> str:
+        cache_key = (full_path, stat_result.st_mtime_ns, stat_result.st_size)
+        cached = self._html_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        with open(full_path, encoding='utf-8') as f:
+            html = f.read()
+        self._html_cache.clear()
+        self._html_cache[cache_key] = html
+        return html
+
     def file_response(
         self, full_path: str, stat_result: os.stat_result, scope: dict, status_code: int = 200
     ) -> Response:
@@ -297,6 +354,24 @@ class SPAStaticFiles(StaticFiles):
         if full_path.endswith('.html'):
             # Stale cached HTML references chunks from an older build
             response.headers['Cache-Control'] = 'no-cache'
+            if response.status_code != 304:
+                origin = _resolve_request_origin(scope)
+                if origin:
+                    html = _inject_absolute_og_urls(
+                        self._read_html_cached(full_path, stat_result),
+                        origin,
+                    )
+                    encoded = html.encode('utf-8')
+                    headers = dict(response.headers)
+                    headers['content-length'] = str(len(encoded))
+                    headers.pop('content-type', None)
+                    body = b'' if scope.get('method') == 'HEAD' else encoded
+                    return Response(
+                        content=body,
+                        status_code=status_code,
+                        headers=headers,
+                        media_type='text/html',
+                    )
         return response
 
 

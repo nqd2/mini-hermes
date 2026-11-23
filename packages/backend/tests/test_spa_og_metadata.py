@@ -93,8 +93,7 @@ def test_robots_and_app_html_allow_link_preview_crawlers():
         'packages/backend/weai/static/robots.txt',
     ):
         robots = (REPO_ROOT / rel_path).read_text(encoding='utf-8')
-        assert 'User-agent: TelegramBot\nAllow: /' in robots
-        assert 'User-agent: *\nDisallow: /' in robots
+        assert robots.strip() == 'User-agent: *\nAllow: /'
 
     app_html = (REPO_ROOT / 'packages/frontend/src/app.html').read_text(encoding='utf-8')
     assert '<meta name="robots"' not in app_html

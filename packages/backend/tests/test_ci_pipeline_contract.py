@@ -134,4 +134,4 @@ def test_gitlab_ci_yaml_contract_and_domains():
     deploy_prod = doc.get("deploy_prod", {})
 
     assert deploy_dev.get("environment", {}).get("url") == "https://dev-mini-hermes.ducnq.io.vn"
-    assert deploy_prod.get("environment", {}).get("url") == "https://mini-hermes.ducnq.io.vn"
+    assert deploy_prod.get("environment", {}).get("url") == "https://weai.ducnq.io.vn"

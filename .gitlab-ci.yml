@@ -64,7 +64,7 @@ deploy_prod:
     - sh ./scripts/deploy_and_verify.sh prod ${CI_COMMIT_SHORT_SHA} /home/vietnh/apps/weai/envs/backend.prod.env
   environment:
     name: production
-    url: https://mini-hermes.ducnq.io.vn
+    url: https://weai.ducnq.io.vn
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 

@@ -572,17 +572,34 @@ async def _generate_summary(
     summary_prompt_template: str,
     bypass_system_prompt: bool = False,
 ) -> str:
+    from weai.model_routing.tier_service import GROUPS, virtual_model
     from weai.utils.chat import generate_chat_completion
 
     if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
         models = {**dict(models.items()), request.state.model['id']: request.state.model}
+    elif model_id in GROUPS:
+        models = dict(models.items())
+
+    if model_id in GROUPS:
+        small_group = f'agent-runtime-{GROUPS[model_id]}-small'
+        models[model_id] = virtual_model(model_id)
+        models[small_group] = virtual_model(small_group)
 
     task_config = await Config.get_many(
         'task.model.params',
         'chat.context_compaction.model',
     )
     context_compaction_model = task_config.get('chat.context_compaction.model')
-    task_model_id = context_compaction_model if context_compaction_model in models else model_id
+    if (
+        context_compaction_model
+        and context_compaction_model in models
+        and (getattr(user, 'role', None) == 'admin' or model_id not in GROUPS)
+    ):
+        task_model_id = context_compaction_model
+    elif model_id in GROUPS:
+        task_model_id = f'agent-runtime-{GROUPS[model_id]}-small'
+    else:
+        task_model_id = model_id
     if task_model_id not in models:
         raise ValueError('No available model for context compaction')
 

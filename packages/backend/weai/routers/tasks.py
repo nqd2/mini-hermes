@@ -80,9 +80,30 @@ def apply_task_model_params(payload: dict, models: dict, task_model_id: str, par
     return apply_params_to_form_data(payload, model, params or None)
 
 
-async def get_task_model_generation_config(default_model_id: str, models) -> tuple[str, dict]:
+async def get_task_model_generation_config(
+    default_model_id: str,
+    models,
+    *,
+    user_role: str | None = None,
+) -> tuple[str, dict]:
     if default_model_id in GROUPS:
-        return default_model_id, {}
+        small_group = f'agent-runtime-{GROUPS[default_model_id]}-small'
+        fallback_model_id = small_group if small_group in models else default_model_id
+        if user_role != 'admin':
+            return default_model_id, {}
+        config = await Config.get_many(
+            'task.model.default',
+            'task.model.external',
+            'task.model.params',
+        )
+        params = config.get('task.model.params') or {}
+        if not isinstance(params, dict):
+            params = {}
+        cleaned_params = {key: value for key, value in params.items() if value is not None and value != ''}
+        configured_external = config.get('task.model.external')
+        if configured_external and configured_external in models:
+            return configured_external, cleaned_params
+        return fallback_model_id, cleaned_params
     config = await Config.get_many(
         'task.model.default',
         'task.model.external',
@@ -117,7 +138,10 @@ async def resolve_task_models(request, form_data, user):
             request.state.model['id']: request.state.model,
         }
     else:
-        models = request.app.state.MODELS
+        models = dict(request.app.state.MODELS.items())
+    if isinstance(form_data.get('model'), str) and form_data.get('model') in GROUPS:
+        for group_id in GROUPS:
+            models[group_id] = virtual_model(group_id)
     return form_data.get('model'), models
 
 
@@ -180,7 +204,9 @@ async def generate_title(request: Request, form_data: dict, user=Depends(get_ver
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
         )
 
-    task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
+    task_model_id, task_model_params = await get_task_model_generation_config(
+        model_id, models, user_role=user.role
+    )
 
     log.debug('generating chat title using model %s for user %s ', task_model_id, user.email)
 
@@ -241,7 +267,7 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
         )
 
     configured_small_model = os.getenv('AGENT_RUNTIME_SMALL_TASK_MODEL', 'gpt-4.1-mini').strip()
-    if user.role == 'admin' and configured_small_model:
+    if user.role == 'admin' and model_id not in GROUPS and configured_small_model:
         if configured_small_model not in models:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -249,7 +275,9 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
             )
         task_model_id, task_model_params = configured_small_model, {}
     else:
-        task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
+        task_model_id, task_model_params = await get_task_model_generation_config(
+            model_id, models, user_role=user.role
+        )
 
     log.debug('generating chat title using model %s for user %s ', task_model_id, user.email)
 
@@ -308,7 +336,9 @@ async def generate_chat_tags(request: Request, form_data: dict, user=Depends(get
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
         )
 
-    task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
+    task_model_id, task_model_params = await get_task_model_generation_config(
+        model_id, models, user_role=user.role
+    )
 
     log.debug('generating chat tags using model %s for user %s ', task_model_id, user.email)
 
@@ -358,7 +388,9 @@ async def generate_image_prompt(request: Request, form_data: dict, user=Depends(
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
         )
 
-    task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
+    task_model_id, task_model_params = await get_task_model_generation_config(
+        model_id, models, user_role=user.role
+    )
 
     log.debug('generating image prompt using model %s for user %s ', task_model_id, user.email)
 
@@ -427,7 +459,9 @@ async def generate_queries(request: Request, form_data: dict, user=Depends(get_v
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
         )
 
-    task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
+    task_model_id, task_model_params = await get_task_model_generation_config(
+        model_id, models, user_role=user.role
+    )
 
     log.debug('generating %s queries using model %s for user %s', type, task_model_id, user.email)
 
@@ -495,7 +529,9 @@ async def generate_autocompletion(request: Request, form_data: dict, user=Depend
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
         )
 
-    task_model_id, task_model_params = await get_task_model_generation_config(model_id, models)
+    task_model_id, task_model_params = await get_task_model_generation_config(
+        model_id, models, user_role=user.role
+    )
 
     log.debug('generating autocompletion using model %s for user %s', task_model_id, user.email)
 
@@ -546,7 +582,7 @@ async def generate_emoji(request: Request, form_data: dict, user=Depends(get_ver
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(),
         )
 
-    task_model_id, _ = await get_task_model_generation_config(model_id, models)
+    task_model_id, _ = await get_task_model_generation_config(model_id, models, user_role=user.role)
 
     log.debug('generating emoji using model %s for user %s ', task_model_id, user.email)
 

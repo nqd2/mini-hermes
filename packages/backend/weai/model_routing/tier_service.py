@@ -380,5 +380,7 @@ def virtual_model(model_id: str) -> dict:
 
 
 async def virtual_catalog(user) -> list[dict]:
+    if getattr(user, 'role', None) == 'admin':
+        return [virtual_model(model_id) for model_id in GROUPS]
     plan = await tier_repository.get_plan(user.id)
     return [virtual_model(model_id) for model_id, tier in GROUPS.items() if tier == plan.tier]

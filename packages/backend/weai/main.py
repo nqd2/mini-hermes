@@ -938,6 +938,10 @@ async def get_models(request: Request, refresh: bool = False, user=Depends(get_v
             )
         )
 
+    tier_models = await virtual_catalog(user)
+    tier_ids = {model['id'] for model in tier_models}
+    models = [*tier_models, *[model for model in models if model.get('id') not in tier_ids]]
+
     if log.isEnabledFor(logging.DEBUG):
         log.debug(
             f'/api/models returned filtered models accessible to the user: {JSONCodec.dumps([model.get("id") for model in models])}'

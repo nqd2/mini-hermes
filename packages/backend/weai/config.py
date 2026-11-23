@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import re
 import shutil
 import socket
 from concurrent.futures import ThreadPoolExecutor
@@ -2020,11 +2021,20 @@ if THREAD_POOL_SIZE is not None and isinstance(THREAD_POOL_SIZE, str):
         THREAD_POOL_SIZE = None
 
 
+def parse_cors_allow_origin(raw: str | None) -> list[str]:
+    """Parse semicolon- or comma-separated CORS origins, trimming whitespace and trailing slashes."""
+    value = (raw or '*').strip()
+    if value == '*':
+        return ['*']
+    origins = [item.strip().rstrip('/') for item in re.split(r'[;,]', value) if item.strip()]
+    return origins or ['*']
+
+
 def validate_cors_origin(origin):
     parsed_url = urlparse(origin)
 
     # Check if the scheme is either http or https, or a custom scheme
-    schemes = ['http', 'https'] + CORS_ALLOW_CUSTOM_SCHEME
+    schemes = ['http', 'https'] + [s for s in CORS_ALLOW_CUSTOM_SCHEME if s]
     if parsed_url.scheme not in schemes:
         raise ValueError(
             f"Invalid scheme in CORS_ALLOW_ORIGIN: '{origin}'. Only 'http' and 'https' and CORS_ALLOW_CUSTOM_SCHEME are allowed."
@@ -2034,18 +2044,24 @@ def validate_cors_origin(origin):
     if not parsed_url.netloc:
         raise ValueError(f"Invalid URL structure in CORS_ALLOW_ORIGIN: '{origin}'.")
 
+    # Origins must not carry path, query, or fragment (catches concatenated URLs like "https://a,https://b")
+    if parsed_url.path not in ('', '/') or parsed_url.params or parsed_url.query or parsed_url.fragment:
+        raise ValueError(
+            f"Invalid origin in CORS_ALLOW_ORIGIN: '{origin}'. Origins must not contain a path, query, or fragment."
+        )
+
 
 # For production, you should only need one host as
 # fastapi serves the svelte-kit built frontend and backend from the same host and port.
 # To test CORS_ALLOW_ORIGIN locally, you can set something like
 # CORS_ALLOW_ORIGIN=http://localhost:5173;http://localhost:8080
 # in your .env file depending on your frontend port, 5173 in this case.
-CORS_ALLOW_ORIGIN = os.getenv('CORS_ALLOW_ORIGIN', '*').split(';')
+CORS_ALLOW_ORIGIN = parse_cors_allow_origin(os.getenv('CORS_ALLOW_ORIGIN', '*'))
 
 # Allows custom URL schemes (e.g., app://) to be used as origins for CORS.
 # Useful for local development or desktop clients with schemes like app:// or other custom protocols.
 # Provide a semicolon-separated list of allowed schemes in the environment variable CORS_ALLOW_CUSTOM_SCHEMES.
-CORS_ALLOW_CUSTOM_SCHEME = os.getenv('CORS_ALLOW_CUSTOM_SCHEME', '').split(';')
+CORS_ALLOW_CUSTOM_SCHEME = [s.strip() for s in re.split(r'[;,]', os.getenv('CORS_ALLOW_CUSTOM_SCHEME', '')) if s.strip()]
 
 if CORS_ALLOW_ORIGIN == ['*']:
     log.warning("\n\nWARNING: CORS_ALLOW_ORIGIN IS SET TO '*' - NOT RECOMMENDED FOR PRODUCTION DEPLOYMENTS.\n")

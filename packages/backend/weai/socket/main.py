@@ -78,8 +78,43 @@ log = logging.getLogger(__name__)
 # cause, and let every message find the room it was meant for.
 REDIS = None
 
+def _same_origin_candidates(environ: dict | None) -> set[str]:
+    """Derive expected same-origin URLs from the ASGI/WSGI environ (Host and X-Forwarded-*)."""
+    if not isinstance(environ, dict):
+        return set()
+    candidates: set[str] = set()
+    host = (environ.get('HTTP_HOST') or '').split(',')[0].strip()
+    scheme = (environ.get('wsgi.url_scheme') or 'http').split(',')[0].strip()
+    if host:
+        candidates.add(f'{scheme}://{host}'.rstrip('/'))
+        # Behind TLS-terminating proxies that omit X-Forwarded-Proto, allow matching host on https/http.
+        if scheme == 'http':
+            candidates.add(f'https://{host}'.rstrip('/'))
+    forwarded_host = (environ.get('HTTP_X_FORWARDED_HOST') or '').split(',')[0].strip()
+    forwarded_proto = (environ.get('HTTP_X_FORWARDED_PROTO') or '').split(',')[0].strip()
+    if forwarded_host or forwarded_proto:
+        eff_host = forwarded_host or host
+        eff_proto = forwarded_proto or scheme
+        if eff_host:
+            candidates.add(f'{eff_proto}://{eff_host}'.rstrip('/'))
+    return candidates
+
+
+def is_allowed_socketio_origin(origin: str | None, environ: dict | None = None) -> bool:
+    """Allow configured CORS origins as well as same-origin browser WebSocket handshakes."""
+    if not origin:
+        return True
+    normalized = origin.strip().rstrip('/')
+    if CORS_ALLOW_ORIGIN == ['*'] or '*' in CORS_ALLOW_ORIGIN:
+        return True
+    allowed = {item.strip().rstrip('/') for item in CORS_ALLOW_ORIGIN if item and item.strip()}
+    if normalized in allowed:
+        return True
+    return normalized in _same_origin_candidates(environ)
+
+
 # Socket.IO expects a wildcard string rather than a one-item wildcard list.
-SOCKETIO_CORS_ORIGINS = '*' if CORS_ALLOW_ORIGIN == ['*'] else CORS_ALLOW_ORIGIN
+SOCKETIO_CORS_ORIGINS = '*' if CORS_ALLOW_ORIGIN == ['*'] else is_allowed_socketio_origin
 
 # Large notes outgrow the 1 MB default; match uvicorn's 16 MiB websocket limit
 SOCKETIO_MAX_HTTP_BUFFER_SIZE = 16 * 1024 * 1024

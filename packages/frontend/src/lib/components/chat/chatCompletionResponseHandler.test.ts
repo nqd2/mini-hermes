@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleChatCompletionResponse } from './chatCompletionResponseHandler';
+import {
+  handleChatCompletionResponse,
+  shouldReloadChatAfterCompletion,
+} from './chatCompletionResponseHandler';
 
 const createInput = (overrides: Record<string, any> = {}) => ({
   response: { chat_id: 'chat-1' },
@@ -53,5 +56,64 @@ describe('handleChatCompletionResponse', () => {
 
     await expect(handleChatCompletionResponse(input)).resolves.toBe('success');
     expect(input.onToolCallResolved).not.toHaveBeenCalled();
+  });
+});
+
+describe('shouldReloadChatAfterCompletion', () => {
+  it('reloads when backend reports sync_fallback while response is still pending', () => {
+    expect(
+      shouldReloadChatAfterCompletion({
+        response: { status: true, task_ids: [], chat_id: 'chat-1', sync_fallback: true },
+        responseOutcome: 'success',
+        hasSocketSession: false,
+        responseMessageId: 'response-1',
+        messages: { 'response-1': { done: false } },
+      }),
+    ).toBe(true);
+  });
+
+  it('reloads when socket session is missing and completion returned null with pending message', () => {
+    expect(
+      shouldReloadChatAfterCompletion({
+        response: null,
+        responseOutcome: 'empty',
+        hasSocketSession: false,
+        responseMessageId: 'response-1',
+        messages: { 'response-1': { done: false } },
+      }),
+    ).toBe(true);
+  });
+
+  it('does not reload when WebSocket session is active and task_ids were returned', () => {
+    expect(
+      shouldReloadChatAfterCompletion({
+        response: { status: true, task_ids: ['task-1'], chat_id: 'chat-1' },
+        responseOutcome: 'success',
+        hasSocketSession: true,
+        responseMessageId: 'response-1',
+        messages: { 'response-1': { done: false } },
+      }),
+    ).toBe(false);
+  });
+
+  it('does not reload on error or when all tracked messages are already done', () => {
+    expect(
+      shouldReloadChatAfterCompletion({
+        response: { error: { message: 'boom' } },
+        responseOutcome: 'error',
+        hasSocketSession: false,
+        responseMessageId: 'response-1',
+        messages: { 'response-1': { done: false } },
+      }),
+    ).toBe(false);
+    expect(
+      shouldReloadChatAfterCompletion({
+        response: { status: true, task_ids: [], chat_id: 'chat-1', sync_fallback: true },
+        responseOutcome: 'success',
+        hasSocketSession: false,
+        responseMessageId: 'response-1',
+        messages: { 'response-1': { done: true } },
+      }),
+    ).toBe(false);
   });
 });

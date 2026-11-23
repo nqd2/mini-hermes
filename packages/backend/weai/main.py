@@ -2036,7 +2036,7 @@ async def chat_completion(
             from weai.agent_runtime.runtime import AgentRuntime
 
             internal_turn = metadata.get('internal') is True
-            return await AgentRuntime.configured().run_chat_turn(
+            result = await AgentRuntime.configured().run_chat_turn(
                 owner_id=user.id,
                 chat_id=None if internal_turn else metadata.get('chat_id'),
                 chat_message_id=metadata.get('message_id'),
@@ -2050,6 +2050,14 @@ async def chat_completion(
                 ),
                 handler=lambda: process_chat(request, form_data, user, metadata, model, tasks),
             )
+            if result is None and metadata.get('chat_id') and not internal_turn:
+                return {
+                    'status': True,
+                    'task_ids': [],
+                    'chat_id': metadata['chat_id'],
+                    'sync_fallback': True,
+                }
+            return result
         except HTTPException:
             raise
         except Exception as e:

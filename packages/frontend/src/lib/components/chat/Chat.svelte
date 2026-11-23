@@ -23,7 +23,10 @@
 		normalizeStopTokens
 	} from './chatRequestPayload';
 	import { applyChatRequestFailure, applyOpenAIResponseError } from './chatRequestFailure';
-	import { handleChatCompletionResponse } from './chatCompletionResponseHandler';
+	import {
+		handleChatCompletionResponse,
+		shouldReloadChatAfterCompletion
+	} from './chatCompletionResponseHandler';
 	import { adoptChatResponse } from './chatResponseAdoption';
 	import { handleChatMessageAuxiliaryEvent } from './chatMessageAuxiliaryEvents';
 	import { handleChatMessageError, handleChatTaskCancellation } from './chatStreamTaskEvents';
@@ -4019,6 +4022,22 @@
 				updateChatParams,
 				processNextInQueue
 			});
+		}
+
+		if (
+			!$temporaryChatEnabled &&
+			$chatId &&
+			!isTemporaryChatId($chatId) &&
+			shouldReloadChatAfterCompletion({
+				response: res,
+				responseOutcome,
+				hasSocketSession: Boolean(requestPayload.session_id && $socket?.connected),
+				responseMessageId,
+				messageIdsList,
+				messages: history.messages
+			})
+		) {
+			await loadChat();
 		}
 
 		await tick();

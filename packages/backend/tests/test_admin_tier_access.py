@@ -10,32 +10,48 @@ from weai.utils import context_compaction
 main_module = importlib.import_module('weai.main')
 
 
-def test_virtual_catalog_returns_all_six_groups_for_admin():
+def test_virtual_catalog_returns_all_four_groups_for_admin():
     admin = SimpleNamespace(id='admin-1', role='admin')
     models = asyncio.run(tier_service.virtual_catalog(admin))
     assert [m['id'] for m in models] == [
-        'agent-runtime-free-small',
-        'agent-runtime-free-medium',
-        'agent-runtime-free-large',
+        'agent-runtime-free',
         'agent-runtime-plus-small',
         'agent-runtime-plus-medium',
         'agent-runtime-plus-large',
     ]
     assert [m['name'] for m in models] == [
-        'Free Small',
-        'Free Medium',
-        'Free Large',
+        'Free',
         'Plus Small',
         'Plus Medium',
         'Plus Large',
     ]
 
 
-def test_get_models_prepends_all_six_tier_models_for_admin(monkeypatch):
+def test_virtual_catalog_and_legacy_free_alias_authorization_for_free_user(monkeypatch):
+    user = SimpleNamespace(id='free-user-1', role='user')
+    monkeypatch.setattr(
+        tier_service.tier_repository,
+        'get_plan',
+        AsyncMock(return_value=tier_service.PlanSnapshot('free', 0)),
+    )
+    models = asyncio.run(tier_service.virtual_catalog(user))
+    assert [m['id'] for m in models] == ['agent-runtime-free']
+    assert [m['name'] for m in models] == ['Free']
+
+    for allowed_id in (
+        'agent-runtime-free',
+        'agent-runtime-free-small',
+        'agent-runtime-free-medium',
+        'agent-runtime-free-large',
+    ):
+        asyncio.run(tier_service.authorize_model(user, allowed_id))
+
+
+def test_get_models_prepends_all_four_tier_models_for_admin(monkeypatch):
     admin = SimpleNamespace(id='admin-1', role='admin')
     raw_models = [
         {'id': 'gpt-5.4', 'name': 'GPT 5.4'},
-        {'id': 'agent-runtime-free-small', 'name': 'Duplicate Should Dedupe'},
+        {'id': 'agent-runtime-free', 'name': 'Duplicate Should Dedupe'},
     ]
     monkeypatch.setattr(main_module, 'get_all_models', AsyncMock(return_value=raw_models))
     monkeypatch.setattr(main_module, 'get_filtered_models', AsyncMock(side_effect=lambda models, user: models))
@@ -44,8 +60,8 @@ def test_get_models_prepends_all_six_tier_models_for_admin(monkeypatch):
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(MODELS={})))
     result = asyncio.run(main_module.get_models(request, refresh=False, user=admin))
     ids = [m['id'] for m in result['data']]
-    assert ids[:6] == list(tier_service.GROUPS.keys())
-    assert ids[6:] == ['gpt-5.4']
+    assert ids[:4] == list(tier_service.GROUPS.keys())
+    assert ids[4:] == ['gpt-5.4']
 
 
 def test_resolve_task_models_and_generation_config_for_admin_tier(monkeypatch):
@@ -132,7 +148,7 @@ def test_follow_up_uses_tier_small_group_for_admin_on_tier_model(monkeypatch):
             admin,
         )
     )
-    assert captured['model'] == 'agent-runtime-free-small'
+    assert captured['model'] == 'agent-runtime-free'
 
 
 def test_context_compaction_summary_supports_admin_tier_groups(monkeypatch):

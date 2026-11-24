@@ -48,6 +48,9 @@ def test_connection_reorder_preserves_approval_and_changed_target_requires_it_ag
     ('model', 'pricing', 'expected'),
     [
         ('org/test:free', {'prompt': '0', 'completion': '0'}, True),
+        ('openrouter/free', {'prompt': '0', 'completion': '0'}, True),
+        ('openrouter/free', {'prompt': '0', 'completion': '0', 'request': '1'}, False),
+        ('openrouter/free', {}, False),
         ('org/test:free', {'prompt': '0', 'completion': '0', 'request': '1'}, False),
         ('org/test:free', {'prompt': '0', 'completion': '0', 'image': '0.01'}, False),
         ('org/test:free', {'prompt': '0'}, False),
@@ -69,7 +72,7 @@ async def test_free_selection_filters_paid_and_requires_current_catalog(monkeypa
                     model_routing.ModelPoolCandidate(connection_id='openrouter', model_id=model_id, min_context=8000)
                     for model_id in ('org/free:free', 'org/paid')
                 ]
-                if group == 'agent-runtime-free-small'
+                if group == 'agent-runtime-free'
                 else []
             )
             for group in tier_service.GROUPS
@@ -85,8 +88,8 @@ async def test_free_selection_filters_paid_and_requires_current_catalog(monkeypa
         }
     )
     monkeypatch.setattr(model_routing, '_openrouter_catalog', mock_catalog)
-    payload = {'messages': [{'role': 'user', 'content': 'Text'}], 'model': 'agent-runtime-free-small'}
-    selection = await model_routing.select_model('test', 'agent-runtime-free-small', payload)
+    payload = {'messages': [{'role': 'user', 'content': 'Text'}], 'model': 'agent-runtime-free'}
+    selection = await model_routing.select_model('test', 'agent-runtime-free', payload)
     assert selection.candidate.model_id == 'org/free:free'
     payload.update(models=['org/paid'], route='fallback', provider={'max_price': {'prompt': 50}})
     selection.apply(payload)
@@ -94,9 +97,14 @@ async def test_free_selection_filters_paid_and_requires_current_catalog(monkeypa
     assert 'models' not in payload and 'route' not in payload
     assert payload['provider']['max_price']['prompt'] == 0
 
+    # Legacy alias still selects from the consolidated agent-runtime-free pool.
+    alias_selection = await model_routing.select_model('test', 'agent-runtime-free-large', payload)
+    assert alias_selection.group_id == 'agent-runtime-free'
+    assert alias_selection.candidate.model_id == 'org/free:free'
+
     mock_catalog.return_value = {}
     with pytest.raises(HTTPException) as failure:
-        await model_routing.select_model('test', 'agent-runtime-free-small', payload)
+        await model_routing.select_model('test', 'agent-runtime-free', payload)
     assert failure.value.detail['code'] == 'model_unavailable'
 
 
@@ -169,7 +177,7 @@ async def test_non_openrouter_free_or_both_connection_works_in_free_group(monkey
         {'tier_scope': tier_scope},
     )
     config = _make_config(
-        'agent-runtime-free-small',
+        'agent-runtime-free',
         [model_routing.ModelPoolCandidate(connection_id='custom-free', model_id='custom/model-a', min_context=8000)],
     )
     upsert_mock = _mock_routing_db(monkeypatch)
@@ -185,10 +193,10 @@ async def test_non_openrouter_free_or_both_connection_works_in_free_group(monkey
 
     payload = {
         'messages': [{'role': 'user', 'content': 'Hello'}],
-        'model': 'agent-runtime-free-small',
+        'model': 'agent-runtime-free',
         'provider': {'max_price': {'prompt': 10}},
     }
-    selection = await model_routing.select_model('user-1', 'agent-runtime-free-small', payload)
+    selection = await model_routing.select_model('user-1', 'agent-runtime-free', payload)
     assert selection.connection.id == 'custom-free'
     assert selection.candidate.model_id == 'custom/model-a'
     selection.apply(payload)
@@ -220,7 +228,7 @@ async def test_openrouter_free_connection_still_enforces_free_catalog_and_provid
     )
 
     paid_config = _make_config(
-        'agent-runtime-free-small',
+        'agent-runtime-free',
         [model_routing.ModelPoolCandidate(connection_id='openrouter-free', model_id='org/paid', min_context=8000)],
     )
     with pytest.raises(HTTPException) as failure:
@@ -229,7 +237,7 @@ async def test_openrouter_free_connection_still_enforces_free_catalog_and_provid
     assert failure.value.detail['code'] == 'invalid_free_model'
 
     free_config = _make_config(
-        'agent-runtime-free-small',
+        'agent-runtime-free',
         [model_routing.ModelPoolCandidate(connection_id='openrouter-free', model_id='org/free:free', min_context=8000)],
     )
     updated = await model_routing.update_model_routing_config(free_config)
@@ -237,8 +245,8 @@ async def test_openrouter_free_connection_still_enforces_free_catalog_and_provid
     upsert_mock.assert_awaited_once()
 
     monkeypatch.setattr(model_routing, 'get_model_routing_config', AsyncMock(return_value=free_config))
-    payload = {'messages': [{'role': 'user', 'content': 'Hello'}], 'model': 'agent-runtime-free-small'}
-    selection = await model_routing.select_model('user-1', 'agent-runtime-free-small', payload)
+    payload = {'messages': [{'role': 'user', 'content': 'Hello'}], 'model': 'agent-runtime-free'}
+    selection = await model_routing.select_model('user-1', 'agent-runtime-free', payload)
     selection.apply(payload)
     assert payload['provider'] == {
         'max_price': {'prompt': 0, 'completion': 0, 'request': 0},
@@ -250,7 +258,7 @@ async def test_openrouter_free_connection_still_enforces_free_catalog_and_provid
 @pytest.mark.parametrize(
     ('tier_scope', 'group_id'),
     [
-        ('plus', 'agent-runtime-free-small'),
+        ('plus', 'agent-runtime-free'),
         ('free', 'agent-runtime-plus-small'),
     ],
 )
@@ -441,3 +449,91 @@ def test_is_text_generation_model_filters_non_text_models_and_respects_manual_ov
         )
         is False
     )
+
+
+def test_legacy_free_groups_auto_merge_into_single_free_group():
+    config = model_routing.ModelRoutingConfig.model_validate(
+        {
+            'version': 3,
+            'groups': {
+                'agent-runtime-free-small': [
+                    {'connection_id': 'or-free', 'model_id': 'org/a:free', 'priority': 2, 'min_context': 8192, 'enabled': True},
+                    {'connection_id': 'or-free', 'model_id': 'org/b:free', 'priority': 0, 'min_context': 8192, 'enabled': False},
+                ],
+                'agent-runtime-free-medium': [
+                    {'connection_id': 'or-free', 'model_id': 'org/a:free', 'priority': 0, 'min_context': 8192, 'enabled': True},
+                    {'connection_id': 'or-free', 'model_id': 'org/b:free', 'priority': 1, 'min_context': 8192, 'enabled': True},
+                ],
+                'agent-runtime-free-large': [
+                    {'connection_id': 'or-free', 'model_id': 'openrouter/free', 'priority': 0, 'min_context': 128000, 'enabled': True},
+                ],
+                'agent-runtime-plus-small': [],
+                'agent-runtime-plus-medium': [],
+                'agent-runtime-plus-large': [],
+            },
+        }
+    )
+    assert set(config.groups) == set(tier_service.GROUPS)
+    by_id = {c.model_id: c for c in config.groups['agent-runtime-free']}
+    assert set(by_id) == {'org/a:free', 'org/b:free', 'openrouter/free'}
+    assert by_id['org/a:free'].priority == 0
+    assert by_id['org/b:free'].enabled is True
+
+
+@pytest.mark.asyncio
+async def test_openrouter_free_router_supported_and_sorted_first(monkeypatch):
+    openrouter_conn = model_routing.Connection(
+        'or-free', model_routing.OPENROUTER_URL, 'or-key', {'tier_scope': 'free'}
+    )
+    catalog = {
+        'zeta/model:free': {
+            'id': 'zeta/model:free',
+            'name': 'Zeta Free',
+            'context_length': 64000,
+            'pricing': {'prompt': '0', 'completion': '0'},
+            'architecture': {'input_modalities': ['text'], 'output_modalities': ['text']},
+        },
+        'openrouter/free': {
+            'id': 'openrouter/free',
+            'name': 'Free Models Router',
+            'context_length': 200000,
+            'pricing': {'prompt': '0', 'completion': '0'},
+            'architecture': {'input_modalities': ['text', 'image'], 'output_modalities': ['text']},
+        },
+    }
+    monkeypatch.setattr(model_routing, 'get_connections', AsyncMock(return_value={'or-free': openrouter_conn}))
+    monkeypatch.setattr(model_routing, '_openrouter_catalog', AsyncMock(return_value=catalog))
+    monkeypatch.setattr(tier_service.tier_repository, 'recently_rate_limited', AsyncMock(return_value=False))
+
+    listed = await model_routing.list_free_catalog_models()
+    assert [item['model_id'] for item in listed] == ['openrouter/free', 'zeta/model:free']
+
+    config = _make_config(
+        'agent-runtime-free',
+        [
+            model_routing.ModelPoolCandidate(
+                connection_id='or-free',
+                model_id='openrouter/free',
+                priority=0,
+                min_context=128000,
+                capabilities={'text', 'image', 'tools', 'structured_output', 'responses'},
+            )
+        ],
+    )
+    monkeypatch.setattr(model_routing, 'get_model_routing_config', AsyncMock(return_value=config))
+    payload = {
+        'model': 'agent-runtime-free',
+        'messages': [{'role': 'user', 'content': 'Use tool'}],
+        'tools': [{'type': 'function', 'function': {'name': 'ping'}}],
+    }
+    selection = await model_routing.select_model('user-1', 'agent-runtime-free', payload)
+    assert selection.candidate.model_id == 'openrouter/free'
+    selection.apply(payload)
+    assert payload['model'] == 'openrouter/free'
+    assert payload['provider'] == {
+        'max_price': {'prompt': 0, 'completion': 0, 'request': 0},
+        'data_collection': 'deny',
+    }
+    dispatch_ctx = selection.dispatch('user-1')
+    assert dispatch_ctx.free_account == 'openrouter'
+    assert dispatch_ctx.group_id == 'agent-runtime-free'

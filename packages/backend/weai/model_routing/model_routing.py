@@ -20,8 +20,11 @@ from weai.env import AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST
 from weai.internal.db import get_async_db
 from weai.model_routing.tier_service import (
     DispatchContext,
+    FREE_GROUP_ID,
     GROUPS,
+    LEGACY_FREE_GROUP_IDS,
     dispatches,
+    normalize_group_id,
     policy_error,
     selections,
     tier_repository,
@@ -32,6 +35,7 @@ from weai.utils.model_ids import is_text_generation_model
 
 CONFIG_KEY = 'weai.model_routing.v1'
 OPENROUTER_URL = 'https://openrouter.ai/api/v1'
+OPENROUTER_FREE_ROUTER_ID = 'openrouter/free'
 FREE_ACCOUNT = 'openrouter'
 FREE_429_MAX_FALLBACKS = 3
 FREE_429_MAX_SAME_MODEL_RETRIES = 2
@@ -61,10 +65,46 @@ class ModelRoutingConfig(BaseModel):
     free_account_daily_limit: int = Field(default=50, gt=0, le=2**31 - 1)
     free_account_minute_limit: int = Field(default=20, gt=0, le=2**31 - 1)
 
+    @model_validator(mode='before')
+    @classmethod
+    def merge_legacy_free_groups(cls, value):
+        if not isinstance(value, dict):
+            return value
+        raw_groups = value.get('groups')
+        if not isinstance(raw_groups, dict):
+            return value
+        has_legacy = any(legacy_id in raw_groups for legacy_id in LEGACY_FREE_GROUP_IDS)
+        if not has_legacy:
+            return value
+        merged_groups = {k: v for k, v in raw_groups.items() if k not in LEGACY_FREE_GROUP_IDS}
+        combined: dict[tuple[str, str], dict] = {}
+        sources = [raw_groups.get(FREE_GROUP_ID) or []] + [
+            raw_groups.get(legacy_id) or []
+            for legacy_id in ('agent-runtime-free-small', 'agent-runtime-free-medium', 'agent-runtime-free-large')
+        ]
+        for group_items in sources:
+            if not isinstance(group_items, list):
+                continue
+            for item in group_items:
+                candidate = item.model_dump() if isinstance(item, ModelPoolCandidate) else dict(item)
+                key = (candidate.get('connection_id', ''), candidate.get('model_id', ''))
+                existing = combined.get(key)
+                if existing is None:
+                    combined[key] = candidate
+                else:
+                    # Prefer enabled candidate and lower priority number when merging duplicates.
+                    if (not existing.get('enabled', True) and candidate.get('enabled', True)) or (
+                        existing.get('enabled', True) == candidate.get('enabled', True)
+                        and candidate.get('priority', 0) < existing.get('priority', 0)
+                    ):
+                        combined[key] = candidate
+        merged_groups[FREE_GROUP_ID] = list(combined.values())
+        return {**value, 'groups': merged_groups}
+
     @model_validator(mode='after')
     def validate_groups(self):
         if set(self.groups) != set(GROUPS):
-            raise ValueError('All six model groups are required')
+            raise ValueError('All four model groups are required')
         for candidates in self.groups.values():
             identities = {(candidate.connection_id, candidate.model_id) for candidate in candidates}
             if len(identities) != len(candidates):
@@ -122,7 +162,13 @@ class SelectedModel:
             connection_id=self.connection.id,
             run_id=f'bg:{dispatch_key}' if is_background_task and self.run_id is None else self.run_id,
             free_account=(
-                FREE_ACCOUNT if self.candidate.model_id.endswith(':free') and self.connection.is_openrouter else None
+                FREE_ACCOUNT
+                if self.connection.is_openrouter
+                and (
+                    self.candidate.model_id == OPENROUTER_FREE_ROUTER_ID
+                    or self.candidate.model_id.endswith(':free')
+                )
+                else None
             ),
             free_user_daily_limit=self.config.free_user_daily_limit,
             free_account_minute_limit=self.config.free_account_minute_limit,
@@ -353,12 +399,18 @@ async def list_free_catalog_models(*, refresh: bool = False) -> list[dict]:
                         )
             except (ClientError, OSError, ValueError, KeyError, TypeError, asyncio.TimeoutError):
                 continue
-    items.sort(key=lambda item: (item['model_id'].lower(), item['connection_id']))
+    items.sort(
+        key=lambda item: (
+            0 if item['model_id'] == OPENROUTER_FREE_ROUTER_ID else 1,
+            item['model_id'].lower(),
+            item['connection_id'],
+        )
+    )
     return items
 
 
 def is_free_model(model_id: str, entry: dict) -> bool:
-    if not model_id.endswith(':free'):
+    if model_id != OPENROUTER_FREE_ROUTER_ID and not model_id.endswith(':free'):
         return False
     if not is_text_generation_model({**(entry if isinstance(entry, dict) else {}), 'id': model_id}):
         return False
@@ -463,7 +515,8 @@ async def select_model(
     responses=False,
     exclude=None,
 ) -> SelectedModel:
-    if not isinstance(group_id, str) or group_id not in GROUPS:
+    group_id = normalize_group_id(group_id)
+    if not group_id or group_id not in GROUPS:
         raise policy_error('entitlement_missing', 403)
     config = await get_model_routing_config()
     connections = await get_connections()
@@ -524,7 +577,7 @@ async def select_model(
             metadata = (await _openrouter_catalog(connection)).get(candidate.model_id, {})
             if not is_free_model(candidate.model_id, metadata) or (metadata.get('context_length') or 0) < tokens:
                 continue
-            if not catalog_supports(metadata, requirements):
+            if candidate.model_id != OPENROUTER_FREE_ROUTER_ID and not catalog_supports(metadata, requirements):
                 continue
         if not pinned and await tier_repository.recently_rate_limited(connection.id, candidate.model_id):
             continue

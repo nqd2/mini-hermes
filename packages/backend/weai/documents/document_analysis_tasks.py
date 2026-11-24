@@ -24,7 +24,7 @@ from .library import document_in_chat_scope, has_document_access, list_chat_docu
 from .models import ChatResource, Document, ResourceAnalysis, ResourceAnalysisEvidence, ResourceTask, Revision, now
 from .resource_aware import resolve_resource_scope
 from .resource_tasks import call_provider
-from weai.model_routing.tier_service import GROUPS
+from weai.model_routing.tier_service import is_tier_group, normalize_group_id
 from .service import get_verified_revision_content
 from .storage import ObjectStore
 
@@ -69,9 +69,8 @@ async def queue_chat_analysis(metadata, user, prompt: str, request=None, model=N
         doc = next(doc for doc in documents if doc.id == ids[0])
         if Path(doc.filename).suffix.casefold() not in FORMATS:
             return None
-        group_id = (model or {}).get('id')
-        if group_id not in GROUPS:
-            group_id = None
+        raw_group_id = (model or {}).get('id')
+        group_id = normalize_group_id(raw_group_id) if is_tier_group(raw_group_id) else None
         target = None if group_id else await _provider_target(request, model)
         if target is None and group_id is None:
             return {'content': (

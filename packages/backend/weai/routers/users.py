@@ -712,10 +712,15 @@ async def get_user_usage_by_session_user(
     heatmap = await ChatMessages.get_user_daily_usage(user.id, period_start, period_end, timezone=user.timezone, db=db)
     top_models = await ChatMessages.get_user_top_models(user.id, period_start, period_end, db=db)
     if user.role != 'admin':
-        from weai.model_routing.tier_service import GROUPS
+        from weai.model_routing.tier_service import is_tier_group, normalize_group_id
 
         top_models = [
-            {**model, 'model_id': model['model_id'] if model['model_id'] in GROUPS else 'legacy-model'}
+            {
+                **model,
+                'model_id': normalize_group_id(model['model_id'])
+                if is_tier_group(model['model_id'])
+                else 'legacy-model',
+            }
             for model in top_models
         ]
     top_tools = await ChatMessages.get_user_top_tools(user.id, period_start, period_end, db=db)

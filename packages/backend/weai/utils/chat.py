@@ -222,10 +222,10 @@ async def generate_chat_completion(
                 **request.state.metadata,
             }
 
-    from weai.model_routing.tier_service import GROUPS, authorize_model
+    from weai.model_routing.tier_service import authorize_model, is_tier_group
 
     model_id = form_data.get('model')
-    if user.role != 'admin' or (isinstance(model_id, str) and model_id in GROUPS):
+    if user.role != 'admin' or is_tier_group(model_id):
         await authorize_model(user, model_id)
         return await generate_openai_chat_completion(request, form_data, user=user)
 
@@ -351,12 +351,13 @@ chat_completion = generate_chat_completion
 
 
 async def chat_completed(request: Request, form_data: dict, user: Any):
-    from weai.model_routing.tier_service import GROUPS, authorize_model, virtual_model
+    from weai.model_routing.tier_service import authorize_model, is_tier_group, normalize_group_id, virtual_model
 
     model_id = form_data.get('model')
     await authorize_model(user, model_id)
-    if isinstance(model_id, str) and model_id in GROUPS:
-        models = {model_id: virtual_model(model_id)}
+    if is_tier_group(model_id):
+        canonical_id = normalize_group_id(model_id)
+        models = {model_id: virtual_model(canonical_id), canonical_id: virtual_model(canonical_id)}
     else:
         if not request.app.state.MODELS:
             await get_all_models(request, user=user)

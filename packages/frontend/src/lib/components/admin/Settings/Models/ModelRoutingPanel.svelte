@@ -23,15 +23,9 @@
 		structured_output: 'Structured output',
 		responses: 'Responses API'
 	};
-	const freeGroupColumns = [
-		{ id: 'agent-runtime-free-small', label: 'Low (Small)' },
-		{ id: 'agent-runtime-free-medium', label: 'Medium' },
-		{ id: 'agent-runtime-free-large', label: 'Premium (Large)' }
-	] as const;
+	const freeGroupColumns = [{ id: 'agent-runtime-free', label: 'Free' }] as const;
 	const groupLabels: Record<string, string> = {
-		'agent-runtime-free-small': 'Free — Low (Small)',
-		'agent-runtime-free-medium': 'Free — Medium',
-		'agent-runtime-free-large': 'Free — Premium (Large)',
+		'agent-runtime-free': 'Free',
 		'agent-runtime-plus-small': 'Plus — Small',
 		'agent-runtime-plus-medium': 'Plus — Medium',
 		'agent-runtime-plus-large': 'Plus — Large'
@@ -57,7 +51,7 @@
 			const res = await getFreeCatalog(localStorage.token, refresh);
 			freeCatalog = res.models ?? [];
 		} catch {
-			catalogError = $i18n.t('Could not load :free model catalog');
+			catalogError = $i18n.t('Could not load free model catalog');
 		} finally {
 			loadingCatalog = false;
 		}
@@ -110,7 +104,7 @@
 				const candidate: PoolCandidate = {
 					connection_id: item.connection_id,
 					model_id: item.model_id,
-					priority: 0,
+					priority: item.model_id === 'openrouter/free' ? 0 : current.length,
 					min_context: Math.max(1, item.context_length || 8192),
 					capabilities: Array.from(
 						new Set<Capability>(['text', 'responses', ...item.capabilities])
@@ -132,7 +126,8 @@
 
 	function connectionsForGroup(group: string) {
 		if (!routing) return [];
-		const allowed: (TierScope | undefined)[] = group.includes('-free-')
+		const isFreeGroup = group === 'agent-runtime-free' || group.startsWith('agent-runtime-free-');
+		const allowed: (TierScope | undefined)[] = isFreeGroup
 			? ['free', 'both', undefined]
 			: ['plus', 'both', undefined];
 		return routing.connections.filter((connection) => allowed.includes(connection.tier_scope));
@@ -164,7 +159,7 @@
 			const messages: Record<string, string> = {
 				invalid_model_connection: 'Choose an active provider connection for each enabled model.',
 				invalid_free_model:
-					'OpenRouter Free models require an approved :free model with verified zero pricing.',
+					'OpenRouter Free models require openrouter/free or an approved :free model with verified zero pricing.',
 				model_pool_changed:
 					'An administrator updated the model groups. Reload to get the latest settings.'
 			};
@@ -241,7 +236,7 @@
 				>
 					<div class="flex flex-wrap items-center justify-between gap-2">
 						<div class="flex items-center gap-1.5 text-xs font-medium text-gray-800 dark:text-gray-200">
-							<span>{$i18n.t('Free tier :free models checklist')}</span>
+							<span>{$i18n.t('Free tier models checklist')}</span>
 							{#if freeCatalog.length > 0}
 								<span
 									class="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
@@ -255,7 +250,7 @@
 							<input
 								type="search"
 								class="{inputClass} min-w-48 sm:w-60"
-								placeholder={$i18n.t('Filter :free models...')}
+								placeholder={$i18n.t('Filter openrouter/free or :free models...')}
 								bind:value={catalogQuery}
 							/>
 							<button
@@ -264,7 +259,7 @@
 								disabled={loadingCatalog}
 								on:click={() => loadCatalog(true)}
 							>
-								{loadingCatalog ? $i18n.t('Loading...') : $i18n.t('Refresh :free list')}
+								{loadingCatalog ? $i18n.t('Loading...') : $i18n.t('Refresh free list')}
 							</button>
 						</div>
 					</div>
@@ -272,14 +267,14 @@
 					{#if catalogError}
 						<p class="text-xs text-red-600 dark:text-red-400">{catalogError}</p>
 					{:else if loadingCatalog && freeCatalog.length === 0}
-						<p class="py-2 text-xs text-gray-500">{$i18n.t('Loading :free models...')}</p>
+						<p class="py-2 text-xs text-gray-500">{$i18n.t('Loading free models...')}</p>
 					{:else if filteredFreeCatalog.length === 0}
 						<p class="py-2 text-xs text-gray-500">
 							{freeCatalog.length === 0
 								? $i18n.t(
-										'No :free models found. Configure an enabled Free-tier connection (e.g. OpenRouter) in Connections.'
+										'No free models found. Configure an enabled Free-tier connection (e.g. OpenRouter) in Connections.'
 									)
-								: $i18n.t('No :free models match your search.')}
+								: $i18n.t('No free models match your search.')}
 						</p>
 					{:else}
 						<div class="max-h-64 overflow-y-auto rounded-xl border border-gray-100 scrollbar-hover dark:border-gray-850">

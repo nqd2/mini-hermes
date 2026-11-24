@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from weai.documents.resource_tasks import ProviderRequestError, call_provider
 from weai.model_routing.provider_errors import ProviderPayloadTooLarge
-from weai.model_routing.tier_service import GROUPS
+from weai.model_routing.tier_service import is_tier_group, normalize_group_id
 
 from .request_budget import RequestBudgetExceeded, RequestBudgetManager
 
@@ -157,9 +157,8 @@ async def _load_shared_context(client, workspace_id: str, context_paths: list[st
 
 
 async def _resolve_provider_routing(request, model: dict | None, user: dict) -> tuple[str | None, dict | None]:
-    group_id = (model or {}).get('id')
-    if group_id not in GROUPS:
-        group_id = None
+    raw_group_id = (model or {}).get('id')
+    group_id = normalize_group_id(raw_group_id) if is_tier_group(raw_group_id) else None
     target = None
     if group_id is None and user.get('role') == 'admin' and request is not None and model:
         from weai.documents.document_analysis_tasks import _provider_target

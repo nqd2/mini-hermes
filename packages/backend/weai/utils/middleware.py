@@ -737,10 +737,10 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     else:
         models = request.app.state.MODELS
 
-    from weai.model_routing.tier_service import GROUPS, virtual_model
+    from weai.model_routing.tier_service import is_tier_group, normalize_group_id, virtual_model
 
-    if form_data['model'] in GROUPS:
-        task_model_id = form_data['model']
+    if is_tier_group(form_data['model']):
+        task_model_id = normalize_group_id(form_data['model'])
         models = {task_model_id: virtual_model(task_model_id)}
     else:
         task_model_id = get_task_model_id(

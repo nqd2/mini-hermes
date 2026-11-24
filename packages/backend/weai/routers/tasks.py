@@ -21,7 +21,14 @@ from weai.constants import ERROR_MESSAGES, TASKS
 from weai.models.config import Config
 from weai.routers.pipelines import process_pipeline_inlet_filter
 from weai.utils.auth import get_admin_user, get_verified_user
-from weai.model_routing.tier_service import GROUPS, tier_repository, virtual_model
+from weai.model_routing.tier_service import (
+    GROUPS,
+    default_group_for_tier,
+    is_tier_group,
+    normalize_group_id,
+    tier_repository,
+    virtual_model,
+)
 from weai.utils.chat import generate_chat_completion
 from weai.utils.payload import apply_params_to_form_data
 from weai.utils.task import (
@@ -86,11 +93,12 @@ async def get_task_model_generation_config(
     *,
     user_role: str | None = None,
 ) -> tuple[str, dict]:
-    if default_model_id in GROUPS:
-        small_group = f'agent-runtime-{GROUPS[default_model_id]}-small'
-        fallback_model_id = small_group if small_group in models else default_model_id
+    if is_tier_group(default_model_id):
+        canonical_model_id = normalize_group_id(default_model_id)
+        small_group = default_group_for_tier(GROUPS[canonical_model_id])
+        fallback_model_id = small_group if small_group in models else canonical_model_id
         if user_role != 'admin':
-            return default_model_id, {}
+            return canonical_model_id, {}
         config = await Config.get_many(
             'task.model.default',
             'task.model.external',
@@ -127,9 +135,10 @@ async def get_task_model_generation_config(
 async def resolve_task_models(request, form_data, user):
     if user.role != 'admin':
         plan = await tier_repository.get_plan(user.id)
-        selected = form_data.get('model') if getattr(request.state, 'metadata', None) else None
-        if not isinstance(selected, str) or GROUPS.get(selected) != plan.tier:
-            selected = f'agent-runtime-{plan.tier}-small'
+        raw_selected = form_data.get('model') if getattr(request.state, 'metadata', None) else None
+        selected = normalize_group_id(raw_selected) if is_tier_group(raw_selected) else None
+        if not selected or GROUPS.get(selected) != plan.tier:
+            selected = default_group_for_tier(plan.tier)
         return selected, {selected: virtual_model(selected)}
 
     if getattr(request.state, 'direct', False) and hasattr(request.state, 'model'):
@@ -139,10 +148,13 @@ async def resolve_task_models(request, form_data, user):
         }
     else:
         models = dict(request.app.state.MODELS.items())
-    if isinstance(form_data.get('model'), str) and form_data.get('model') in GROUPS:
+    raw_model = form_data.get('model')
+    if is_tier_group(raw_model):
+        canonical_model = normalize_group_id(raw_model)
         for group_id in GROUPS:
             models[group_id] = virtual_model(group_id)
-    return form_data.get('model'), models
+        return canonical_model, models
+    return raw_model, models
 
 
 # Task Endpoints
@@ -267,7 +279,7 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
         )
 
     configured_small_model = os.getenv('AGENT_RUNTIME_SMALL_TASK_MODEL', 'gpt-4.1-mini').strip()
-    if user.role == 'admin' and model_id not in GROUPS and configured_small_model:
+    if user.role == 'admin' and not is_tier_group(model_id) and configured_small_model:
         if configured_small_model not in models:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

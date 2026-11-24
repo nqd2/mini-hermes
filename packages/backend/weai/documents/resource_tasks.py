@@ -89,16 +89,27 @@ async def create_summary_task(
         raise ResourceIndexFailed([failed_job_id])
     if count > MAX_TASK_CHUNKS:
         raise HTTPException(413, 'Document task exceeds the 5000-section safety limit.')
-    from weai.model_routing.tier_service import GROUPS, tier_repository
+    from weai.model_routing.tier_service import (
+        GROUPS,
+        default_group_for_tier,
+        is_tier_group,
+        normalize_group_id,
+        tier_repository,
+    )
 
     from weai.models.users import Users
 
     owner = await Users.get_user_by_id(owner_id)
     plan = await tier_repository.get_plan(owner_id)
+    normalized_logical = normalize_group_id(logical_model_id) if is_tier_group(logical_model_id) else None
     if not owner or owner.role != 'admin':
-        if not isinstance(logical_model_id, str) or GROUPS.get(logical_model_id) != plan.tier:
-            logical_model_id = f'agent-runtime-{plan.tier}-small'
-    elif logical_model_id not in GROUPS:
+        if not normalized_logical or GROUPS.get(normalized_logical) != plan.tier:
+            logical_model_id = default_group_for_tier(plan.tier)
+        else:
+            logical_model_id = normalized_logical
+    elif normalized_logical:
+        logical_model_id = normalized_logical
+    else:
         logical_model_id = None
     task = ResourceTask(
         id=str(uuid4()),
@@ -215,10 +226,10 @@ async def call_provider(messages: list[dict], *, max_tokens: int, temperature: f
     owner = await Users.get_user_by_id(owner_id) if owner_id else None
     if owner_id and (not owner or owner.role != 'admin' or logical_model_id):
         from weai.model_routing.model_routing import select_model
-        from weai.model_routing.tier_service import tier_repository
+        from weai.model_routing.tier_service import default_group_for_tier, normalize_group_id, tier_repository
 
         plan = await tier_repository.get_plan(owner_id)
-        group_id = logical_model_id or f'agent-runtime-{plan.tier}-small'
+        group_id = normalize_group_id(logical_model_id) if logical_model_id else default_group_for_tier(plan.tier)
         selected = await select_model(
             owner_id, group_id, {'messages': messages, 'max_tokens': max_tokens}, task_id,
         )

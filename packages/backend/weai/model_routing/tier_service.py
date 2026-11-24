@@ -17,7 +17,40 @@ plans, dispatches, selections = tier_tables(Base.metadata)
 Tier = Literal['free', 'plus']
 DEFAULT_PLUS_MONTHLY_LIMIT = 1000
 SIZES = ('small', 'medium', 'large')
-GROUPS = {f'agent-runtime-{tier}-{size}': tier for tier in ('free', 'plus') for size in SIZES}
+FREE_GROUP_ID = 'agent-runtime-free'
+LEGACY_FREE_GROUP_IDS = frozenset(f'agent-runtime-free-{size}' for size in SIZES)
+GROUPS: dict[str, Tier] = {
+    FREE_GROUP_ID: 'free',
+    **{f'agent-runtime-plus-{size}': 'plus' for size in SIZES},
+}
+
+
+def normalize_group_id(model_id: str | None) -> str | None:
+    """Map legacy Free S/M/L logical IDs to the consolidated Free group ID."""
+    if not isinstance(model_id, str):
+        return None
+    if model_id in LEGACY_FREE_GROUP_IDS:
+        return FREE_GROUP_ID
+    return model_id
+
+
+def is_tier_group(model_id: str | None) -> bool:
+    """Return True for any canonical or legacy logical tier group ID."""
+    canonical = normalize_group_id(model_id)
+    return canonical is not None and canonical in GROUPS
+
+
+def group_ids_for_tier(tier: Tier) -> list[str]:
+    """Return canonical (and legacy, for Free) group IDs belonging to a tier for dispatch accounting."""
+    canonical = [group for group, group_tier in GROUPS.items() if group_tier == tier]
+    if tier == 'free':
+        return [*canonical, *sorted(LEGACY_FREE_GROUP_IDS)]
+    return canonical
+
+
+def default_group_for_tier(tier: Tier) -> str:
+    """Return the default lightweight group ID for a plan tier."""
+    return FREE_GROUP_ID if tier == 'free' else 'agent-runtime-plus-small'
 ERROR_MESSAGES = {
     'entitlement_missing': 'Choose a model available on your WeAI plan.',
     'quota_exhausted': 'You have used all requests in your WeAI allowance.',
@@ -173,7 +206,7 @@ class TierRepository:
             .select_from(dispatches)
             .where(
                 dispatches.c.user_id == user_id,
-                dispatches.c.group_id.in_([group for group, group_tier in GROUPS.items() if group_tier == tier]),
+                dispatches.c.group_id.in_(group_ids_for_tier(tier)),
                 dispatches.c.provider_status.is_distinct_from(429),
                 (dispatches.c.run_id.is_(None)) | (~dispatches.c.run_id.like('bg:%')),
                 dispatches.c.created_at >= start,
@@ -189,7 +222,7 @@ class TierRepository:
                 select(dispatches.c.dispatch_key)
                 .where(
                     dispatches.c.user_id == user_id,
-                    dispatches.c.group_id.in_([group for group, group_tier in GROUPS.items() if group_tier == tier]),
+                    dispatches.c.group_id.in_(group_ids_for_tier(tier)),
                     dispatches.c.run_id == run_id,
                     dispatches.c.provider_status.is_distinct_from(429),
                     dispatches.c.created_at >= start,
@@ -234,7 +267,7 @@ class TierRepository:
         if (
             not is_admin
             and not context.is_background_task
-            and GROUPS.get(context.group_id) == 'free'
+            and GROUPS.get(normalize_group_id(context.group_id) or '') == 'free'
             and not await self._run_already_admitted(db, context.user_id, 'free', context.run_id, day, day_end)
             and await self._user_count(db, context.user_id, 'free', day, day_end) >= context.free_user_daily_limit
         ):
@@ -280,7 +313,8 @@ class TierRepository:
                 ):
                     raise policy_error('dispatch_key_conflict', 409)
                 raise HTTPException(409, detail={'code': 'duplicate_dispatch', 'state': previous.state})
-            tier = GROUPS.get(context.group_id)
+            canonical_group_id = normalize_group_id(context.group_id) or context.group_id
+            tier = GROUPS.get(canonical_group_id)
             if role != 'admin':
                 plan = await self._plan(db, context.user_id, now)
                 if plan.tier != tier:
@@ -364,15 +398,21 @@ async def authorize_model(user, model_id) -> None:
     if user.role == 'admin':
         return
     plan = await tier_repository.get_plan(user.id)
-    if not isinstance(model_id, str) or GROUPS.get(model_id) != plan.tier:
+    canonical = normalize_group_id(model_id)
+    if not canonical or GROUPS.get(canonical) != plan.tier:
         raise policy_error('entitlement_missing', 403)
 
 
 def virtual_model(model_id: str) -> dict:
-    tier, size = model_id.removeprefix('agent-runtime-').split('-')
+    canonical = normalize_group_id(model_id) or model_id
+    if canonical == FREE_GROUP_ID:
+        name = 'Free'
+    else:
+        tier, size = canonical.removeprefix('agent-runtime-').split('-')
+        name = f'{tier.title()} {size.title()}'
     return {
-        'id': model_id,
-        'name': f'{tier.title()} {size.title()}',
+        'id': canonical,
+        'name': name,
         'object': 'model',
         'owned_by': 'agent-runtime',
         'info': {'meta': {'capabilities': {'vision': True, 'function_calling': True}}},

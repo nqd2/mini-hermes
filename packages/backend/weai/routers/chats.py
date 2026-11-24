@@ -102,10 +102,10 @@ async def chat_response_for_requester(chat, user=None, db=None):
     messages = list((data['chat'].get('history', {}).get('messages') or {}).values())
     messages.extend(data['chat'].get('messages') or [])
     if user is None or user.role != 'admin':
-        from weai.model_routing.tier_service import GROUPS
+        from weai.model_routing.tier_service import is_tier_group, normalize_group_id
 
         def public_model(value):
-            return value if isinstance(value, str) and value in GROUPS else 'legacy-model'
+            return normalize_group_id(value) if is_tier_group(value) else 'legacy-model'
 
         if isinstance(data['chat'].get('models'), list):
             data['chat']['models'] = list(dict.fromkeys(public_model(value) for value in data['chat']['models']))

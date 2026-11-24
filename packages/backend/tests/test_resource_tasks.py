@@ -83,7 +83,7 @@ async def test_summary_task_checkpoints_chunks_and_reduces_with_evidence(monkeyp
         )
         await db.commit()
         task = await create_summary_task(db, doc, 'alice', 'chat-1', 'agent-runtime-free-medium')
-        assert task.logical_model_id == 'agent-runtime-free-medium'
+        assert task.logical_model_id == 'agent-runtime-free'
         assert (await db.execute(select(DocumentChunk.id))).scalars().all() == ['c1', 'c2']
         for _ in range(8):
             if task.status == 'completed':

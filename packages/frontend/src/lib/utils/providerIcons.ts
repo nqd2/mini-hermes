@@ -48,7 +48,11 @@ const SLUG_ALIASES: Record<string, string[]> = {
 
 export function isLogicalTierModel(modelId: string | null | undefined): boolean {
 	if (!modelId) return false;
-	return modelId.startsWith('agent-runtime-free-') || modelId.startsWith('agent-runtime-plus-');
+	return (
+		modelId === 'agent-runtime-free' ||
+		modelId.startsWith('agent-runtime-free-') ||
+		modelId.startsWith('agent-runtime-plus-')
+	);
 }
 
 export function extractProviderSlug(modelId: string | null | undefined): string | null {

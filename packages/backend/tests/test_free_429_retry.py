@@ -8,7 +8,7 @@ from weai.model_routing import model_routing, tier_service
 from weai.routers import openai as openai_router
 
 
-def _make_selection(connection_id: str, model_id: str, *, group_id: str = 'agent-runtime-free-small'):
+def _make_selection(connection_id: str, model_id: str, *, group_id: str = 'agent-runtime-free'):
     connection = model_routing.Connection(
         connection_id,
         'https://example-free.test/v1',
@@ -49,7 +49,7 @@ async def test_select_model_excludes_collection_of_tried_candidates(monkeypatch)
         for i in range(4)
     ]
     config = model_routing.ModelRoutingConfig(
-        groups={g: (candidates if g == 'agent-runtime-free-small' else []) for g in tier_service.GROUPS}
+        groups={g: (candidates if g == 'agent-runtime-free' else []) for g in tier_service.GROUPS}
     )
     monkeypatch.setattr(model_routing, 'get_connections', AsyncMock(return_value={'c1': connection}))
     monkeypatch.setattr(model_routing, 'get_model_routing_config', AsyncMock(return_value=config))
@@ -57,7 +57,7 @@ async def test_select_model_excludes_collection_of_tried_candidates(monkeypatch)
 
     selected = await model_routing.select_model(
         'u1',
-        'agent-runtime-free-small',
+        'agent-runtime-free',
         {'messages': [{'role': 'user', 'content': 'hi'}]},
         exclude={('c1', 'm0'), ('c1', 'm1')},
     )

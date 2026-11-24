@@ -879,7 +879,15 @@ app.include_router(files.router, prefix='/api/v1/files', tags=['files'])
 from weai.releases.release_routes import local_changelog, router as release_router
 from weai.documents.routes import router as document_router
 from weai.model_routing.tier_routes import router as tier_router
-from weai.model_routing.tier_service import GROUPS, authorize_model, policy_error, virtual_catalog, virtual_model
+from weai.model_routing.tier_service import (
+    GROUPS,
+    authorize_model,
+    is_tier_group,
+    normalize_group_id,
+    policy_error,
+    virtual_catalog,
+    virtual_model,
+)
 from weai.persistence.v2.routes import router as v2_document_router
 
 app.include_router(tier_router, prefix='/api/v1/agent-runtime', tags=['agent-runtime-tiers'])
@@ -1069,8 +1077,8 @@ async def _resolve_chat_model(request: Request, user, model_id: str | None, mode
     await authorize_model(user, model_id)
     if user.role != 'admin' and model_item.get('direct'):
         raise policy_error('entitlement_missing', 403)
-    if isinstance(model_id, str) and model_id in GROUPS:
-        return virtual_model(model_id), None, None, False
+    if isinstance(model_id, str) and is_tier_group(model_id):
+        return virtual_model(normalize_group_id(model_id)), None, None, False
     model_info = None
     fallback_model = None
     missing_base_model = False
@@ -1862,7 +1870,7 @@ async def chat_completion(
 
             # Resolve the model object for this specific model
             resolved_model = (
-                virtual_model(target_model_id) if target_model_id in GROUPS
+                virtual_model(normalize_group_id(target_model_id)) if is_tier_group(target_model_id)
                 else request.app.state.MODELS.get(target_model_id, model)
             )
 
@@ -2793,7 +2801,11 @@ async def get_current_usage(user=Depends(get_verified_user)):
             )
 
         return {
-            'model_ids': [model for model in get_models_in_use() if user.role == 'admin' or model in GROUPS],
+            'model_ids': [
+                normalize_group_id(model) if user.role != 'admin' and is_tier_group(model) else model
+                for model in get_models_in_use()
+                if user.role == 'admin' or is_tier_group(model)
+            ],
             'user_count': await Users.get_active_user_count(),
         }
     except HTTPException:

@@ -45,7 +45,13 @@ from weai.model_routing.model_routing import (
     select_rate_limit_fallback,
 )
 from weai.model_routing.routed_response import logical_result, logical_stream, prepare_logical_request, provider_error
-from weai.model_routing.tier_service import GROUPS, authorize_model, virtual_catalog
+from weai.model_routing.tier_service import (
+    GROUPS,
+    authorize_model,
+    is_tier_group,
+    normalize_group_id,
+    virtual_catalog,
+)
 from weai.models.access_grants import AccessGrants
 from weai.models.config import Config
 from weai.models.groups import Groups
@@ -1533,7 +1539,7 @@ async def generate_chat_completion(
         except _CandidateRateLimited as error:
             selection = error.selection
             tried.add((selection.connection.id, selection.candidate.model_id))
-            is_free = GROUPS.get(selection.group_id) == 'free'
+            is_free = GROUPS.get(normalize_group_id(selection.group_id)) == 'free'
             max_fallbacks = FREE_429_MAX_FALLBACKS if is_free else 1
 
             if fallbacks_used < max_fallbacks:
@@ -1610,13 +1616,14 @@ async def _generate_chat_completion(
         )
 
     selected = None
-    if isinstance(model_id, str) and model_id in GROUPS:
+    if isinstance(model_id, str) and is_tier_group(model_id):
+        group_id = normalize_group_id(model_id)
         server_metadata = getattr(request.state, 'metadata', None) or {}
         # The application builds (and fans out) this metadata after authentication.
         # A direct /openai call has no application metadata in request.state.
         metadata = metadata if server_metadata and isinstance(metadata, dict) else server_metadata
         run_id = None if metadata.get('task') else metadata.get('agent_turn_id') or metadata.get('v2_run_id')
-        selected = replacement or await select_model(user.id, model_id, payload, run_id)
+        selected = replacement or await select_model(user.id, group_id, payload, run_id)
         # Provider transforms may edit message parts in place. Retain the
         # caller's original payload if a definite rejection allows a retry.
         payload = deepcopy(payload)
@@ -1833,7 +1840,7 @@ async def _generate_chat_completion(
                 error = provider_error(r, selected)
                 if allow_rate_limit_retry and (
                     (r.status == 429 and error.detail['code'] == 'provider_rate_limit')
-                    or (GROUPS.get(selected.group_id) == 'free' and r.status in {404, 502, 503})
+                    or (GROUPS.get(normalize_group_id(selected.group_id)) == 'free' and r.status in {404, 502, 503})
                 ):
                     raise _CandidateRateLimited(
                         error,
@@ -2106,12 +2113,13 @@ async def responses(
         )
 
     selected = None
-    if model_id in GROUPS:
+    if is_tier_group(model_id):
+        group_id = normalize_group_id(model_id)
         # Provider-owned continuation state can reference another user's data.
         if payload.get('previous_response_id') or payload.get('conversation'):
             raise HTTPException(400, detail={'code': 'unsupported_continuation'})
         payload['store'] = False
-        selected = await select_model(user.id, model_id, payload, responses=True)
+        selected = await select_model(user.id, group_id, payload, responses=True)
         url, key, api_config = selected.connection.url, selected.connection.key, selected.connection.options
         selected.apply(payload)
     else:

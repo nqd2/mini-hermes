@@ -3,11 +3,17 @@ import { extractProviderSlug, isLogicalTierModel, resolveModelIcon } from './pro
 
 describe('providerIcons', () => {
 	it('identifies logical tier models and always uses WeAI logo for non-admin users', () => {
+		expect(isLogicalTierModel('agent-runtime-free')).toBe(true);
 		expect(isLogicalTierModel('agent-runtime-free-small')).toBe(true);
 		expect(isLogicalTierModel('agent-runtime-plus-large')).toBe(true);
 		expect(isLogicalTierModel('openai/gpt-4o')).toBe(false);
 
 		expect(resolveModelIcon('openai/gpt-4o', 'user', { openai: { url: 'https://openrouter.ai/images/icons/OpenAI.svg' } })).toEqual({
+			src: '/favicon.png',
+			fallback: '/favicon.png',
+			invertDark: false
+		});
+		expect(resolveModelIcon('agent-runtime-free', 'admin', {})).toEqual({
 			src: '/favicon.png',
 			fallback: '/favicon.png',
 			invertDark: false

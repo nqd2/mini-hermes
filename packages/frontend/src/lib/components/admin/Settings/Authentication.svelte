@@ -183,13 +183,6 @@
 								placeholder={`e.g.) /api/v1/messages, /api/v1/channels`}
 								bind:value={adminConfig.API_KEYS_ALLOWED_ENDPOINTS}
 							/>
-							<a
-								href="https://docs.openwebui.com/reference/api-endpoints"
-								target="_blank"
-								class="mt-1 block text-[0.6875rem] text-gray-400 underline hover:text-gray-700 dark:text-gray-600 dark:hover:text-gray-300"
-							>
-								{$i18n.t('To learn more about available endpoints, visit our documentation.')}
-							</a>
 						</AdminSettingField>
 					{/if}
 				{/if}
@@ -208,13 +201,11 @@
 					/>
 
 					{#if adminConfig.JWT_EXPIRES_IN === '-1'}
-						<a
-							href="https://docs.openwebui.com/reference/env-configuration#jwt_expires_in"
-							target="_blank"
-							class="mt-1 block rounded-lg bg-yellow-500/10 px-2 py-1.5 text-[0.6875rem] text-yellow-700 underline dark:text-yellow-200"
+						<div
+							class="mt-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2.5 py-1.5 text-[0.6875rem] text-amber-700 dark:text-amber-300"
 						>
 							{$i18n.t('No expiration can pose security risks.')}
-						</a>
+						</div>
 					{/if}
 				</AdminSettingField>
 			</AdminSettingSection>

@@ -186,6 +186,14 @@
 		const redirectPath = $page.url.searchParams.get('redirect');
 		const logout = $page.url.searchParams.get('state') === 'logout';
 
+		if ($page.url.searchParams.has('pending')) {
+			localStorage.removeItem('token');
+			user.set(undefined);
+			pendingApproval = true;
+			loaded = true;
+			return;
+		}
+
 		if ($user && !logout) {
 			goto(redirectPath || '/');
 		} else {
@@ -206,11 +214,6 @@
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : String(error));
 			}
-			loaded = true;
-			return;
-		}
-		if ($page.url.searchParams.has('pending')) {
-			pendingApproval = true;
 			loaded = true;
 			return;
 		}
@@ -302,9 +305,25 @@
 					<div
 						class="dark my-auto mx-auto w-full sm:max-w-[400px] rounded-2xl border border-white/15 bg-neutral-950/75 p-7 text-white shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65)] backdrop-blur-2xl sm:p-8"
 					>
-						<p class="text-sm text-white/80">
+						<h1 class="text-lg font-semibold text-white">
+							{$i18n.t('Account Activation Pending')}
+						</h1>
+						<p class="mt-2 text-sm text-white/80">
 							{$i18n.t('Your account is awaiting administrator approval.')}
 						</p>
+						<p class="mt-1 text-xs text-white/60">
+							{$i18n.t('Please contact an administrator to activate your account before signing in again.')}
+						</p>
+						<button
+							type="button"
+							class="mt-5 w-full rounded-xl bg-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/25"
+							on:click={() => {
+								pendingApproval = false;
+								window.location.href = '/auth?state=logout';
+							}}
+						>
+							{$i18n.t('Back to Sign in')}
+						</button>
 					</div>
 				{:else if ($config?.features.auth_trusted_header ?? false) || $config?.features.auth === false}
 					<div

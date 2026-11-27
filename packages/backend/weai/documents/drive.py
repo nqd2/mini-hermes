@@ -5,11 +5,20 @@ from __future__ import annotations
 import base64
 import json
 import os
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[2] / '.env')
+except ImportError:
+    pass
 
 
 NATIVE_TO_OFFICE = {
@@ -175,6 +184,11 @@ class ConnectorRequest(BaseModel):
 
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@app.exception_handler(DriveError)
+async def _handle_drive_error(_request, exc: DriveError):
+    return JSONResponse(status_code=502, content={'detail': str(exc)})
 
 
 def _authorize(value: str | None):

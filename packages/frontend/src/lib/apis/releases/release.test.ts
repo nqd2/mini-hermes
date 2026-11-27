@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getRelease } from './release';
+import { getRelease, getReleases } from './release';
 import { shouldShowRelease } from '../../utils/releaseVisibility';
 import modal from '../../components/ReleaseModal.svelte?raw';
 import layout from '../../../routes/(app)/+layout.svelte?raw';
@@ -28,8 +28,23 @@ describe('WeAI release notes', () => {
 		});
 	});
 
-	it('renders plain text and preserves About attribution', () => {
+	it('loads the release history endpoint', async () => {
+		const releases = [
+			{ version: '0.1.3', released_at: '2026-11-27', sections: { Added: ['Notes'] } },
+			{ version: '0.1.2', released_at: '2026-11-23', sections: { Added: ['Older'] } }
+		];
+		const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => releases });
+		vi.stubGlobal('fetch', fetch);
+		await expect(getReleases('test-token')).resolves.toEqual(releases);
+		expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/agent-runtime\/releases$/), {
+			headers: { Authorization: 'Bearer test-token' }
+		});
+	});
+
+	it('renders plain text, full changelog tab, and preserves About attribution', () => {
 		expect(modal).toContain('<li>{item}</li>');
+		expect(modal).toContain("What's new");
+		expect(modal).toContain('Full changelog');
 		expect(modal).not.toContain('@html');
 		expect(layout).not.toMatch(/getVersionUpdates|UpdateInfoToast/);
 		expect(about).toContain('<BuildVersion />');

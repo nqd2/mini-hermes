@@ -14,6 +14,7 @@
 	import Plus from '$lib/components/icons/Plus.svelte';
 	import Connection from './Tools/Connection.svelte';
 	import Terminals from './Integrations/Terminals.svelte';
+	import UserSettingSection from './UserSettingSection.svelte';
 
 	import AddToolServerModal from '$lib/components/AddToolServerModal.svelte';
 
@@ -106,31 +107,30 @@
 
 	<div class="flex flex-1 min-h-0 flex-col overflow-y-auto scrollbar-hover pr-1.5">
 		{#if servers !== null}
-			<section aria-labelledby="tool-servers-heading">
+			<UserSettingSection first>
 				<div>
 					<div class="mb-3 flex items-start justify-between gap-3">
 						<div class="min-w-0">
-							<h3 id="tool-servers-heading" class="text-xs text-gray-600 dark:text-gray-400">
+							<h3 id="tool-servers-heading" class="text-xs font-medium text-gray-700 dark:text-gray-300">
 								{$i18n.t('settings.personal.tools.sections.externalToolServers.title')}
 							</h3>
-							<p class="mt-1 text-[0.6875rem] leading-relaxed text-gray-400 dark:text-gray-600">
+							<p class="mt-1 text-[0.6875rem] leading-relaxed text-gray-500 dark:text-gray-400">
 								{$i18n.t('settings.personal.tools.addConnection.description')}
 							</p>
 						</div>
 
-						<Tooltip content={$i18n.t('settings.personal.tools.addConnection.label')}>
-							<button
-								aria-label={$i18n.t('settings.personal.tools.addConnection.label')}
-								class="flex size-7 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-white"
-								on:click={() => (showConnectionModal = true)}
-								type="button"
-							>
-								<Plus />
-							</button>
-						</Tooltip>
+						<button
+							aria-label={$i18n.t('settings.personal.tools.addConnection.label')}
+							class="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white"
+							on:click={() => (showConnectionModal = true)}
+							type="button"
+						>
+							<Plus className="size-3.5" />
+							<span>{$i18n.t('Add')}</span>
+						</button>
 					</div>
 
-					<div class="flex flex-col gap-1">
+					<div class="flex flex-col gap-1.5">
 						{#each servers as server, idx}
 							<Connection
 								bind:connection={server}
@@ -145,27 +145,20 @@
 					</div>
 
 					{#if (servers ?? []).length === 0}
-						<div class="text-[0.6875rem] leading-relaxed text-gray-400 dark:text-gray-600">
+						<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
 							{$i18n.t('No tool server connections configured.')}
 						</div>
 					{/if}
-
-					<a
-						class="mt-2 inline-block text-[0.6875rem] text-gray-500 underline decoration-gray-300 underline-offset-4 hover:text-gray-700 dark:text-gray-500 dark:decoration-gray-700 dark:hover:text-gray-300"
-						href="https://github.com/open-webui/openapi-servers"
-						target="_blank"
-						rel="noopener noreferrer">{$i18n.t('Learn more about OpenAPI tool servers.')} ↗</a
-					>
 				</div>
-			</section>
+			</UserSettingSection>
 
-			<section class="mt-6" aria-labelledby="terminal-connections-heading">
+			<UserSettingSection className="mt-6">
 				<Terminals bind:servers={terminalServerConfigs} onChange={() => updateHandler()} />
-			</section>
+			</UserSettingSection>
 
 			<div class="mt-6">
 				<div
-					class="space-y-3 border-t border-gray-100/50 pt-4 text-[0.6875rem] leading-relaxed text-gray-400 dark:border-white/[0.04] dark:text-gray-600"
+					class="space-y-2 border-t border-gray-200/70 pt-4 text-[0.6875rem] leading-relaxed text-gray-500 dark:border-white/[0.06] dark:text-gray-400"
 				>
 					<p>
 						{$i18n.t(

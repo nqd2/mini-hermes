@@ -95,14 +95,78 @@ def _resolve_tool_target(name: str, params: dict, tool: dict) -> tuple[dict, dic
     return params, tool, tool_type, direct_tool, False
 
 
+_MUTATING_MCP_TOKENS = frozenset(
+    {
+        'delete',
+        'trash',
+        'remove',
+        'purge',
+        'share',
+        'unshare',
+        'permission',
+        'permissions',
+        'update',
+        'write',
+        'edit',
+        'patch',
+        'append',
+        'insert',
+        'replace',
+        'move',
+        'rename',
+        'send',
+        'reply',
+        'forward',
+        'modify',
+        'set',
+        'clear',
+        'revoke',
+    }
+)
+_READ_OR_CREATE_SAFE_TOKENS = frozenset({'get', 'list', 'search', 'find', 'read', 'export', 'fetch', 'download', 'inspect', 'describe', 'view', 'check', 'create'})
+
+
+def requires_mcp_tool_confirmation(name: str, tool: dict | None) -> bool:
+    """Require explicit user confirmation for mutating, deleting, or sharing MCP tools."""
+    if not isinstance(tool, dict) or tool.get('type') != 'mcp':
+        return False
+    if tool.get('confirm_mutating_tools') is False:
+        return False
+
+    annotations = tool.get('annotations') or {}
+    if isinstance(annotations, dict):
+        if annotations.get('destructiveHint') is True:
+            return True
+        if annotations.get('readOnlyHint') is True:
+            return False
+
+    raw_name = str(tool.get('mcp_tool_name') or name or '')
+    snake = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', raw_name).lower()
+    tokens = [tok for tok in re.split(r'[^a-z0-9]+', snake) if tok]
+    if any(tok in _MUTATING_MCP_TOKENS for tok in tokens):
+        return True
+    if isinstance(annotations, dict) and annotations.get('readOnlyHint') is False:
+        return not any(tok in _READ_OR_CREATE_SAFE_TOKENS for tok in tokens)
+    return False
+
+
 async def _approval_denied(
-    name: str, tool_call: dict, params: dict, metadata: dict, tool_type: str, event_caller
+    name: str,
+    tool_call: dict,
+    params: dict,
+    metadata: dict,
+    tool_type: str,
+    event_caller,
+    tool: dict | None = None,
 ) -> bool:
-    if (
-        is_saved_chat_id(metadata.get('chat_id'))
-        or metadata.get('params', {}).get('tool_approval_mode') != 'ask'
-        or (name == 'ask_user' and tool_type == 'builtin')
-    ):
+    if tool_call.get('approved') is True:
+        return False
+
+    mcp_confirmation_required = requires_mcp_tool_confirmation(name, tool)
+    ask_mode = metadata.get('params', {}).get('tool_approval_mode') == 'ask'
+    saved_chat = is_saved_chat_id(metadata.get('chat_id'))
+
+    if not mcp_confirmation_required and (saved_chat or not ask_mode or (name == 'ask_user' and tool_type == 'builtin')):
         return False
     if not event_caller:
         tool_call['_agent_approval_decision'] = 'rejected'
@@ -199,7 +263,9 @@ async def execute_tool_call(form_data, metadata, event_caller, tool_call):
     durable_runtime = None
     durable_turn_id = metadata.get('agent_turn_id')
     durable_call_id = tool_call.get('call_id') or tool_call.get('id')
-    approval_denied = await _approval_denied(name, tool_call, params, metadata, tool_type, event_caller)
+    approval_denied = await _approval_denied(
+        name, tool_call, params, metadata, tool_type, event_caller, tool=tool
+    )
     durable_retry_safe = False
     if durable_turn_id and durable_call_id:
         from weai.agent_runtime.runtime import AgentRuntime

@@ -22,10 +22,10 @@ from weai.models.access_grants import AccessGrants
 from weai.models.chats import Chats
 from weai.utils.auth import get_verified_user
 
-from .drive import Gateway, NATIVE_TO_OFFICE
+from .drive import DriveError, Gateway, NATIVE_TO_OFFICE
 from .edits import normalize_operations
 from .models import ChatResource, Document, Folder, Preview, ResourceTask, Revision, SyncJob, now
-from .oauth import access_token_for, authorization_url, exchange_code, save_refresh_token
+from .oauth import access_token_for, authorization_url, drive_scopes, exchange_code, has_drive_credential, save_refresh_token
 from .service import (
     MAX_BYTES,
     create_document,
@@ -110,9 +110,12 @@ def _user_id(user) -> str:
     return user.id
 
 
-def _file_id(url: str) -> str:
+def _file_id(url_or_id: str) -> str:
+    candidate = (url_or_id or '').strip()
+    if re.fullmatch(r'[A-Za-z0-9_-]{10,}', candidate):
+        return candidate
     pattern = r'https://(?:docs|drive)\.google\.com/(?:document/d/|spreadsheets/d/|presentation/d/|file/d/|open\?id=)([A-Za-z0-9_-]+)'
-    match = re.match(pattern, url)
+    match = re.match(pattern, candidate)
     if not match:
         raise HTTPException(400, 'Use a Google Docs, Sheets, Slides or Drive file link')
     return match.group(1)
@@ -348,10 +351,16 @@ async def upload_document(file: UploadFile = File(...), user=Depends(get_verifie
 
 @router.post('/documents/import-drive')
 async def import_drive(request: LinkRequest, user=Depends(get_verified_user), db=Depends(get_async_session)):
-    token = await access_token_for(db, user.id)
+    try:
+        token = await access_token_for(db, user.id)
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc)) from exc
     gateway = Gateway()
     file_id = _file_id(request.url)
-    metadata = await gateway.call('metadata', access_token=token, file_id=file_id)
+    try:
+        metadata = await gateway.call('metadata', access_token=token, file_id=file_id)
+    except DriveError as exc:
+        raise HTTPException(502, str(exc)) from exc
     if not metadata.get('capabilities', {}).get('canEdit'):
         raise HTTPException(403, 'Drive file is not editable by this user')
     if int(metadata.get('size') or 0) > MAX_BYTES:
@@ -362,11 +371,14 @@ async def import_drive(request: LinkRequest, user=Depends(get_verified_user), db
         filename = metadata['name'] + extension
     else:
         filename = metadata['name']
-    content = base64.b64decode((await gateway.call('download', access_token=token, file_id=file_id,
-                                                  mime_type=mime_type, max_bytes=MAX_BYTES))['content_b64'])
+    try:
+        content = base64.b64decode((await gateway.call('download', access_token=token, file_id=file_id,
+                                                      mime_type=mime_type, max_bytes=MAX_BYTES))['content_b64'])
+    except DriveError as exc:
+        raise HTTPException(502, str(exc)) from exc
     doc = await create_document(db, ObjectStore(), user.id, filename, content,
                                 drive_file_id=file_id, drive_mime_type=mime_type,
-                                drive_version=str(metadata['version']))
+                                drive_version=str(metadata.get('version') or '1'))
     return _document_json(doc)
 
 
@@ -739,16 +751,56 @@ def _resolve_frontend_origin(request: Request) -> str | None:
     return None
 
 
+def _resolve_frontend_return_path(request: Request) -> str | None:
+    allowed = _allowed_frontend_origins()
+    raw = (request.headers.get('referer') or '').strip()
+    if not raw:
+        return None
+    parsed = urlparse(raw)
+    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+        return None
+    origin = f'{parsed.scheme}://{parsed.netloc}'
+    if origin not in allowed:
+        return None
+    path = parsed.path or '/'
+    if not path.startswith('/') or path.startswith('//') or '\\' in path:
+        return None
+    return path
+
+
 def _drive_callback_redirect_url(signed: dict) -> str:
     from weai.env import FRONTEND_BUILD_DIR
 
     allowed = _allowed_frontend_origins()
+    raw_path = signed.get('redirect_path')
+    suffix = '/'
+    if isinstance(raw_path, str) and raw_path.startswith('/') and not raw_path.startswith('//') and '\\' not in raw_path:
+        suffix = f'{raw_path}?drive=connected' if raw_path != '/' else '/?drive=connected'
     origin = signed.get('redirect_origin')
     if isinstance(origin, str) and origin in allowed:
-        return f'{origin}/'
+        return f'{origin}{suffix}'
     if not FRONTEND_BUILD_DIR.exists() and allowed:
-        return f'{allowed[0]}/'
-    return '/'
+        return f'{allowed[0]}{suffix}'
+    return suffix
+
+
+@router.get('/drive/status')
+async def drive_status(user=Depends(get_verified_user), db=Depends(get_async_session)):
+    return {
+        'connected': await has_drive_credential(db, user.id),
+        'scopes': drive_scopes().split(),
+    }
+
+
+@router.get('/drive/picker-token')
+async def drive_picker_token(user=Depends(get_verified_user), db=Depends(get_async_session)):
+    if not await has_drive_credential(db, user.id):
+        return {'connected': False, 'access_token': None}
+    try:
+        token = await access_token_for(db, user.id)
+    except Exception:
+        return {'connected': False, 'access_token': None}
+    return {'connected': True, 'access_token': token}
 
 
 @router.get('/drive/connect')
@@ -758,6 +810,9 @@ async def connect_drive(request: Request, user=Depends(get_verified_user)):
     redirect_origin = _resolve_frontend_origin(request)
     if redirect_origin:
         payload['redirect_origin'] = redirect_origin
+    redirect_path = _resolve_frontend_return_path(request)
+    if redirect_path:
+        payload['redirect_path'] = redirect_path
     state = _signer().dumps(payload)
     from fastapi.responses import JSONResponse
 

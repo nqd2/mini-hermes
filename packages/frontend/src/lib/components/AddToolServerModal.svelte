@@ -18,6 +18,7 @@
 	import Tags from './common/Tags.svelte';
 	import { getToolServerData } from '$lib/apis';
 	import { slugify } from '$lib/utils';
+	import { WEAI_BASE_URL } from '$lib/constants';
 	import {
 		verifyToolServerConnection,
 		registerOAuthClient,
@@ -856,6 +857,11 @@
 														autocomplete="off"
 													/>
 												</div>
+												{#if type === 'mcp' && id}
+													<div class="text-[11px] text-gray-500 break-all">
+														{$i18n.t('Redirect URI')}: {`${WEAI_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/oauth/clients/mcp:${id}/callback`}
+													</div>
+												{/if}
 											</div>
 										{/if}
 									</div>

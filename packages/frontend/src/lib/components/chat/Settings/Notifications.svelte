@@ -1,5 +1,6 @@
 <script lang="ts">
 	import UserSettingRow from './UserSettingRow.svelte';
+	import UserSettingSection from './UserSettingSection.svelte';
 	import { canUseNotificationTargets } from '$lib/utils/settings-access';
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
@@ -197,11 +198,12 @@
 			{$i18n.t('settings.personal.notifications.title')}
 		</h2>
 
-		<div class="flex flex-col gap-2.5">
-			<UserSettingRow let:labelId>
-				<span slot="label">
-					{$i18n.t('settings.personal.notifications.browserNotifications.label')}
-				</span>
+		<UserSettingSection first>
+			<UserSettingRow
+				let:labelId
+				label={$i18n.t('settings.personal.notifications.browserNotifications.label')}
+				description={$i18n.t('Allow browser notifications for completed responses.')}
+			>
 				<Switch
 					ariaLabelledbyId={labelId}
 					bind:state={notificationEnabled}
@@ -209,14 +211,8 @@
 					on:change={toggleNotifications}
 				/>
 			</UserSettingRow>
-			<p class="-mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
-				{$i18n.t('Allow browser notifications for completed responses.')}
-			</p>
 
-			<UserSettingRow let:labelId>
-				<span slot="label">
-					{$i18n.t('settings.personal.notifications.notificationSound.label')}
-				</span>
+			<UserSettingRow let:labelId label={$i18n.t('settings.personal.notifications.notificationSound.label')}>
 				<Switch
 					ariaLabelledbyId={labelId}
 					bind:state={notificationSound}
@@ -228,27 +224,28 @@
 			</UserSettingRow>
 
 			{#if canUseWebhooks}
-				<div class="mt-3 flex items-center justify-between">
+				<div class="mt-3 flex items-center justify-between gap-2">
 					<span class="text-xs font-medium text-gray-700 dark:text-gray-300">
 						{$i18n.t('settings.personal.notifications.notificationTargets.label')}
 					</span>
 					<button
-						class="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 transition-colors duration-75 hover:text-gray-700 dark:text-gray-600 dark:hover:text-gray-300"
+						class="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white"
 						type="button"
 						on:click={openNewTarget}
 						title={$i18n.t('settings.personal.notifications.addNotificationTarget.label')}
 						aria-label={$i18n.t('settings.personal.notifications.addNotificationTarget.label')}
 					>
 						<Plus className="size-3.5" strokeWidth="2" />
+						<span>{$i18n.t('Add')}</span>
 					</button>
 				</div>
 
 				{#if loadingTargets}
-					<p class="text-[0.6875rem] text-gray-400 dark:text-gray-600">{$i18n.t('Loading...')}</p>
+					<p class="text-[0.6875rem] text-gray-500 dark:text-gray-400">{$i18n.t('Loading...')}</p>
 				{:else if !targets.length}
-					<p class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+					<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
 						{$i18n.t('No notification targets configured.')}
-					</p>
+					</div>
 				{:else}
 					<div class="flex flex-col">
 						{#each targets as target, index}
@@ -280,7 +277,7 @@
 										{target.config?.url_masked}
 									</div>
 									<div
-										class="truncate text-[0.625rem] leading-tight text-gray-400 dark:text-gray-600"
+										class="truncate text-[0.6875rem] leading-tight text-gray-500 dark:text-gray-400"
 									>
 										{alertLabels || $i18n.t('No chat alerts')}
 										{#if target.events.length}
@@ -291,9 +288,9 @@
 									</div>
 								</div>
 
-								<div class="flex shrink-0 items-center gap-2">
+								<div class="flex shrink-0 items-center gap-1.5">
 									<button
-										class="text-[0.625rem] text-gray-400 transition-colors duration-100 hover:text-gray-600 dark:hover:text-gray-300"
+										class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-300 dark:hover:bg-white/[0.08] dark:hover:text-white"
 										type="button"
 										on:click={() => sendTest(target)}
 									>
@@ -301,7 +298,7 @@
 									</button>
 									{#if !target.is_default}
 										<button
-											class="text-[0.625rem] text-gray-400 transition-colors duration-100 hover:text-gray-600 dark:hover:text-gray-300"
+											class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-300 dark:hover:bg-white/[0.08] dark:hover:text-white"
 											type="button"
 											on:click={async () => {
 												await setDefaultNotificationTarget(localStorage.token, target.id);
@@ -312,14 +309,14 @@
 										</button>
 									{/if}
 									<button
-										class="text-[0.625rem] text-gray-400 transition-colors duration-100 hover:text-gray-600 dark:hover:text-gray-300"
+										class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-300 dark:hover:bg-white/[0.08] dark:hover:text-white"
 										type="button"
 										on:click={() => openEditTarget(target)}
 									>
 										{$i18n.t('Edit')}
 									</button>
 									<button
-										class="text-[0.625rem] text-gray-400 transition-colors duration-100 hover:text-gray-600 dark:hover:text-gray-300"
+										class="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
 										type="button"
 										on:click={async () => {
 											await deleteNotificationTarget(localStorage.token, target.id);
@@ -346,7 +343,7 @@
 					</div>
 				{/if}
 			{/if}
-		</div>
+		</UserSettingSection>
 	</div>
 </div>
 

@@ -22,7 +22,7 @@ from weai.utils.chat_runtime.messages import (
 )
 from weai.utils.chat_runtime.resource_execution import ResourceAnswerGate, prepare_resource_tool_result
 from weai.utils.chat_runtime.stream_state import output_id
-from weai.utils.chat_runtime.tool_execution import execute_tool_call
+from weai.utils.chat_runtime.tool_execution import execute_tool_call, requires_mcp_tool_confirmation
 from weai.utils.chat_runtime.tool_results import (
     _is_tool_result_error,
     build_terminal_file_tool_result,
@@ -107,12 +107,19 @@ async def _claim_next_tool_call(chat_id: str, message_id: str, metadata: dict) -
         if any(entry.get('status') == 'in_progress' for entry in pending):
             return ToolCallClaim(waiting=True)
 
+        tools = metadata.get('tools') or {}
         item = next(
             (
                 entry
                 for entry in pending
                 if entry.get('name') != 'ask_user'
-                and (entry.get('approved') is True or metadata.get('params', {}).get('tool_approval_mode') == 'full')
+                and (
+                    entry.get('approved') is True
+                    or (
+                        metadata.get('params', {}).get('tool_approval_mode') == 'full'
+                        and not requires_mcp_tool_confirmation(entry.get('name', ''), tools.get(entry.get('name', '')))
+                    )
+                )
             ),
             None,
         )

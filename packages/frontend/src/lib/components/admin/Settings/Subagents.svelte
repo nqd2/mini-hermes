@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AdminSettingRow from './AdminSettingRow.svelte';
+	import AdminSettingSection from './AdminSettingSection.svelte';
 	import { getContext, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -69,22 +70,20 @@
 		{#if loading}
 			<div class="flex justify-center py-8"><Spinner variant="brand" /></div>
 		{:else}
-			<div class="flex flex-col gap-2.5">
-				<AdminSettingRow let:labelId>
-					<span slot="label">
-						{$i18n.t('settings.admin.subagents.enableSubAgents.label')}
-					</span>
-					<Switch ariaLabelledbyId={labelId} bind:state={enabled} />
-				</AdminSettingRow>
-				<p class="-mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
-					{$i18n.t(
+			<AdminSettingSection first>
+				<AdminSettingRow
+					let:labelId
+					label={$i18n.t('settings.admin.subagents.enableSubAgents.label')}
+					description={$i18n.t(
 						'Allow the AI to delegate tasks to sub-agents. Each sub-agent creates a real chat with full tool access. Uses additional LLM calls.'
 					)}
-				</p>
+				>
+					<Switch ariaLabelledbyId={labelId} bind:state={enabled} />
+				</AdminSettingRow>
 
 				{#if enabled}
 					<div>
-						<label class="text-xs text-gray-600 dark:text-gray-400" for="sa-concurrent">
+						<label class="text-xs text-gray-600 dark:text-gray-300" for="sa-concurrent">
 							{$i18n.t('settings.admin.subagents.maxConcurrent.label')}
 						</label>
 						<div class="mt-1 flex items-center gap-1.5">
@@ -95,35 +94,31 @@
 								min="1"
 								step="1"
 								aria-describedby="sa-concurrent-help"
-								class="h-7 w-16 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:focus:border-blue-500"
+								class="h-7 w-16 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500"
 							/>
-							<span class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+							<span class="text-[0.6875rem] text-gray-500 dark:text-gray-400">
 								{$i18n.t('simultaneous sub-agents')}
 							</span>
 						</div>
 						<p
 							id="sa-concurrent-help"
-							class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600"
+							class="mt-1 text-[0.6875rem] text-gray-500 dark:text-gray-400"
 						>
 							{$i18n.t('Leave empty for unlimited')}
 						</p>
 					</div>
 
-					<div>
-						<AdminSettingRow let:labelId>
-							<span slot="label">
-								{$i18n.t('settings.admin.subagents.enableBackgroundSubAgents.label')}
-							</span>
-							<Switch ariaLabelledbyId={labelId} bind:state={backgroundEnabled} />
-						</AdminSettingRow>
-						<p class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
-							{$i18n.t('settings.admin.subagents.enableBackgroundSubAgents.description')}
-						</p>
-					</div>
+					<AdminSettingRow
+						let:labelId
+						label={$i18n.t('settings.admin.subagents.enableBackgroundSubAgents.label')}
+						description={$i18n.t('settings.admin.subagents.enableBackgroundSubAgents.description')}
+					>
+						<Switch ariaLabelledbyId={labelId} bind:state={backgroundEnabled} />
+					</AdminSettingRow>
 
 					{#if backgroundEnabled}
 						<div>
-							<label class="text-xs text-gray-600 dark:text-gray-400" for="sa-async">
+							<label class="text-xs text-gray-600 dark:text-gray-300" for="sa-async">
 								{$i18n.t('settings.admin.subagents.maxBackground.label')}
 							</label>
 							<div class="mt-1 flex items-center gap-1.5">
@@ -134,20 +129,20 @@
 									min="1"
 									step="1"
 									aria-describedby="sa-async-help"
-									class="h-7 w-16 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:focus:border-blue-500"
+									class="h-7 w-16 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500"
 								/>
-								<span class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+								<span class="text-[0.6875rem] text-gray-500 dark:text-gray-400">
 									{$i18n.t('background sub-agents')}
 								</span>
 							</div>
-							<p id="sa-async-help" class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+							<p id="sa-async-help" class="mt-1 text-[0.6875rem] text-gray-500 dark:text-gray-400">
 								{$i18n.t('Leave empty for unlimited')}
 							</p>
 						</div>
 					{/if}
 
 					<div>
-						<label class="text-xs text-gray-600 dark:text-gray-400" for="sa-iterations">
+						<label class="text-xs text-gray-600 dark:text-gray-300" for="sa-iterations">
 							{$i18n.t('settings.admin.subagents.maxIterations.label')}
 						</label>
 						<div class="mt-1 flex items-center gap-1.5">
@@ -158,22 +153,22 @@
 								min="1"
 								step="1"
 								aria-describedby="sa-iterations-help"
-								class="h-7 w-16 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:focus:border-blue-500"
+								class="h-7 w-16 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500"
 							/>
-							<span class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+							<span class="text-[0.6875rem] text-gray-500 dark:text-gray-400">
 								{$i18n.t('tool loops per sub-agent')}
 							</span>
 						</div>
 						<p
 							id="sa-iterations-help"
-							class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600"
+							class="mt-1 text-[0.6875rem] text-gray-500 dark:text-gray-400"
 						>
 							{$i18n.t('Leave empty for unlimited')}
 						</p>
 					</div>
 
 					<div>
-						<label class="text-xs text-gray-600 dark:text-gray-400" for="sa-output">
+						<label class="text-xs text-gray-600 dark:text-gray-300" for="sa-output">
 							{$i18n.t('settings.admin.subagents.maxOutput.label')}
 						</label>
 						<div class="mt-1 flex items-center gap-1.5">
@@ -184,17 +179,17 @@
 								min="1"
 								step="1"
 								aria-describedby="sa-output-help"
-								class="h-7 w-20 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:focus:border-blue-500"
+								class="h-7 w-20 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500"
 							/>
-							<span class="text-[0.6875rem] text-gray-400 dark:text-gray-600">chars</span>
+							<span class="text-[0.6875rem] text-gray-500 dark:text-gray-400">chars</span>
 						</div>
-						<p id="sa-output-help" class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+						<p id="sa-output-help" class="mt-1 text-[0.6875rem] text-gray-500 dark:text-gray-400">
 							{$i18n.t('Leave empty for unlimited')}
 						</p>
 					</div>
 
 					<div>
-						<label class="text-xs text-gray-600 dark:text-gray-400" for="sa-prompt">
+						<label class="text-xs text-gray-600 dark:text-gray-300" for="sa-prompt">
 							{$i18n.t('settings.admin.subagents.systemPrompt.label')}
 						</label>
 						<textarea
@@ -202,14 +197,14 @@
 							bind:value={systemPrompt}
 							rows="4"
 							placeholder={$i18n.t('You are a sub-agent...')}
-							class="mt-1 w-full resize-y rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 py-1.5 font-mono text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:focus:border-blue-500"
+							class="mt-1 w-full resize-y rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 py-1.5 font-mono text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500"
 						></textarea>
-						<p class="mt-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+						<p class="mt-1 text-[0.6875rem] text-gray-500 dark:text-gray-400">
 							{$i18n.t('settings.admin.subagents.systemPrompt.description')}
 						</p>
 					</div>
 				{/if}
-			</div>
+			</AdminSettingSection>
 		{/if}
 	</div>
 

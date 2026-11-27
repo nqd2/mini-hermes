@@ -12,7 +12,7 @@
 	const i18n: any = getContext('i18n');
 
 	const actionButtonClass =
-		'text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-500 dark:hover:text-white';
+		'inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white';
 
 </script>
 
@@ -27,58 +27,49 @@
 			first
 		>
 			<UserSettingRow description={$i18n.t('settings.personal.about.seeWhatSNew.description')}>
-				<div slot="label" class="flex flex-col text-xs text-gray-600 dark:text-gray-400">
-					<div
-						class="flex flex-wrap {($settings?.highContrastMode ?? false)
-							? 'items-center'
-							: ''} gap-1"
-					>
-						<BuildVersion />
-
-					</div>
-
-					<button
-						class="self-start {($settings?.highContrastMode ?? false)
-							? 'inline-flex min-h-6 items-center'
-							: ''} {actionButtonClass}"
-						on:click={() => {
-							showChangelog.set(true);
-						}}
-					>
-						<div>{$i18n.t('settings.personal.about.seeWhatSNew.label')}</div>
-					</button>
+				<div slot="label" class="flex flex-wrap items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+					<BuildVersion />
 				</div>
 
+				<button
+					type="button"
+					class={actionButtonClass}
+					on:click={() => {
+						showChangelog.set(true);
+					}}
+				>
+					{$i18n.t('settings.personal.about.seeWhatSNew.label')}
+				</button>
 			</UserSettingRow>
 		</UserSettingSection>
 
-		<UserSettingSection title={$i18n.t('settings.personal.about.sections.community.title')}>
-			<div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-600">
+		<UserSettingSection title={$i18n.t('Credits')}>
+			<div class="space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+				<div>
+					{$i18n.t('Built on open-source software including')}
 					<a
-						class="hover:text-gray-700 dark:hover:text-gray-400"
-						href="https://discord.gg/5rJgQTnV4s"
-						target="_blank">Discord</a
-					>
-					<a
-						class="hover:text-gray-700 dark:hover:text-gray-400"
-						href="https://twitter.com/OpenWebUI"
-						target="_blank">X</a
-					>
-					<a
-						class="hover:text-gray-700 dark:hover:text-gray-400"
+						class="underline decoration-gray-300 underline-offset-4 hover:text-gray-900 dark:decoration-gray-600 dark:hover:text-white"
 						href="https://github.com/open-webui/open-webui"
-						target="_blank">Open WebUI · GitHub</a
-					>
+						target="_blank"
+						rel="noopener noreferrer">Open WebUI</a
+					>.
+				</div>
+				<div>
+					{$i18n.t('Emoji graphics provided by')}
+					<a
+						class="underline decoration-gray-300 underline-offset-4 hover:text-gray-900 dark:decoration-gray-600 dark:hover:text-white"
+						href="https://github.com/jdecked/twemoji"
+						target="_blank"
+						rel="noopener noreferrer">Twemoji</a
+					>, {$i18n.t('licensed under')}
+					<a
+						class="underline decoration-gray-300 underline-offset-4 hover:text-gray-900 dark:decoration-gray-600 dark:hover:text-white"
+						href="https://creativecommons.org/licenses/by/4.0/"
+						target="_blank"
+						rel="noopener noreferrer">CC-BY 4.0</a
+					>.
+				</div>
 			</div>
-
-			<div class="text-xs text-gray-400 dark:text-gray-500">
-				{$i18n.t('Emoji graphics provided by')}
-				<a href="https://github.com/jdecked/twemoji" target="_blank">Twemoji</a>, {$i18n.t(
-					'licensed under'
-				)}
-				<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC-BY 4.0</a>.
-			</div>
-
 		</UserSettingSection>
 	</div>
 </div>

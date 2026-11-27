@@ -59,23 +59,22 @@
 <div>
 	<div class="flex justify-between items-start gap-3 mb-3">
 		<div class="min-w-0">
-			<h3 id="terminal-connections-heading" class="text-xs text-gray-600 dark:text-gray-400">
+			<h3 id="terminal-connections-heading" class="text-xs font-medium text-gray-700 dark:text-gray-300">
 				{$i18n.t('settings.personal.tools.terminals.sections.openTerminal.title')}
 			</h3>
-			<p class="mt-1 text-[0.6875rem] leading-relaxed text-gray-400 dark:text-gray-600">
+			<p class="mt-1 text-[0.6875rem] leading-relaxed text-gray-500 dark:text-gray-400">
 				{$i18n.t('settings.personal.tools.terminals.addConnection.description')}
 			</p>
 		</div>
-		<Tooltip content={$i18n.t('settings.personal.tools.terminals.addConnection.label')}>
-			<button
-				class="flex size-7 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-white"
-				on:click={() => (showAddModal = true)}
-				type="button"
-				aria-label={$i18n.t('settings.personal.tools.terminals.addConnection.label')}
-			>
-				<Plus />
-			</button>
-		</Tooltip>
+		<button
+			class="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white"
+			on:click={() => (showAddModal = true)}
+			type="button"
+			aria-label={$i18n.t('settings.personal.tools.terminals.addConnection.label')}
+		>
+			<Plus className="size-3.5" />
+			<span>{$i18n.t('Add')}</span>
+		</button>
 	</div>
 
 	<div class="flex flex-col gap-1.5">
@@ -91,14 +90,8 @@
 	</div>
 
 	{#if servers.length === 0}
-		<div class="text-[0.6875rem] leading-relaxed text-gray-400 dark:text-gray-600">
+		<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
 			{$i18n.t('No terminal connections configured.')}
 		</div>
 	{/if}
-	<a
-		class="mt-2 inline-block text-[0.6875rem] text-gray-500 underline decoration-gray-300 underline-offset-4 hover:text-gray-700 dark:text-gray-500 dark:decoration-gray-700 dark:hover:text-gray-300"
-		href="https://github.com/open-webui/open-terminal"
-		target="_blank"
-		rel="noopener noreferrer">{$i18n.t('Learn more about Open Terminal')} ↗</a
-	>
 </div>

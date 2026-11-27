@@ -79,7 +79,7 @@
   const inputClass =
     "w-full h-7 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 text-xs text-gray-700 outline-hidden transition-colors placeholder:text-gray-300 focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:placeholder:text-gray-700 dark:focus:border-blue-500";
   const actionButtonClass =
-    "shrink-0 text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-500 dark:hover:text-white";
+    "inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white";
   const textareaClass =
     "w-full rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 py-1.5 text-xs text-gray-700 outline-hidden transition-colors placeholder:text-gray-300 focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:placeholder:text-gray-700 dark:focus:border-blue-500";
 
@@ -2064,69 +2064,108 @@
             ariaLabelledbyId={labelId}
           />
         </AdminSettingRow>
+
+        {#if RAGConfig.ENABLE_GOOGLE_DRIVE_INTEGRATION}
+          <div
+            class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200/70 bg-gray-50/60 px-3 py-2 text-[11px] dark:border-white/[0.06] dark:bg-white/[0.02]"
+          >
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium {$config?.google_drive?.client_id
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
+            >
+              <span
+                class="size-1.5 rounded-full {$config?.google_drive?.client_id
+                  ? 'bg-emerald-500'
+                  : 'bg-amber-500'}"
+              ></span>
+              {$config?.google_drive?.client_id
+                ? $i18n.t("OAuth Client ID configured")
+                : $i18n.t("OAuth Client ID missing")}
+            </span>
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium {$config?.google_drive?.api_key
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
+            >
+              <span
+                class="size-1.5 rounded-full {$config?.google_drive?.api_key
+                  ? 'bg-emerald-500'
+                  : 'bg-amber-500'}"
+              ></span>
+              {$config?.google_drive?.api_key
+                ? $i18n.t("Picker API key configured")
+                : $i18n.t("Picker API key missing")}
+            </span>
+          </div>
+        {/if}
       </AdminSettingSection>
 
       <AdminSettingSection
         title={$i18n.t("settings.admin.documents.sections.dangerZone.title")}
       >
-        <AdminSettingRow
-          let:labelId
-          label={$i18n.t("settings.admin.documents.resetUploadDirectory.label")}
-          description={$i18n.t(
-            "settings.admin.documents.resetUploadDirectory.description",
-          )}
+        <div
+          class="flex flex-col gap-3 rounded-xl border border-rose-200/70 bg-rose-50/30 p-3 dark:border-rose-500/20 dark:bg-rose-500/[0.04]"
         >
-          <button
-            id={`${labelId}-control`}
-            class={actionButtonClass}
-            type="button"
-            on:click={() => {
-              showResetUploadDirConfirm = true;
-            }}
+          <AdminSettingRow
+            let:labelId
+            label={$i18n.t("settings.admin.documents.resetUploadDirectory.label")}
+            description={$i18n.t(
+              "settings.admin.documents.resetUploadDirectory.description",
+            )}
           >
-            {$i18n.t("Reset")}
-          </button>
-        </AdminSettingRow>
-        <AdminSettingRow
-          let:labelId
-          label={$i18n.t(
-            "settings.admin.documents.resetVectorStorageKnowledge.label",
-          )}
-          description={$i18n.t(
-            "settings.admin.documents.resetVectorStorageKnowledge.description",
-          )}
-        >
-          <button
-            id={`${labelId}-control`}
-            class={actionButtonClass}
-            type="button"
-            on:click={() => {
-              showResetConfirm = true;
-            }}
+            <button
+              id={`${labelId}-control`}
+              class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
+              type="button"
+              on:click={() => {
+                showResetUploadDirConfirm = true;
+              }}
+            >
+              {$i18n.t("Reset")}
+            </button>
+          </AdminSettingRow>
+          <AdminSettingRow
+            let:labelId
+            label={$i18n.t(
+              "settings.admin.documents.resetVectorStorageKnowledge.label",
+            )}
+            description={$i18n.t(
+              "settings.admin.documents.resetVectorStorageKnowledge.description",
+            )}
           >
-            {$i18n.t("Reset")}
-          </button>
-        </AdminSettingRow>
-        <AdminSettingRow
-          let:labelId
-          label={$i18n.t(
-            "settings.admin.documents.reindexKnowledgeAndMemoryVectors.label",
-          )}
-          description={$i18n.t(
-            "settings.admin.documents.reindexKnowledgeAndMemoryVectors.description",
-          )}
-        >
-          <button
-            id={`${labelId}-control`}
-            class={actionButtonClass}
-            type="button"
-            on:click={() => {
-              showReindexConfirm = true;
-            }}
+            <button
+              id={`${labelId}-control`}
+              class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
+              type="button"
+              on:click={() => {
+                showResetConfirm = true;
+              }}
+            >
+              {$i18n.t("Reset")}
+            </button>
+          </AdminSettingRow>
+          <AdminSettingRow
+            let:labelId
+            label={$i18n.t(
+              "settings.admin.documents.reindexKnowledgeAndMemoryVectors.label",
+            )}
+            description={$i18n.t(
+              "settings.admin.documents.reindexKnowledgeAndMemoryVectors.description",
+            )}
           >
-            {$i18n.t("settings.admin.documents.reindex.label")}
-          </button>
-        </AdminSettingRow>
+            <button
+              id={`${labelId}-control`}
+              class="shrink-0 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.05] dark:text-gray-200 dark:hover:bg-white/[0.1] dark:hover:text-white"
+              type="button"
+              on:click={() => {
+                showReindexConfirm = true;
+              }}
+            >
+              {$i18n.t("settings.admin.documents.reindex.label")}
+            </button>
+          </AdminSettingRow>
+        </div>
       </AdminSettingSection>
     </div>
 

@@ -122,7 +122,7 @@
 						</div>
 
 						<button
-							class="mt-0.5 text-xs text-gray-400 transition-colors hover:text-gray-700 dark:text-gray-600 dark:hover:text-gray-300"
+							class="mt-1.5 inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white"
 							type="button"
 							on:click={() => {
 								showChangelog.set(true);
@@ -132,45 +132,6 @@
 						</button>
 					</div>
 
-				</div>
-
-				<div class="text-xs">
-					<div class="flex items-start justify-between gap-4">
-						<div class="min-w-0">
-							<div class="text-gray-600 dark:text-gray-400">
-								{$i18n.t('settings.admin.general.help.label')}
-							</div>
-							<div class="mt-0.5 text-gray-400 dark:text-gray-600">
-								{$i18n.t('settings.admin.general.help.description')}
-							</div>
-						</div>
-
-						<a
-							class="shrink-0 text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-500 dark:hover:text-white"
-							href="https://docs.openwebui.com/"
-							target="_blank"
-						>
-							{$i18n.t('Documentation')}
-						</a>
-					</div>
-
-					<div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-gray-400 dark:text-gray-600">
-						<a
-							class="hover:text-gray-700 dark:hover:text-gray-300"
-							href="https://discord.gg/5rJgQTnV4s"
-							target="_blank">Discord</a
-						>
-						<a
-							class="hover:text-gray-700 dark:hover:text-gray-300"
-							href="https://twitter.com/OpenWebUI"
-							target="_blank">X</a
-						>
-						<a
-							class="hover:text-gray-700 dark:hover:text-gray-300"
-							href="https://github.com/open-webui/open-webui"
-							target="_blank">GitHub</a
-						>
-					</div>
 				</div>
 
 			</AdminSettingSection>

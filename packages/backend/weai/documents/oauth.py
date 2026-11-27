@@ -13,12 +13,17 @@ from sqlalchemy import select
 from .models import DriveCredential
 
 
-SCOPES = ' '.join([
-    'https://www.googleapis.com/auth/drive',
-    'https://www.googleapis.com/auth/documents',
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/presentations',
-])
+DEFAULT_SCOPES = 'https://www.googleapis.com/auth/drive.file'
+
+
+def drive_scopes() -> str:
+    raw = os.getenv('AGENT_RUNTIME_GOOGLE_SCOPES', '').strip()
+    if not raw:
+        return DEFAULT_SCOPES
+    return ' '.join(part for part in raw.replace(',', ' ').split() if part)
+
+
+SCOPES = drive_scopes()
 
 
 def _fernet():
@@ -36,7 +41,7 @@ def authorization_url(state: str) -> str:
         raise HTTPException(503, 'Google OAuth is not configured')
     return 'https://accounts.google.com/o/oauth2/v2/auth?' + urlencode({
         'client_id': client_id, 'redirect_uri': redirect_uri, 'response_type': 'code',
-        'scope': SCOPES, 'access_type': 'offline', 'prompt': 'consent', 'state': state,
+        'scope': drive_scopes(), 'access_type': 'offline', 'prompt': 'consent', 'state': state,
     })
 
 
@@ -59,6 +64,11 @@ async def save_refresh_token(db, user_id: str, token: str):
         db.add(credential)
     credential.encrypted_refresh_token = _fernet().encrypt(token.encode())
     await db.commit()
+
+
+async def has_drive_credential(db, user_id: str) -> bool:
+    credential = (await db.execute(select(DriveCredential.user_id).where(DriveCredential.user_id == user_id))).scalar_one_or_none()
+    return credential is not None
 
 
 async def access_token_for(db, user_id: str) -> str:

@@ -32,6 +32,7 @@ from mcp.shared.auth import (
     OAuthMetadata,
 )
 from weai.config import (
+    CORS_ALLOW_ORIGIN,
     DEFAULT_USER_ROLE,
     ENABLE_OAUTH,
     ENABLE_OAUTH_GROUP_CREATION,
@@ -72,6 +73,7 @@ from weai.env import (
     ENABLE_OAUTH_EMAIL_FALLBACK,
     ENABLE_OAUTH_ID_TOKEN_COOKIE,
     ENABLE_TOOL_SERVERS,
+    FRONTEND_BUILD_DIR,
     OAUTH_CLIENT_INFO_ENCRYPTION_KEY,
     OAUTH_MAX_SESSIONS_PER_USER,
     REDIS_KEY_PREFIX,
@@ -246,6 +248,60 @@ async def get_oauth_runtime_config() -> SimpleNamespace:
 # Matches the value recommended by Authlib's compliance_fix documentation.
 DEFAULT_TOKEN_EXPIRY_SECONDS = 3600
 NON_EXPIRING_TOKEN_EXPIRES_AT = 253402300799  # 9999-12-31 23:59:59 UTC
+
+
+def _allowed_frontend_origins() -> list[str]:
+    origins: list[str] = []
+    for candidate in CORS_ALLOW_ORIGIN or []:
+        value = (candidate or '').strip().rstrip('/')
+        if not value or value == '*':
+            continue
+        parsed = urllib.parse.urlparse(value)
+        if parsed.scheme in ('http', 'https') and parsed.netloc:
+            origin = f'{parsed.scheme}://{parsed.netloc}'
+            if origin not in origins:
+                origins.append(origin)
+    return origins
+
+
+def _remember_frontend_origin(request) -> None:
+    allowed = _allowed_frontend_origins()
+    if not allowed:
+        return
+    headers = getattr(request, 'headers', None) or {}
+    session = getattr(request, 'session', None)
+    if not isinstance(session, dict):
+        return
+    for header_name in ('origin', 'referer'):
+        raw = (headers.get(header_name) or '').strip()
+        if not raw:
+            continue
+        parsed = urllib.parse.urlparse(raw)
+        if parsed.scheme in ('http', 'https') and parsed.netloc:
+            origin = f'{parsed.scheme}://{parsed.netloc}'
+            if origin in allowed:
+                session['oauth_frontend_origin'] = origin
+                return
+
+
+def _resolve_frontend_redirect_base(request, weai_url: str | None) -> str:
+    fallback = (str(weai_url or getattr(request, 'base_url', ''))).rstrip('/')
+    allowed = _allowed_frontend_origins()
+    session = getattr(request, 'session', None)
+    if allowed and isinstance(session, dict):
+        remembered = session.pop('oauth_frontend_origin', None)
+        if isinstance(remembered, str) and remembered in allowed:
+            return remembered
+    if FRONTEND_BUILD_DIR.exists():
+        return fallback
+    if not allowed:
+        return fallback
+    base_host = urllib.parse.urlparse(str(getattr(request, 'base_url', '') or '')).hostname
+    if base_host:
+        for origin in allowed:
+            if urllib.parse.urlparse(origin).hostname == base_host:
+                return origin
+    return allowed[0]
 
 
 def _normalize_token_expiry(token: dict) -> dict:
@@ -1259,6 +1315,7 @@ class OAuthClientManager:
             # Keep the URL out of the session cookie; long scope lists push it past the browser size limit
             authorization_url = auth_data.pop('url')
             auth_data['user_id'] = user_id
+            _remember_frontend_origin(request)
             await client.save_authorize_data(request, redirect_uri=redirect_uri_str, **auth_data)
             return RedirectResponse(authorization_url, status_code=302)
         except RuntimeError as e:
@@ -1361,7 +1418,7 @@ class OAuthClientManager:
                 await client.framework.clear_state_data(request.session, state)
 
         weai_url = await Config.get('weai.url')
-        redirect_url = (str(weai_url or request.base_url)).rstrip('/')
+        redirect_url = _resolve_frontend_redirect_base(request, weai_url)
 
         if error_message:
             log.debug(error_message)
@@ -1936,6 +1993,7 @@ class OAuthManager:
         if OAUTH_AUTHORIZE_PARAMS:
             kwargs.update(OAUTH_AUTHORIZE_PARAMS)
 
+        _remember_frontend_origin(request)
         return await client.authorize_redirect(request, redirect_uri, **kwargs)
 
     async def handle_callback(self, request, provider, response, db=None):
@@ -2163,8 +2221,16 @@ class OAuthManager:
                         data={'updated_fields': updated_fields, 'provider': provider},
                     )
             else:
-                # If the user does not exist, check if signups are enabled
-                if auth_config.ENABLE_OAUTH_SIGNUP and not await Users.has_users(db=db):
+                # First user bootstraps as admin; subsequent verified Google users sign up into DEFAULT_USER_ROLE ('pending')
+                has_users = await Users.has_users(db=db)
+                can_bootstrap = auth_config.ENABLE_OAUTH_SIGNUP and not has_users
+                can_google_pending_signup = (
+                    auth_config.ENABLE_OAUTH_SIGNUP
+                    and has_users
+                    and provider == 'google'
+                    and user_data.get('email_verified') is True
+                )
+                if can_bootstrap or can_google_pending_signup:
                     # Check if an existing user with the same email already exists
                     existing_user = await Users.get_user_by_email(email, db=db)
                     if existing_user:
@@ -2186,14 +2252,16 @@ class OAuthManager:
                         log.warning('Username claim is missing, using email as name')
                         name = email
 
+                    signup_role = 'admin' if can_bootstrap else (auth_config.DEFAULT_USER_ROLE or 'pending')
                     user = await Auths.insert_new_auth(
                         email=email,
                         password=await get_password_hash(str(uuid.uuid4())),  # Random password, not used
                         name=name,
                         profile_image_url=picture_url,
+                        role=signup_role,
                         oauth=oauth_data,
                         db=db,
-                        bootstrap_only=True,
+                        bootstrap_only=can_bootstrap,
                     )
 
                     if not user:
@@ -2234,7 +2302,7 @@ class OAuthManager:
             )
 
         weai_url = await Config.get('weai.url')
-        redirect_base_url = (str(weai_url or request.base_url)).rstrip('/')
+        redirect_base_url = _resolve_frontend_redirect_base(request, weai_url)
         redirect_url = f'{redirect_base_url}/auth'
 
         if error_message:

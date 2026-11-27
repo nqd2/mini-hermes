@@ -9,7 +9,7 @@
 	import Tooltip from './Tooltip.svelte';
 
 	const i18n: any = getContext('i18n');
-	$: versionLabel = STATIC_VERSION || $runtimeVersion || '0.1.2';
+	$: versionLabel = STATIC_VERSION || $runtimeVersion || '0.1.3';
 </script>
 
 <Tooltip content={WEAI_BUILD_HASH}>

@@ -68,5 +68,19 @@ def latest_release_version(manifest_path: Path | None = None) -> str:
     return max(manifest.keys(), key=_version_sort_key)
 
 
+def load_releases(max_version: str | None = None, manifest_path: Path | None = None) -> list[ReleaseEntry]:
+    manifest = json.loads((manifest_path or MANIFEST_PATH).read_text(encoding='utf-8'))
+    if not isinstance(manifest, dict):
+        raise ValueError('Invalid WeAI release manifest')
+    max_key = _version_sort_key(max_version) if max_version and max_version != 'dev' else None
+    versions = sorted(manifest.keys(), key=_version_sort_key, reverse=True)
+    entries: list[ReleaseEntry] = []
+    for version in versions:
+        if max_key is not None and _version_sort_key(version) > max_key:
+            continue
+        entries.append(load_release(version, manifest_path))
+    return entries
+
+
 def validate_release_build(version: str, manifest_path: Path = MANIFEST_PATH) -> None:
     load_release(version, manifest_path)

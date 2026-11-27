@@ -577,9 +577,9 @@ async def create_signin_response(
     current = await get_auth(user.id)
     if current.session_stamp != auth.session_stamp or current.password != auth.password:
         raise HTTPException(409, 'Authentication changed. Please sign in again.')
-    config = await get_mfa_config()
-    if config.ENABLE_MFA and user.role not in {'admin', 'user'}:
+    if user.role not in {'admin', 'user'}:
         return {'next_step': 'pending'}
+    config = await get_mfa_config()
     if is_mfa_required(source, config):
         return await start_mfa_login(current, source, oauth_session_id=oauth_session_id, provider=provider)
     return await create_session_response(

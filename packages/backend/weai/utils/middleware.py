@@ -235,6 +235,7 @@ from weai.utils.terminals import (
     get_terminal_agents_md,
     upload_files_to_terminal,
 )
+from weai.utils.chat_runtime.tool_execution import requires_mcp_tool_confirmation
 from weai.utils.tool_approval import complete_tool_call, pause_for_tool_approval, pending_tool_calls
 from weai.utils.tool_search import apply_tool_search, resolve_tool_call
 from weai.utils.tools import (
@@ -2442,9 +2443,18 @@ async def streaming_chat_response_handler(response, ctx):
                                 item['status'] = 'in_progress'
 
                     tool_approval_mode = metadata.get('params', {}).get('tool_approval_mode', 'full')
+                    tools_map = metadata.get('tools', {})
+                    mcp_requires_approval = any(
+                        requires_mcp_tool_confirmation(
+                            call.get('function', {}).get('name', ''),
+                            tools_map.get(call.get('function', {}).get('name', '')),
+                        )
+                        and call.get('approved') is not True
+                        for call in response_tool_calls
+                    )
                     if (
                         response_tool_calls
-                        and tool_approval_mode == 'ask'
+                        and (tool_approval_mode == 'ask' or mcp_requires_approval)
                         and is_saved_chat_id(metadata.get('chat_id'))
                         and metadata.get('message_id')
                     ):

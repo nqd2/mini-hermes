@@ -194,26 +194,25 @@
 					first
 				>
 					<div>
-						<div class="mb-2 flex items-center justify-between">
-							<div class="text-xs text-gray-600 dark:text-gray-400">
+						<div class="mb-2 flex items-center justify-between gap-2">
+							<div class="text-xs font-medium text-gray-700 dark:text-gray-300">
 								{$i18n.t('settings.admin.integrations.externalToolServers.label')}
 							</div>
 
-							<Tooltip content={$i18n.t('settings.admin.integrations.addConnection.label')}>
-								<button
-									aria-label={$i18n.t('settings.admin.integrations.addConnection.label')}
-									class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-white"
-									on:click={() => {
-										showConnectionModal = true;
-									}}
-									type="button"
-								>
-									<Plus />
-								</button>
-							</Tooltip>
+							<button
+								aria-label={$i18n.t('settings.admin.integrations.addConnection.label')}
+								class="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white"
+								on:click={() => {
+									showConnectionModal = true;
+								}}
+								type="button"
+							>
+								<Plus className="size-3.5" />
+								<span>{$i18n.t('Add')}</span>
+							</button>
 						</div>
 
-						<div class="flex flex-col gap-1">
+						<div class="flex flex-col gap-1.5">
 							{#each servers ?? [] as server, idx}
 								<Connection
 									bind:connection={server}
@@ -229,46 +228,45 @@
 						</div>
 
 						{#if (servers ?? []).length === 0}
-							<div class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+							<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
 								{$i18n.t('No tool server connections configured.')}
 							</div>
 						{/if}
 
-						<div class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
-							{$i18n.t('Connect to your own OpenAPI compatible external tool servers.')}
+						<div class="mt-1.5 text-[0.6875rem] text-gray-500 dark:text-gray-400">
+							{$i18n.t('Connect to your own OpenAPI or MCP compatible external tool servers.')}
 						</div>
 					</div>
 				</AdminSettingSection>
 
 				<AdminSettingSection title={$i18n.t('settings.admin.integrations.sections.terminal.title')}>
 					<div>
-						<div class="mb-2 flex items-center justify-between">
-							<div class="text-xs text-gray-600 dark:text-gray-400">
+						<div class="mb-2 flex items-center justify-between gap-2">
+							<div class="text-xs font-medium text-gray-700 dark:text-gray-300">
 								{$i18n.t('settings.admin.integrations.openTerminal.label')}
 							</div>
 
-							<Tooltip content={$i18n.t('settings.admin.integrations.addConnection.label')}>
-								<button
-									aria-label={$i18n.t('settings.admin.integrations.addConnection.label')}
-									class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-white"
-									on:click={() => {
-										editTerminalIdx = null;
-										showAddTerminalModal = true;
-									}}
-									type="button"
-								>
-									<Plus />
-								</button>
-							</Tooltip>
+							<button
+								aria-label={$i18n.t('settings.admin.integrations.addConnection.label')}
+								class="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white"
+								on:click={() => {
+									editTerminalIdx = null;
+									showAddTerminalModal = true;
+								}}
+								type="button"
+							>
+								<Plus className="size-3.5" />
+								<span>{$i18n.t('Add')}</span>
+							</button>
 						</div>
 
 						<div class="flex flex-col gap-1.5">
 							{#each terminalConnections as connection, idx}
-								<div class="group/setting-row flex w-full gap-2 items-center">
+								<div class="group/setting-row flex w-full gap-2 items-center rounded-lg border border-gray-200/70 bg-gray-50/50 px-2.5 py-2 dark:border-white/[0.06] dark:bg-white/[0.02]">
 									<Tooltip className="w-full relative" content={''} placement="top-start">
 										<div class="flex w-full">
 											<div
-												class="flex-1 relative flex gap-1.5 items-center {connection?.enabled ===
+												class="flex-1 relative flex gap-2 items-center {connection?.enabled ===
 												false
 													? 'opacity-50'
 													: ''}"
@@ -276,12 +274,12 @@
 												<Tooltip
 													content={$i18n.t('settings.admin.integrations.sections.terminal.title')}
 												>
-													<Cloud className="size-4" strokeWidth="1.5" />
+													<Cloud className="size-4 text-gray-500 dark:text-gray-400" strokeWidth="1.5" />
 												</Tooltip>
 
 												<label
 													for={`terminal-${idx}-control`}
-													class="outline-hidden w-full bg-transparent text-xs text-gray-600 dark:text-gray-400 transition-colors duration-150 group-hover/setting-row:text-gray-900 group-focus-within/setting-row:text-gray-900 dark:group-hover/setting-row:text-white dark:group-focus-within/setting-row:text-white group-has-[button[id$=-control]:enabled]/setting-row:cursor-pointer group-has-[button[id$=-control]:disabled]/setting-row:cursor-not-allowed"
+													class="outline-hidden w-full bg-transparent text-xs font-medium text-gray-700 dark:text-gray-200 transition-colors duration-150 group-hover/setting-row:text-gray-900 dark:group-hover/setting-row:text-white group-has-[button[id$=-control]:enabled]/setting-row:cursor-pointer group-has-[button[id$=-control]:disabled]/setting-row:cursor-not-allowed"
 												>
 													{connection.name || connection.url || $i18n.t('New Terminal')}
 												</label>
@@ -289,11 +287,11 @@
 										</div>
 									</Tooltip>
 
-									<div class="flex gap-1 items-center">
+									<div class="flex gap-1.5 items-center">
 										<Tooltip content={$i18n.t('Configure')}>
 											<button
 												aria-label={$i18n.t('Configure')}
-												class="self-center p-1 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition"
+												class="flex size-7 items-center justify-center rounded-lg text-gray-500 transition hover:bg-black/5 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.08] dark:hover:text-white"
 												on:click={() => {
 													editTerminalIdx = idx;
 													showAddTerminalModal = true;
@@ -326,21 +324,16 @@
 						</div>
 
 						{#if terminalConnections.length === 0}
-							<div class="text-[0.6875rem] text-gray-400 dark:text-gray-600">
+							<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
 								{$i18n.t('No terminal connections configured.')}
 							</div>
 						{/if}
 
-						<div class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+						<div class="mt-1.5 text-[0.6875rem] text-gray-500 dark:text-gray-400">
 							{$i18n.t(
-								'Connect to Open Terminal instances. Admins and users granted access can use file browsing and terminal tools through these servers.'
+								'Connect to terminal server instances. Admins and users granted access can use file browsing and terminal tools through these servers.'
 							)}
 						</div>
-						<a
-							class="mt-0.5 block text-[0.6875rem] text-gray-500 underline hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
-							href="https://github.com/open-webui/open-terminal"
-							target="_blank">{$i18n.t('Learn more about Open Terminal')} ↗</a
-						>
 					</div>
 				</AdminSettingSection>
 			</fieldset>

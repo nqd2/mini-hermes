@@ -9,6 +9,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
 	import Connection from './Connections/Connection.svelte';
+	import UserSettingSection from './UserSettingSection.svelte';
 
 	import AddConnectionModal from '$lib/components/AddConnectionModal.svelte';
 
@@ -78,29 +79,28 @@
 
 	<div class="flex flex-1 min-h-0 flex-col overflow-y-auto scrollbar-hover pr-1.5">
 		{#if config !== null}
-			<section class="space-y-3" aria-labelledby="direct-connections-heading">
+			<UserSettingSection first>
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
-						<h3 id="direct-connections-heading" class="text-xs text-gray-600 dark:text-gray-400">
+						<h3 id="direct-connections-heading" class="text-xs font-medium text-gray-700 dark:text-gray-300">
 							{$i18n.t('settings.personal.connections.sections.directConnections.title')}
 						</h3>
-						<p class="mt-1 text-[0.6875rem] leading-relaxed text-gray-400 dark:text-gray-600">
+						<p class="mt-1 text-[0.6875rem] leading-relaxed text-gray-500 dark:text-gray-400">
 							{$i18n.t('settings.personal.connections.addConnection.description')}
 						</p>
 					</div>
 
-					<Tooltip content={$i18n.t('settings.personal.connections.addConnection.label')}>
-						<button
-							class="flex size-7 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-white"
-							aria-label={$i18n.t('settings.personal.connections.addConnection.label')}
-							on:click={() => {
-								showConnectionModal = true;
-							}}
-							type="button"
-						>
-							<Plus />
-						</button>
-					</Tooltip>
+					<button
+						class="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white"
+						aria-label={$i18n.t('settings.personal.connections.addConnection.label')}
+						on:click={() => {
+							showConnectionModal = true;
+						}}
+						type="button"
+					>
+						<Plus className="size-3.5" />
+						<span>{$i18n.t('Add')}</span>
+					</button>
 				</div>
 
 				<div class="flex flex-col gap-2">
@@ -130,11 +130,17 @@
 						/>
 					{/each}
 				</div>
-			</section>
+
+				{#if (config?.OPENAI_API_BASE_URLS ?? []).length === 0}
+					<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
+						{$i18n.t('No direct connections configured.')}
+					</div>
+				{/if}
+			</UserSettingSection>
 
 			<div class="mt-6">
 				<div
-					class="space-y-3 border-t border-gray-100/50 pt-4 text-[0.6875rem] leading-relaxed text-gray-400 dark:border-white/[0.04] dark:text-gray-600"
+					class="space-y-2 border-t border-gray-200/70 pt-4 text-[0.6875rem] leading-relaxed text-gray-500 dark:border-white/[0.06] dark:text-gray-400"
 				>
 					<p>
 						{$i18n.t(

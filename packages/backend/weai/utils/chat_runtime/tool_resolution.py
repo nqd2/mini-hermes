@@ -174,13 +174,52 @@ async def _connect_mcp_tool_server(request, form_data, user, extra_params, tool_
             tool_name = f'{server_id}_{tool_spec["name"]}'
             if len(tool_name) > 64:
                 tool_name = f'{tool_name[:55]}_{hashlib.sha256(tool_name.encode()).hexdigest()[:8]}'
+            tool_def = (getattr(client, 'tool_definitions', None) or {}).get(tool_spec['name'], {})
             tools[tool_name] = {
                 'spec': {**tool_spec, 'name': tool_name},
                 'callable': tool_function,
                 'type': 'mcp',
                 'client': client,
                 'direct': False,
+                'mcp_server_id': server_id,
+                'mcp_tool_name': tool_spec['name'],
+                'annotations': tool_def.get('annotations') or {},
             }
+    except HTTPException as exc:
+        event_emitter = extra_params.get('__event_emitter__')
+        if exc.status_code == 401:
+            adapters.logger.warning("MCP server '%s' requires user OAuth authorization", server_id)
+            if event_emitter:
+                await event_emitter(
+                    {
+                        'type': 'status',
+                        'data': {
+                            'action': 'tool_oauth_required',
+                            'server_id': server_id,
+                            'authorization_url': f'/oauth/clients/mcp:{server_id}/authorize',
+                            'description': (
+                                f"MCP server '{server_id}' requires OAuth authorization. "
+                                f"Connect your account via /oauth/clients/mcp:{server_id}/authorize."
+                            ),
+                            'error': True,
+                            'done': True,
+                        },
+                    }
+                )
+            return
+        adapters.logger.exception("Failed to connect to MCP server '%s'", server_id)
+        if event_emitter:
+            await event_emitter(
+                {
+                    'type': 'status',
+                    'data': {
+                        'action': 'tool_connection',
+                        'description': f"Failed to connect to MCP server '{server_id}'",
+                        'error': True,
+                        'done': True,
+                    },
+                }
+            )
     except Exception:
         adapters.logger.exception("Failed to connect to MCP server '%s'", server_id)
         event_emitter = extra_params.get('__event_emitter__')

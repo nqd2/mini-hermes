@@ -2511,6 +2511,8 @@ async def get_app_config(request: Request, response: Response):
         'ui.enable_message_rating',
         'users.enable_status',
         'google_drive.enable',
+        'google_drive.client_id',
+        'google_drive.api_key',
         'memories.enable',
         'ui.default_models',
         'ui.default_pinned_models',
@@ -2626,8 +2628,12 @@ async def get_app_config(request: Request, response: Response):
                 },
                 'permissions': {**(config.get('user.permissions') or {})},
                 'google_drive': {
-                    'client_id': GOOGLE_DRIVE_CLIENT_ID,
-                    'api_key': GOOGLE_DRIVE_API_KEY,
+                    'client_id': (
+                        config.get('google_drive.client_id')
+                        or GOOGLE_DRIVE_CLIENT_ID
+                        or os.getenv('AGENT_RUNTIME_GOOGLE_CLIENT_ID', '')
+                    ),
+                    'api_key': config.get('google_drive.api_key') or GOOGLE_DRIVE_API_KEY,
                 },
                 'ui': {
                     'default_interface_settings': config.get('ui.default_interface_settings'),

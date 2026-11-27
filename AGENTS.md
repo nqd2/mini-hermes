@@ -80,3 +80,15 @@ These instructions apply to the entire repository. Follow the latest user reques
 - Measure the current runtime baseline before registering absolute performance thresholds. Keep those thresholds fixed before any runtime comparison.
 - Evaluate DeerFlow only after the current runtime passes hard gates and the benchmark protocol is locked. Use the same model, tools, documents, prompts, workload, resource limits, scoring, and environment; randomize run order. Start with 50 paired tasks per workload group and three trials per task per runtime. Use paired 95% confidence intervals; review only at 50, 100, and at most 200 paired tasks per group. Inconclusive results at 200 are no-go.
 - DeerFlow can qualify only when all hard and absolute performance gates pass, cost/run regression's 95% CI upper bound is at most 10%, and either task success improves by at least 10 percentage points with the CI lower bound meeting that gain, or p95 latency improves by at least 20% with CI confirmation while task success's CI lower bound is no worse than a 2-point decline. A passing benchmark permits a reviewed canary for new conversations; production cutover still requires explicit approval.
+
+## WeAI release notes
+
+- Follow [the WeAI release notes guide](docs/release-notes-guide.md) whenever adding or editing `packages/backend/weai/releases/releases.json`.
+- Write strictly for **end users**, not developers: describe user-visible capabilities and outcomes in plain everyday language, never internal implementation details (no CORS, WebSocket, OAuth/JWT, modal, schema, env var, or CSS/refactor notes).
+- Keep entries plain-text only (no HTML tags, URLs, or Markdown links; enforced by `release_manifest.py`), keep version strings aligned with `packages/backend/pyproject.toml` and `packages/frontend/package.json`, and validate with `WEAI_RELEASE_VERSION=<ver> python scripts/check_release_manifest.py --production`.
+
+## Frontend UI conventions
+
+- Follow [the WeAI frontend UI guidelines](docs/design/frontend-ui-guidelines.md) for all Svelte pages, settings tabs, and modals in `packages/frontend`.
+- Always use `MaterialFileIcon.svelte` (`packages/frontend/src/lib/components/common/MaterialFileIcon.svelte`) for file type icons — never replace file icons with colored text extension badges (`DOCX`, `XLSX`, `PPTX`, `PDF`).
+- Always pair light and dark border/contrast tokens (`border-gray-200/80 dark:border-white/[0.08]`, `text-gray-500 dark:text-gray-400`), use clear bordered buttons for secondary actions and semantic rose/red styling for destructive actions, and keep user-facing UI free of external Open WebUI links outside minimal `Credits` attribution in Settings → About.

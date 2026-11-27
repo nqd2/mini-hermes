@@ -13,3 +13,11 @@ export async function getRelease(token: string): Promise<Release> {
 	if (!response.ok) throw new Error('Could not load WeAI release notes');
 	return response.json();
 }
+
+export async function getReleases(token: string): Promise<Release[]> {
+	const response = await fetch(`${WEAI_API_BASE_URL}/agent-runtime/releases`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (!response.ok) throw new Error('Could not load WeAI release history');
+	return response.json();
+}

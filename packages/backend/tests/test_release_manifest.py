@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'weai' / 'releases'))
-from release_manifest import latest_release_version, load_release, validate_release_build
+from release_manifest import latest_release_version, load_release, load_releases, validate_release_build
 
 
 def test_dev_has_no_notes():
@@ -50,3 +50,16 @@ def test_latest_release_version_reads_highest_semver(tmp_path):
     entry = {'released_at': '2026-11-18', 'sections': {'Added': ['Notes']}}
     manifest.write_text(json.dumps({'0.1.0': entry, '0.10.0': entry, '0.2.0': entry}))
     assert latest_release_version(manifest) == '0.10.0'
+
+
+def test_release_0_1_3_and_load_releases_order():
+    validate_release_build('0.1.3')
+    entry = load_release('0.1.3')
+    assert entry.released_at == date(2026, 11, 27)
+    assert set(entry.sections) == {'Added', 'Improved'}
+
+    all_releases = load_releases()
+    assert [item.version for item in all_releases][:4] == ['0.1.3', '0.1.2', '0.1.1', '0.1.0']
+
+    capped = load_releases(max_version='0.1.1')
+    assert [item.version for item in capped] == ['0.1.1', '0.1.0']

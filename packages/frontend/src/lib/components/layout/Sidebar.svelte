@@ -262,14 +262,7 @@
 	$: isMenuItemVisible = (id) => {
 		switch (id) {
 			case 'workspace':
-				return (
-					$user?.role === 'admin' ||
-					$user?.permissions?.workspace?.models ||
-					$user?.permissions?.workspace?.knowledge ||
-					$user?.permissions?.workspace?.prompts ||
-					$user?.permissions?.workspace?.tools ||
-					$user?.permissions?.workspace?.skills
-				);
+				return Boolean($user);
 			default:
 				return false;
 		}
@@ -277,7 +270,7 @@
 
 	const getMenuItemMeta = (id) => {
 		const items = {
-			workspace: { label: $i18n.t('Workspace'), href: '/workspace', iconType: 'workspace' },
+			workspace: { label: $i18n.t('Workspace'), href: '/workspace/documents', iconType: 'workspace' },
 		};
 		return items[id];
 	};

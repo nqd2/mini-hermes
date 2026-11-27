@@ -183,9 +183,9 @@
 	const shouldShowSettingGroup = (tabIds: string[], index: number) =>
 		index === 0 || settingGroupTitle(tabIds[index]) !== settingGroupTitle(tabIds[index - 1]);
 	const settingGroupHeadingClass = (first: boolean) =>
-		`hidden md:block shrink-0 text-[0.625rem] text-gray-600 dark:text-gray-500 px-2 ${
-			first ? 'mt-0.5' : 'mt-2'
-		} mb-0.5`;
+		`hidden md:block shrink-0 text-[0.625rem] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 px-2 ${
+			first ? 'mt-0.5' : 'mt-2.5'
+		} mb-1`;
 
 	let allSettings: SettingsTab[];
 	$: allSettings = [

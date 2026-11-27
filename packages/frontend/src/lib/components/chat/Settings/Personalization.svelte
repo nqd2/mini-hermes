@@ -38,7 +38,7 @@
 	let showDeleteConfirm = false;
 	let query = '';
 	const actionButtonClass =
-		'shrink-0 text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-500 dark:hover:text-white';
+		'inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 hover:text-gray-900 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08] dark:hover:text-white';
 
 	type Memory = {
 		id: string;
